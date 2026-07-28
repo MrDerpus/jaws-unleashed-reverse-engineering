@@ -112,18 +112,25 @@ Textures use the `GTEXT` marker. Confirmed header layout:
 | `+0x18` | width (uint32) |
 | `+0x1C` | height (uint32) |
 | `+0x20` | bits-per-pixel (uint32) |
-| `+0x24` | `TGAN0` / `TRUEVISION-XFILE` marker |
-| `+0x54` | pixel payload start |
+| `+0x24` | `TGAN0` marker (5 bytes) + 7 unknown bytes |
+| `+0x30` | standard 18-byte TGA 1.0 header (ID len, cmap fields, x/y origin, width, height, bpp, descriptor — all confirmed to redundantly match the fields already read at `+0x18`/`+0x1C`/`+0x20` above) |
+| `+0x42` | **pixel payload start** (corrected 2026-07-29, was wrongly documented/coded as `+0x54`) |
 
-Payload size formula: `payload_size = block_size - 0x54`
+**Correction (2026-07-29):** pixel data actually starts at `+0x42`, immediately after the 18-byte TGA header — not `+0x54` as previously documented and implemented in `rip_textures.py`. The `+0x54` figure conflated the real 18-byte TGA header with a **trailing** TGA 2.0 footer (`[8 zero offset bytes]["TRUEVISION-XFILE.\0"]`, 26 bytes total, of which 18 land inside the declared `block_size` and the remaining 8 spill into the start of the next block's raw bytes — harmless for parsing since block boundaries are found by string search, but fatal if used to compute the pixel read offset). Reading from `+0x54` skipped the first 18 bytes of real pixel data and read 18 bytes of footer garbage at the end instead — a non-integer-pixel shift that produced a diagonally-sheared/wrapped image. Verified structurally across all 242 real GTEXT blocks in `FISH.GDW` (width/height/bpp fields inside the TGA header at `+0x3C`/`+0x3E`/`+0x40` match the values already read at `+0x18`/`+0x1C`/`+0x20` in 242/242 cases) and visually (a "Sole Predator" promotional title-screen texture that sheared/wrapped under the old offset extracts cleanly at `+0x42`).
 
-Supported pixel formats: `32` (RGBA32) and `24` (RGB24, stored as BGR — swap channels on read). Textures are stored upside-down (origin at bottom-left, as is common in OpenGL/DirectX conventions); `rip_textures.py` applies `FLIP_VERTICAL` by default. Unknown BPP values are dumped as `.raw` files in `textures/<LEVEL>/gtext/`.
+Payload size formula is unchanged: `payload_size = block_size - 0x54` (this already yields the correct total pixel byte count — `block_size` accounts for the 66-byte real header plus payload plus the 18 trailing footer bytes it includes; only the **start offset** was wrong, not the length).
+
+Supported pixel formats: `32` (RGBA32, but see byte-order correction below), `24` (RGB24, stored as BGR — swap channels on read), and `8` (indexed/CLUT — decoded 2026-07-29, see below). Textures are stored upside-down (origin at bottom-left, as is common in OpenGL/DirectX conventions); `rip_textures.py` applies `FLIP_VERTICAL` by default. Unknown BPP values are dumped as `.raw` files in `textures/<LEVEL>/gtext/`.
+
+**8bpp indexed/CLUT format (decoded 2026-07-29):** payload = `[768-byte palette: 256 entries × 3 bytes RGB][width×height index bytes, one per pixel]`. Confirmed on the only 2 real 8bpp GTEXT blocks found across all 20 GDWs (`TITLE.GDW` tex_id `0x139` and `GAUNTLET.GDW` tex_id `0x18b`, both 64×64, same shared UI icon — a small vehicle/silhouette thumbnail): file size in both cases is exactly `768 + width*height` bytes, and both palettes happen to be an identical linear inverted grayscale ramp (`palette[i] = (255-i, 255-i, 255-i)`). Decodes cleanly via palette lookup. `rip_textures.py` now handles this (`idx8.png` output suffix). Of the 59 `.raw` dumps that previously sat in `textures/*/gtext/`, only these 2 were real textures — the other 57 were confirmed false-positive `GTEXT` string matches inside unrelated binary data (byte-for-byte checked: they're legitimate `GMAT` material sub-chunks — readable tags like `SHIN`/`SILL`/`TRAN`/`COLS` and plausible float values sit right in the dump — that a coincidental 5-byte `"GTEXT"` pattern match landed inside of; nonsensical multi-billion-pixel declared dimensions and "texture IDs" that decode as ASCII tag fragments like `REFL`/`GTEX` gave it away). The source data is untouched in the `.GDW` files; only the wrongly-produced output files were deleted (2026-07-29) — none remain on disk. Note this is a distinct, separate finding from `docs/GDW_FORMAT.md`'s "CLUT textures extract as scrambled garbage" note, which is about 24/32bpp textures that looked wrong under the old pixel-offset/byte-order bugs (now separately annotated/corrected there) — not about this genuinely-indexed 8bpp format.
+
+**Byte-order correction (2026-07-29):** 32bpp GTEXT pixel data is **not** straight RGBA — like GTEX (see below), it's native little-endian `D3DFMT_A8R8G8B8`, byte order **B, G, R, A**. The previous "RGBA32, no swap" assumption produced a systematic R/B channel swap (subtle blue tint on naturally warm-toned textures — e.g. a kelp/seaweed texture rendered blue-teal instead of its correct green/brown). `rip_textures.py` now reads 32bpp with PIL raw mode `'BGRA'`, matching the already-correct 24bpp `'BGR'` handling. This bug was masked until the `+0x42` offset fix above was applied, since the pre-existing pixel-shift corruption made channel-order errors hard to distinguish from general noise.
 
 **Output filename format:** `texture_<seq:04>_id<tex_id:08x>_<W>x<H>_<rgba32|rgb24>.png` — output to `textures/<LEVEL>/gtext/`.
 
 **Primary texture extraction script:** `scripts/rip_textures.py` — set the `name` variable to the GDW filename stem (e.g. `'FISH'`). Must be run from within `scripts/` (uses `../GAME_GDWs/` relative path).
 
-**Extracted: 4,673 total GTEXT textures across all 20 GDWs** (TITLE0 has 0; others range 175–357).
+**Extracted: 4,923 total GTEXT textures across all 20 GDWs** (TITLE0 has 0; others range 176–357). Re-extracted 2026-07-29 after the offset/byte-order fixes above (was 4,673 — the extra 248 are blocks that previously came up short on the final length check due to the offset bug and were silently dropped, not new content) and again after the 8bpp indexed/CLUT decode below (+2: the only 2 real 8bpp blocks in the whole dataset, `TITLE.GDW` and `GAUNTLET.GDW`, previously fell into the unsupported-BPP `.raw` path instead of being counted as extracted).
 
 ## Texture System (GTEX)
 
@@ -140,22 +147,22 @@ A second, newer texture system uses a 4-byte `GTEX` tag (not `GTEXT`). These are
 - First uint32 of payload = engine texture ID (used to bind textures to materials)
 - Width/height/BPP are always the 3 uint32s immediately before the `TGAN` sub-chunk
 - Some blocks contain an `OBPR` section with a `PROP` chunk holding a type tag (`TEXB`, `TEXH`, `TEXD`) — meaning of these tags is not yet known
-- TGAN content: 4-byte engine preamble at offset +0, then an 18-byte standard TGA 1.0 header at offset +4
+- TGAN payload layout (corrected 2026-07-29): `[4-byte size-prefix, value = tgan_size-4][18-byte standard TGA 1.0 header][pixel data][optional 26-byte trailing TGA 2.0 footer: 8 zero offset bytes + "TRUEVISION-XFILE.\0"]`. The header is a **fixed 22 bytes** (4 + 18) — pixel data always starts at `tgan_pos + 8 + 22`. Do not derive the header size as `tgan_size - pixel_size`: `tgan_size` sometimes includes the trailing 26-byte footer and sometimes doesn't (both observed in `FISH.GDW`), so that formula intermittently included the footer as if it were leading header bytes, skipping real pixel data and reading footer garbage instead — a non-integer-pixel shift producing shifted/wrapped image content. Verified structurally across 90/90 sampled GTEX blocks in `FISH.GDW` (width/height/bpp fields inside the 18-byte TGA header match the values already read outside TGAN).
 
 **Output filename format:** `gtex_<seq:04>_id<tex_id:08x>_<W>x<H>_<rgba32|rgb24>.png`
 
 **Confirmed pixel formats (from GDW analysis + game binary `game_binary/Jaws.exe`):**
 - Game uses DirectX 8, `D3DFMT_A8R8G8B8` for 32bpp textures
-- **24bpp:** stored as R, B, G byte order — swap G↔B on extract. TGA `image_descriptor=0x00`.
-- **32bpp:** ARGB byte order — `byte[0]=A, byte[1]=R, byte[2]=G, byte[3]=B`. TGA `image_descriptor=0x08` (8 alpha bits).
-- **Chroma key:** CYAN `#00FFFF` (D3D DWORD `0xFF00FFFF`, confirmed at VA `0x725427` in binary). Background pixels where R<20, G>235, B>235 become fully transparent.
+- **24bpp:** native BGR byte order (`byte[0]=B, byte[1]=G, byte[2]=R`) — swap channels on read. TGA `image_descriptor=0x00`. **Corrected 2026-07-29** (previously documented/coded as "R, B, G, swap G↔B" — wrong; the file is straight BGR, same convention as GTEXT's 24bpp path).
+- **32bpp:** native BGRA byte order (`byte[0]=B, byte[1]=G, byte[2]=R, byte[3]=A`). TGA `image_descriptor=0x08` (8 alpha bits). **Corrected 2026-07-29** (previously documented/coded as "ARGB, byte[0]=A..." — wrong. `D3DFMT_A8R8G8B8` names bit significance MSB→LSB, not little-endian file byte order, which is actually B,G,R,A). The old ARGB assumption produced a visible R/G channel swap; the old GTEXT "straight RGBA" assumption on the same underlying format produced a subtler R/B swap (blue tint on warm-toned textures). Verified by rendering a seaweed/kelp texture: renders as implausible blue-teal under the old byte order, correct green/brown under BGRA. Both issues were masked until the TGAN pixel-offset fix above was applied.
+- **Chroma key:** CYAN `#00FFFF` (D3D DWORD `0xFF00FFFF`, confirmed at VA `0x725427` in binary). Background pixels where R<20, G>235, B>235 become fully transparent. (Chroma detection must read R/G/B from the corrected BGRA byte positions above — the old ARGB-based detection was checking the wrong bytes.)
 - All textures stored bottom-up; apply `FLIP_TOP_BOTTOM` on extract.
 - 32bpp GTEX without TGAN are metadata/reference blocks (no pixel data) — skip them.
 - 32bpp GTEX with `descriptor=0x00` and all-zero pixels are runtime render targets filled by the engine — correct to export as blank.
 
 **Other TGAN format tags seen in binary dispatch:** `TGAF`, `DXTF`, `ZIPN`, `ZIPT`. Tags like `DXTF`/`ZIPN`/`ZIPT` that appear inside `.GDW` files are false-positive byte matches inside unrelated compressed/binary data — not real texture blocks. (Note: `ZIPN` **is** a real, legitimate tag on the PS2 side, marking native PS2 GS pixel data — not compression, despite the name — see PS2 Version Data section for the fully-decoded format. Its occurrences inside PC `.GDW` files are coincidental matches, not PS2-format texture blocks smuggled into the PC archive.)
 
-**Extracted: ~1,660 total GTEX textures across all 20 GDWs** (via `scripts/rip_gtex.py`).
+**Extracted: 2,787 total GTEX textures across all 20 GDWs** (via `scripts/rip_gtex.py`). Re-extracted 2026-07-29 after the offset/byte-order fixes above (was ~1,660 — the dynamic `tgan_size - pixel_size` header-offset formula previously pushed many blocks' pixel-read window past the end of their real data, causing a silent short-read skip; the fixed offset recovers those).
 
 ## Texture Database — `textures/texture_db.json`
 
@@ -163,7 +170,7 @@ The game uses a **global texture ID space** shared across all GDWs. When a level
 
 **Key findings (from exhaustive scan of all 20 GDWs):**
 - **1,049 unique texture IDs** in the range 1–4146 (sparse — 3,097 gaps)
-- **7,708 total database entries** (IDs duplicated across GDWs counted separately)
+- **7,710 total database entries** (IDs duplicated across GDWs counted separately)
 - **911 IDs** appear in multiple GDWs (shared textures — water caustics, creature skins, common materials)
 - **138 IDs** are unique to a single GDW (level-specific content)
 - **65 IDs** are referenced by mesh TSET chunks but stored nowhere — these are runtime render targets (reflections, shadow maps) created by the engine at startup; no pixel data exists for them
@@ -306,7 +313,7 @@ The `RSRC` chunk payload does **not** start immediately with a chunk tag. It beg
 | `GMAT` | ~41,000 | Material definition blocks |
 | `GTEX` | ~15,000 | Texture blocks (GTEX format) |
 | `GSMP` | ~10,000 | Audio sample blocks |
-| `SKEL` | 3,030 | **Skeletal animation data** — see Skeletal Animation section |
+| `SKEL` | 30 | **Skeletal animation data, fully decoded** — see Skeletal Animation section |
 | `TRAN` | 1,152 | Transform property sub-chunk (4-byte, transparency/transform value) |
 | `MREG` | 123 | **Collision mesh region** — see Collision / BVH System section |
 | `MTOB` | 718 | 4×3 float32 transform matrix (48 bytes, `[col0 col1 col2 translation]`) |
@@ -367,44 +374,80 @@ The `mesh_res_id` in MREG matches the **first uint32 of the 12-byte GMDL sub-hea
 
 ## Skeletal Animation System — SKEL / BONE / WGHT / ROTS / ANIM
 
-Skeletal animation data is stored in RSRC. The system is **located but not yet fully decoded**. Tags confirmed by RSRC scan:
+**Fully decoded (2026-07-17).** Each `SKEL` block is one complete skeleton (one per skinned character/creature mesh) — bind-pose reference mesh, per-vertex bone weights, a recursive bone hierarchy, and (if the skeleton has named clips) a shared quaternion keyframe pool sliced by an animation dictionary. **Correction:** earlier docs listed `SKEL` count as 3,030 — the real count is **30** (an accidental doubling of the true figure; it now matches the `BONE`/`WGHT` counts below, all of which describe the same 30 skeletons). `ROTS`/`MTOB`/`CHLD`/`BROT` counts below are likewise per-bone-node totals across all 30 skeletons, not top-level RSRC entries.
+
+Extractor: `scripts/rip_skeletons.py` (run from project root, set `NAME` to the target GDW stem) → `skeletons/<NAME>/skel_<id>.json` (one file per skeleton: bind mesh, weights, full bone tree with per-bone rotation keyframes, named clips) + `_summary.json`. Verified clean on `FISH.GDW`: 30/30 skeletons parsed with zero false positives; spot-checked 729 quaternions across all skeletons — 728 are unit-length to within 1%, all named-clip frame ranges fall within their skeleton's shared frame-pool bounds.
 
 ### Known chunk types
 
 | Tag | Count (FISH) | Description |
 |---|---|---|
-| `SKEL` | 3,030 | Skeleton container — ~1 MB each. Holds the full skeleton for one character/creature mesh. |
-| `BONE` | 30 | Single bone — contains a `MTOB` rest-pose transform matrix |
-| `WGHT` | 30 | Vertex weight table for bone skinning. Header: `[uint32 vert_count][uint32 bone_count][uint32 -1 pad]...` followed by per-vertex bone index + weight pairs |
-| `ROTS` | 718 | Rotation keyframe stream — large float32 array (quaternions or matrix rows) |
-| `MTOB` | 718 | 4×3 float32 transform matrix, 48 bytes: column-major layout matching PROP `0x080017DA` |
-| `BROT` | 140 | Bone rotation track — contains a `MTOB` |
-| `CHLD` | 548 | Child node container — holds `MTOB` + `ROTS` sub-chunks |
-| `ANIM` | 10 | Animation name dictionary |
+| `SKEL` | 30 | Skeleton container — one per skinned character/creature mesh, 54 KB–1 MB each |
+| `BONE` | 30 | Root bone of each skeleton's hierarchy — a recursive container (see below), not a single leaf |
+| `WGHT` | 30 | Per-vertex bone skinning weight table, one per skeleton — fully decoded, see below |
+| `VERT`/`NORM` | 30 each | Bind-pose reference mesh (positions + normals) embedded in each `SKEL`, sized to match that skeleton's `WGHT` vertex count |
+| `ANIM` | ≤30 (optional per-skeleton) | Named animation-clip dictionary — present only on skeletons with authored clips (e.g. shark: 73 clips; many prop/creature skeletons have 0) |
+| `MTOB` | 718 total (one per bone node, all skeletons) | 4×3 float32 bind-pose local transform, 48 bytes: column-major layout matching PROP `0x080017DA` (3×3 basis + translation) |
+| `TRAN` | one per bone node | 3× float32 small local offset alongside each `MTOB` — role unconfirmed, values near-zero in samples checked |
+| `ROTS` | one per bone node | Per-bone stream of unit quaternions (`x,y,z,w`, 16 bytes each), one frame per shared skeleton-wide frame pool — **this is the actual keyframe animation data** |
+| `CHLD` / `BROT` | 548 / 140 total | Child bone-node containers — same grammar as `BONE`'s payload (`MTOB`+`TRAN`+`ROTS`+further children); no observed semantic difference between the two tags, both just nest another bone |
 
-### ANIM — Animation Name Dictionary
+### WGHT — Vertex Skinning Weights (decoded)
 
-`ANIM` blocks contain string names for each animation clip. Confirmed animation names from FISH.GDW:
-
-**Shark animations:** `Shark_GW_BodyBomb2`, `Shark_GW_BodySlam_Left`, `Shark_GW_NyammogA_nagy`, `Shark_GW_NyammogB` (`nyammog` = munching/biting motion in Hungarian)
-
-**NPC human animations:** `BeingDevouredLegs_A01/02/03`, `FrightenedRun`, `GetOut`, `GrThrow`, `Harpoon`, `icRun`, `Run2x`, `Walk2x`, `FatWalk2x`, `PanicRun`, `SharkAvoid2x`, `StandCheer3x`, `StandClap4x`
-
-### SKEL Structure (partial)
+No header — straight array of fixed 32-byte records, one per bind-pose mesh vertex (vertex count comes from the sibling `VERT` block):
 
 ```
-SKEL [uint32 size]
-  [uint32 skel_id]
-  [uint32 count = 1]
-  [uint32 hash/magic]
-  [BONE sub-chunks]    ← one per bone in hierarchy
-  [CHLD sub-chunks]    ← child node groupings
-  [WGHT sub-chunk]     ← vertex weight table
-  [ROTS sub-chunks]    ← rotation keyframe data
-  [ANIM sub-chunk]     ← animation name list
+WGHT [uint32 size]     ← size == vertex_count * 32, no leading count/header field
+  per vertex (32 bytes):
+    [4 × int32 bone_index]   ← -1 marks an unused influence slot
+    [4 × float32 weight]     ← only meaningful where the paired bone_index != -1;
+                                the weight slot for an unused (-1) index holds
+                                leftover/garbage data (often 1.0) and must be
+                                masked out, not summed
 ```
+Verified on FISH.GDW's 40-bone shark skeleton (2,384 verts): masked weights sum to 1.0 for all 2,384 vertices; raw (unmasked) sums are wrong for any vertex with fewer than 4 real influences.
 
-**Next step:** Decode SKEL fully to extract skeleton hierarchy and bind to the extracted GMDL meshes. The `BONE` MTOB matrices should be bind-pose transforms; `ROTS` + `CHLD` contain the per-frame keyframe data.
+### BONE / CHLD / BROT — Recursive Bone Hierarchy (decoded)
+
+`BONE` is not a single bone leaf — it's the **root of the entire skeleton tree**, and its declared size spans everything from the root bone's own data through every nested child, all the way to the end of the `SKEL` payload. `CHLD` and `BROT` are children using the identical node grammar (interchangeable, no semantic split found — a branching bone with two children just uses one of each tag at that level):
+
+```
+BONE | CHLD | BROT  [uint32 size]        ← one bone node
+  MTOB [48]   ← bind-pose local transform: 3×3 basis (col-major) + translation
+  TRAN [12]   ← 3 floats, small local offset, unconfirmed role
+  ROTS [N×16] ← N unit quaternions (x,y,z,w), one per frame of this skeleton's
+                shared pool (every bone in a skeleton has the same N)
+  [zero or more CHLD/BROT children, same grammar, recursing]
+```
+Verified on the shark skeleton: 40 `MTOB` nodes total (root + 39 nested), tree depth up to 17, every `ROTS` stream exactly 1,516 frames long (matching the `ANIM` dictionary's frame-pool bounds below), all sampled quaternions unit-length.
+
+### ANIM — Animation Name Dictionary + Frame Ranges (decoded)
+
+Present only on skeletons with named clips (e.g. shark: 73 clips; most creature/prop skeletons: 0, animating only via the bind pose / external drivers). All bones in a skeleton share **one contiguous quaternion pool**; `ANIM` slices it into named clips:
+
+```
+ANIM [uint32 size]
+  [uint32 clip_count]
+  [uint32 unknown]                          ← not yet decoded
+  clip_count × {
+    [uint32 name_len]                       ← includes NUL terminator
+    [name_len bytes, NUL-terminated ASCII]  ← padded to 4-byte alignment
+  }
+  clip_count × [uint32 start_frame]         ← index into the shared ROTS pool
+  clip_count × [uint32 end_frame]           ← inclusive
+```
+Frame 0 of the pool is the shared bind/rest frame and falls outside every named clip (shark's clips start at frame 1). Verified: `end_frame` of the last clip equals the shared pool's final frame index (1,515, for a 1,516-frame pool) on the shark skeleton.
+
+**Confirmed animation names from FISH.GDW's shark skeleton (73 total):** `Shark_GW_BodyBomb2`, `Shark_GW_BodySlam_Left/Right`, `Shark_GW_Devour01/02`, `Shark_GW_NyammogA/B/C/D` + `_nagy`/`_kicsi_*` size variants (`nyammog` = munching/biting motion in Hungarian), `Shark_GW_TailWhip_Left/Right_*`, `Shark_GW_Swallow_A/B/Begin/C/End`, `Shark_GW_Landwalk*`, `Shark_GW_DeathSpinCW_Begin/Spin`, `Shark_GW_ThrowLeftDown/Up`, `Shark_GW_ThrowRightDown/Up`, and more (full list in `skeletons/FISH/skel_01766.json`).
+
+**NPC human animations** (seen as skeleton names on smaller skeletons, not yet cross-referenced clip-by-clip): `BeingDevouredLegs_A01/02/03`, `FrightenedRun`, `GetOut`, `GrThrow`, `Harpoon`, `icRun`, `Run2x`, `Walk2x`, `FatWalk2x`, `PanicRun`, `SharkAvoid2x`, `StandCheer3x`, `StandClap4x`
+
+### Still open
+
+- The undecoded blob (tens of KB, varies per skeleton) between the 12-byte `SKEL` header and the `VERT` block — not yet identified; a morph/blendshape delta table is one hypothesis (unconfirmed) given how many named clips are jaw/mouth animations, but the blob's byte count doesn't cleanly divide by the bind-mesh vertex count.
+- `TRAN`'s exact role (near-zero in every sample checked so far).
+- Cross-referencing `ANIM` clip names to the `XAnimation`/`XAnimationSet`/`XAnimationNames` CLAS classes and to skeleton *instances* placed in `BRTR` (i.e. which placed `XSkeletonModel` node plays which `SKEL` block).
+- Blender armature + animation import (mesh-only import already exists — see `scenes/import_fish_blender.py` — but it has no skinning/bone data wired in yet).
 
 ## AI / Behavior Sequence System — GMOA / GSQD
 
@@ -919,7 +962,7 @@ grep -rioab "search_term" GAME_GDWs/ game_binary/
 ## Open Problems
 
 - **Static environment geometry** — ~~terrain not found~~ **RESOLVED (2025-06-29)**: all terrain tiles, rocks, water planes, and dock structures are present in BRTR as named mesh instances (see Scene Layout table). No hidden BSP or heightmap. The water surface at the pier area (Z~0 cluster) may still use runtime geometry — check `Plane01/02` instances.
-- **Skeletal animation** — ~~keyframe data not located~~ **FOUND (2025-06-29)**: `SKEL`, `BONE`, `WGHT`, `ROTS`, `BROT`, `MTOB`, `CHLD`, `ANIM` blocks confirmed in RSRC. System structure partially decoded (see Skeletal Animation section). **Not yet extracted** — SKEL hierarchy parser and Blender armature import not yet written.
+- ~~**Skeletal animation**~~ **RESOLVED (2026-07-17)**: `SKEL`/`BONE`/`WGHT`/`ROTS`/`BROT`/`MTOB`/`CHLD`/`ANIM` fully decoded — bind mesh, per-vertex weights, recursive bone hierarchy, and per-bone quaternion keyframe streams sliced into named clips by `ANIM`. Extractor `scripts/rip_skeletons.py` verified clean on all 30 of FISH.GDW's skeletons. See Skeletal Animation System section. Still open: the undecoded pre-`VERT` blob, `TRAN`'s role, and Blender armature/animation import (mesh-only import exists, no skinning wired in yet).
 - ~~**Parent-child hierarchy**~~ **RESOLVED (2026-07-16)**: nested `CHBR` nodes store transforms LOCAL to their parent, not world space. World position = compose the full ancestor chain (`world = parent_world ∘ local`, standard affine composition: `R_world = R_parent @ R_child`, `T_world = R_parent @ T_child + T_parent`), starting from the root "World" `PRPS` node (which itself carries an identity transform in FISH.GDW). Nesting is physical — a child `CHBR` sits inside its parent's payload after the parent's own `PRPS` block, not merely cross-referenced via `PROP 0x080003C7`. Validated on `FISH.GDW`: resolved node count (2782) exactly matches the known flat-scan `CHBR` tag count; a nested `WhaleCarcass Body` group (raw local pos reads near (0,0,0), a red herring) resolves to world pos `(60, -20, 105)`, exactly matching a separate top-level `Kis_Halaszhajo` (small fishing boat) cluster and a family of ship-sinking FX/audio nodes (`NewEffectShipSinking_above`, `SndShipExplo`, `boat_crash`, etc.) at the same coordinates — confirmed against in-game observation that the whale carcass sits right at the small boat/pier area. Also incidentally confirmed `FISH.GDW`'s BRTR *is* the SC17 "Mine All Mine" side-challenge instance (nodes named `MineAllMine Mission Shark 1-4`, `SideMissionRemainingTimeTextModel`, `You Have X PointS` all resolve to the same world region). Extractor: `scripts/resolve_brtr_hierarchy.py` → `scenes/<NAME>_resolved_hierarchy.json` (per-node name, resolved world_pos, local_pos, mesh_id, parent_id, depth). `rip_brtr_scene.py`'s flat local-position reads remain accurate only for top-level (`depth=0`) nodes; nested-node positions from it should be treated as unresolved/local, not world space, until re-run through the new resolver.
 - **In-game cutscene voice acting** — not found in GSMP, SMPB, or WMV files. SKEL/ANIM animation names suggest in-game cutscene data exists; audio may be in a not-yet-decoded block type. (Ruled out: `SCRT` — see below, resolved and it's not audio-related.)
 - ~~`SCRT` scripting chunk (obfuscated)~~ **RESOLVED (2026-07-08)**: not obfuscated, not scripting. The offset previously cited was a false-positive tag match; the real `SCRT` is a small top-level `PRPS`/`CHBR`/`PROP` tree (same format as `BRTR`) holding named screen-space overlay objects (`GDScreen`, water reflection/transparency layers, motion blur). See the `SCRT` note in the GDW Archive Format section.
@@ -929,5 +972,4 @@ grep -rioab "search_term" GAME_GDWs/ game_binary/
 - **Texture–mesh linkage** — TSET texture IDs are resolvable via `textures/texture_db.json` (1,049 IDs mapped, 65 are runtime render targets). Blender material assignment (loading PNG files onto mesh UV maps) not yet implemented. TSET layer semantics (exact role of each val_A–val_D per layer) not fully decoded.
 - **GMAT `TEXP` ↔ TSET linkage** — `TEXP` sub-chunks inside GMAT reference GTEX texture IDs; TSET records reference the same IDs. The exact relationship between GMAT (material parameters) and TSET (layer assignments) per mesh is not yet mapped.
 - **MREG `MOIL` content** — the large (~66 KB) `MOIL` sub-chunk inside `GMOA` blocks is undecoded. May contain AI pathfinding graph data or NPC navigation mesh.
-- **WGHT / SKEL full decode** — vertex weight table format and skeleton hierarchy traversal order not yet confirmed. Need to write a parser and verify against known character meshes.
 - **Brand-new BRTR node insertion silently fails to render** — see "Custom map feasibility" note above. Resource injection into `RSRC` and repointing/relocating existing `BRTR` nodes both work; appending an entirely new, structurally-valid `CHBR` sibling to `BRTR` does not appear in-game (3/3 attempts, no crash). Cause unknown — candidates are a precomputed spatial/streaming index or a node membership list/count consulted before individual `CHBR` parsing, neither located yet. Next step would be runtime instrumentation via the `mod/` d3d8 proxy rather than further static analysis.

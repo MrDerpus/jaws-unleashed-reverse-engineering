@@ -56,4 +56,4 @@ Each level's `NAWater2004` object (exactly one per level, placed in `BRTR`) does
 
 The engine uses heavy underwater fog as a draw-distance mask — a technique carried over from Ecco. This was a deliberate design choice to hide pop-in and limit visible geometry complexity at depth, where the water light model absorbs colour and reduces visibility naturally.
 
-`NATextureGeneratorGrid` suggests the water surface texture (caustics, ripples) is generated procedurally by the engine each frame rather than being stored as a static asset — consistent with the ~1,660 extracted GTEX sprites including caustic pattern layers confirmed in the sprite texture set.
+`NATextureGeneratorGrid` suggests the water surface texture (caustics, ripples) is generated procedurally by the engine each frame rather than being stored as a static asset — consistent with the 2,787 extracted GTEX sprites (count updated 2026-07-29, see `CLAUDE.md`) including caustic pattern layers confirmed in the sprite texture set.

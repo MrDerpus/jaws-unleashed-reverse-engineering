@@ -9,12 +9,12 @@ The PC build runs under Wine/Proton on Linux and uses **DirectX 8** (`d3d8.dll`)
 ## Status at a glance
 
 - **Archive format** — fully mapped: chunk structure, file header, `FDIR` offset index, the concatenated second embedded archive (loading-screen sub-levels), and sector-alignment padding (`SKIP`) are all decoded.
-- **Textures** — both texture systems (`GTEXT` and `GTEX`) fully decoded and extracted: **4,673 GTEXT + ~1,660 GTEX textures** across all 20 GDWs, indexed by a shared global texture-ID database (`textures/texture_db.json`).
+- **Textures** — both texture systems (`GTEXT` and `GTEX`) fully decoded and extracted, including a rare 8bpp indexed/CLUT format: **4,923 GTEXT + 2,787 GTEX textures** across all 20 GDWs, indexed by a shared global texture-ID database (`textures/texture_db.json`).
 - **Meshes** — geometry pipeline fully working: **11,948 `.obj` files** extracted across all levels, including materials (`GMAT`), texture-layer assignments (`TSET`), and vertex colors.
 - **Scene graph (`BRTR`)** — the pre-built level layout (every placed object, world transform, mesh reference, baked lighting) is fully decoded and extracted, including nested parent/child transform composition and a working Blender import script.
 - **Collision (`MREG`)** — bounding-volume-hierarchy collision data decoded and linked to visual meshes.
 - **Audio** — both audio chunk types (`GSMP` raw PCM, `GSMP+SMPB` embedded/cut voice lines) extracted, plus cutscene `.wmv` audio.
-- **Skeletal animation** — located and partially decoded (`SKEL`/`BONE`/`WGHT`/`ROTS`/`ANIM`); full skeleton hierarchy + Blender armature import not yet written.
+- **Skeletal animation** — fully decoded: bind mesh, per-vertex bone weights, recursive bone hierarchy, and per-bone quaternion keyframes sliced into named clips (`SKEL`/`BONE`/`WGHT`/`ROTS`/`ANIM`). All 30 of FISH.GDW's skeletons extract cleanly via `scripts/rip_skeletons.py`; Blender armature/animation import not yet written.
 - **PS2 cross-reference** — PS2-native texture (`ZIPN`/GS pixel formats) and mesh (triangle-strip `STRP`) formats fully decoded and extracted from the PS2 asset dump for comparison against the PC build.
 - **Live mod** — a working `d3d8.dll` proxy (`mod/`) provides freecam, an in-game overlay, sim pause, and foliage hiding, and has been used to validate hand-edited `BRTR` scene data against the running game.
 - **Cut content** — several unshipped missions, an unused map area, and a cut character have been identified from strings/classes in the game binary (see [Cut Content](#cut-content)).
@@ -61,6 +61,7 @@ python3 scripts/rip_brtr_scene.py            # scene graph → scenes/<NAME>_brt
 python3 scripts/resolve_brtr_hierarchy.py    # world-space positions for nested scene nodes
 python3 scripts/build_texture_db.py          # rebuild textures/texture_db.json after re-extracting
 python3 scripts/rip_smpb.py                  # cut/unused NPC voice lines → audio/
+python3 scripts/rip_skeletons.py             # skeletons + animation clips → skeletons/<NAME>/*.json
 
 # rip_textures.py must run from scripts/ (uses a ../GAME_GDWs/ relative path)
 cd scripts && python3 rip_textures.py
@@ -96,7 +97,7 @@ String and class-name analysis of `game_binary/Jaws.exe` turned up several unshi
 
 ## Open problems
 
-Actively unresolved: full `SKEL` skeleton-hierarchy decoding and Blender armature import, the `MOIL` AI-pathfinding sub-chunk, exact `GMAT`↔`TSET` material/texture-layer linkage, in-game cutscene voice acting (not yet located in any extracted audio), and why a brand-new `BRTR` sibling node fails to render in-game even when byte-for-byte structurally valid (resource injection and repointing/relocating *existing* nodes both work). Full list with context in [`CLAUDE.md`'s Open Problems section](CLAUDE.md#open-problems).
+Actively unresolved: Blender armature/animation import for the now-decoded `SKEL` skeleton system, the `MOIL` AI-pathfinding sub-chunk, exact `GMAT`↔`TSET` material/texture-layer linkage, in-game cutscene voice acting (not yet located in any extracted audio), and why a brand-new `BRTR` sibling node fails to render in-game even when byte-for-byte structurally valid (resource injection and repointing/relocating *existing* nodes both work). Full list with context in [`CLAUDE.md`'s Open Problems section](CLAUDE.md#open-problems).
 
 ## License
 

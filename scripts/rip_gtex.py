@@ -47,12 +47,13 @@ def save_texture(raw, width, height, bpp, index, tex_id):
         if len(raw) < expected:
             return False
 
-        # Format is ARGB: byte[0]=A, byte[1]=R, byte[2]=G, byte[3]=B
-        # Confirmed via binary analysis: D3DFMT_A8R8G8B8, engine stores TGA in ARGB byte order.
+        # D3DFMT_A8R8G8B8 stored little-endian in memory is byte order
+        # B,G,R,A (the format name describes MSB->LSB bit layout, not file
+        # byte order) -- byte[0]=B, byte[1]=G, byte[2]=R, byte[3]=A.
         # Chroma key = CYAN (#00FFFF, D3D DWORD 0xFF00FFFF): pixels where R≈0,G≈255,B≈255 → transparent.
         buf = bytearray(expected)
         for i in range(expected // 4):
-            a, r, g, b = raw[i*4], raw[i*4+1], raw[i*4+2], raw[i*4+3]
+            b, g, r, a = raw[i*4], raw[i*4+1], raw[i*4+2], raw[i*4+3]
             is_chroma = (r < 20 and g > 235 and b > 235)
             buf[i*4]   = r
             buf[i*4+1] = g
@@ -75,11 +76,9 @@ def save_texture(raw, width, height, bpp, index, tex_id):
         if len(raw) < expected:
             return False
 
-        img = Image.frombytes('RGB', (width, height), raw[:expected])
-
-        # GTEX 24bpp stores R, B, G (not R, G, B) — swap G and B to correct
-        r_ch, g_ch, b_ch = img.split()
-        img = Image.merge('RGB', (r_ch, b_ch, g_ch))
+        # Native BGR byte order (same convention as the 32bpp BGRA path
+        # above and the GTEXT 24bpp path) -- swap channels on read.
+        img = Image.frombytes('RGB', (width, height), raw[:expected], 'raw', 'BGR')
 
         if FLIP_VERTICAL:
             img = img.transpose(Image.FLIP_TOP_BOTTOM)
@@ -171,14 +170,19 @@ def main():
         channels   = bpp // 8
         pixel_size = width * height * channels
 
-        if tgan_size < pixel_size:
+        if tgan_size < pixel_size + 22:
             offset = pos + 4
             continue
 
-        # TGAN content = [header bytes][pixel data]
-        # header_bytes = tgan_size - pixel_size
-        header_bytes = tgan_size - pixel_size
-        pixel_start  = tgan_pos + 8 + header_bytes
+        # TGAN payload = [4-byte size-prefix][18-byte TGA header][pixel data]
+        # [optional 26-byte TGA 2.0 footer: 8 offset bytes + "TRUEVISION-XFILE.\0"]
+        # The header is always a fixed 22 bytes -- do NOT derive it as
+        # tgan_size - pixel_size, since tgan_size sometimes includes the
+        # trailing 26-byte footer and sometimes doesn't. Using that formula
+        # skips real pixel bytes and reads footer garbage instead (non-integer
+        # pixel shift -> shifted/wrapped image content on extract).
+        TGAN_HEADER_SIZE = 22
+        pixel_start = tgan_pos + 8 + TGAN_HEADER_SIZE
 
         raw = data[pixel_start: pixel_start + pixel_size]
 
@@ -186,7 +190,7 @@ def main():
             offset = pos + 4
             continue
 
-        print(f'GTEX @ 0x{pos:X}: id={tex_id:#010x} {width}x{height} {bpp}bpp (TGAN header={header_bytes}b)')
+        print(f'GTEX @ 0x{pos:X}: id={tex_id:#010x} {width}x{height} {bpp}bpp')
 
         try:
 

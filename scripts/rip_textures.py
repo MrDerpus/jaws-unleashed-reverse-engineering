@@ -15,6 +15,16 @@ OUTPUT_DIR = Path(f'../textures/{name}/gtext')
 
 HEADER_SIZE = 0x54
 
+# Real pixel data starts right after the 18-byte TGA header (which itself
+# starts at gtext_offset+0x30), i.e. at gtext_offset+0x42 -- NOT at
+# gtext_offset+HEADER_SIZE. block_size accounts for HEADER_SIZE (0x54) worth
+# of trailing bytes past the pixel data too, but those are TGA 2.0 footer
+# bytes (8 zero offset fields + start of "TRUEVISION-XFILE.\0"), not pixels.
+# Reading from HEADER_SIZE instead of PIXEL_OFFSET skips the first 18 bytes
+# of real pixel data and reads 18 bytes of footer garbage at the end instead
+# -- a non-integer-pixel shift that shows up as shifted/wrapped image content.
+PIXEL_OFFSET = 0x42
+
 
 
 # =====================================
@@ -133,6 +143,10 @@ def save_texture(
 
 		raw = raw[:expected_size]
 
+		# Native D3DFMT_A8R8G8B8 little-endian byte order is B,G,R,A
+		# (the format name describes MSB->LSB bit layout, not file byte
+		# order) -- swap channels on read, same convention as the 24bpp
+		# BGR path below.
 		img = Image.frombytes(
 
 			'RGBA',
@@ -143,7 +157,7 @@ def save_texture(
 
 			'raw',
 
-			#'RGB'
+			'BGRA'
 		)
 
 		img = apply_transforms(img)
@@ -209,6 +223,65 @@ def save_texture(
 			f'id{texture_id:08x}_'
 			f'{width}x{height}_'
 			f'rgb24.png'
+
+		)
+
+		out_path = OUTPUT_DIR / filename
+
+		img.save(out_path)
+
+		return True
+
+
+	# =================================
+	# 8bpp INDEXED (palette / CLUT)
+	# =================================
+
+	elif bpp == 8:
+
+		palette_size = 256 * 3
+
+		expected_size = (
+			palette_size +
+			width *
+			height
+		)
+
+		if len(raw) < expected_size:
+
+			print(
+				f'  [!] Indexed payload too small'
+			)
+
+			return False
+
+		palette = raw[:palette_size]
+
+		indices = raw[palette_size:expected_size]
+
+		img = Image.frombytes(
+
+			'P',
+
+			(width, height),
+
+			indices
+
+		)
+
+		img.putpalette(palette)
+
+		img = img.convert('RGB')
+
+		img = apply_transforms(img)
+
+		filename = (
+
+			f'texture_'
+			f'{texture_index:04}_'
+			f'id{texture_id:08x}_'
+			f'{width}x{height}_'
+			f'idx8.png'
 
 		)
 
@@ -367,7 +440,7 @@ def main():
 
 				gtext_offset +
 
-				HEADER_SIZE
+				PIXEL_OFFSET
 
 			)
 

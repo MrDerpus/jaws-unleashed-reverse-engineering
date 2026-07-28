@@ -128,9 +128,11 @@ Textures are stored as `GTEXT` blocks. The header layout is fully confirmed:
 | `+0x1C` | height | uint32, pixels |
 | `+0x20` | bits-per-pixel | uint32 — `32` or `24` for known formats |
 | `+0x24` | `TGAN0` marker | also contains `TRUEVISION-XFILE` string |
-| `+0x54` | pixel payload start | |
+| `+0x54` | ~~pixel payload start~~ **wrong, see correction below** | |
 
-**Payload size formula:**
+> **Correction (2026-07-29):** pixel data actually starts at `+0x42`, immediately after an 18-byte standard TGA 1.0 header that begins at `+0x30` — not `+0x54`. The `+0x54` figure conflated that real header with a *trailing* TGA 2.0 footer (`"TRUEVISION-XFILE.\0"` + 8 offset bytes) that sits after the pixel data, not before it. Reading from `+0x54` skipped the first 18 bytes of real pixel data and read footer garbage instead — a non-integer-pixel shift that produced diagonally-sheared/wrapped images. `payload_size = block_size - 0x54` is still correct (it already yields the right total pixel byte count); only the **read start offset** was wrong. See `CLAUDE.md`'s "Texture System (GTEXT)" section for full detail. `scripts/rip_textures.py` is fixed.
+
+**Payload size formula (still correct):**
 ```
 payload_size = block_size - 0x54
 ```
@@ -139,9 +141,11 @@ payload_size = block_size - 0x54
 
 | BPP | Format | Handling |
 |---|---|---|
-| `32` | RGBA32 | Read directly as RGBA bytes |
+| `32` | ~~RGBA32, read directly~~ **wrong — see correction** | |
 | `24` | RGB24 | Stored as BGR — swap to RGB on read |
 | Other | Unknown | Dump as `.raw` for manual inspection |
+
+> **Correction (2026-07-29):** 32bpp is **not** straight RGBA. Like GTEX (see `rendering_system.md`), it's native little-endian `D3DFMT_A8R8G8B8`, byte order **B, G, R, A** — same BGR-family convention as the 24bpp row above, just with an alpha byte appended. The old "read directly as RGBA" assumption produced a systematic R/B channel swap (subtle blue tint on naturally warm-toned textures, e.g. a kelp texture rendering blue-teal instead of green/brown). This was hard to notice while the `+0x54` offset bug above was also active, since the resulting image was already visibly corrupted by the shift. `scripts/rip_textures.py` now reads 32bpp with PIL raw mode `'BGRA'`.
 
 Textures are stored with the origin at bottom-left (standard DX/OpenGL convention) and must be vertically flipped on export. `rip_textures.py` handles this with `FLIP_VERTICAL = True`.
 
@@ -163,15 +167,19 @@ Some textures use indexed colour with a CLUT (Color Look-Up Table). Colour ramp 
 ```
 and RGBA markers like `FF 00 FF FF` indicate palette structures. These textures extract incorrectly with the current pipeline (wrong colours, scrambled appearance). This is the primary remaining unsolved texture problem.
 
+> **Note (2026-07-29):** re-evaluate this claim before investigating a real CLUT/palette format — "wrong colours, scrambled appearance" is exactly the symptom of the `+0x54` offset bug and the RGBA/ARGB byte-order bugs corrected above and in `CLAUDE.md`, both of which were active when this section was written. Confirm textures still look wrong under the fixed `scripts/rip_textures.py` before assuming a genuine indexed-color format is involved.
+>
+> **Separately, a genuine 8bpp indexed/CLUT format was decoded (2026-07-29)** — distinct from the above, and not the explanation for it. `rip_textures.py` was dumping unsupported-BPP blocks as `.raw`; of ~59 such dumps across all 20 GDWs, only 2 were real textures (both 64×64 8bpp, `TITLE.GDW` and `GAUNTLET.GDW`, the same shared UI icon — the other 57 are false-positive `GTEXT` string matches inside unrelated binary data, detectable by nonsensical multi-billion-pixel declared dimensions). Format: `[768-byte palette: 256 × 3-byte RGB entries][width×height index bytes]` — file size is exactly `768 + width*height`. Both confirmed palettes are an identical linear inverted grayscale ramp (`palette[i] = (255-i,255-i,255-i)`). `rip_textures.py` now decodes this via palette lookup (`idx8.png` output). See `CLAUDE.md`'s "Texture System (GTEXT)" section.
+
 ### Extraction Pipeline
 
 ```
 GTEXT block
   → read header (width, height, BPP)
-  → calculate payload_offset = GTEXT_offset + 0x54
+  → calculate payload_offset = GTEXT_offset + 0x42   # corrected 2026-07-29, was +0x54
   → calculate payload_size = block_size - 0x54
   → extract raw bytes
-  → convert to PIL image (swap BGR→RGB for 24bpp)
+  → convert to PIL image (32bpp: BGRA→RGBA, 24bpp: BGR→RGB)   # 32bpp swap corrected 2026-07-29, was read directly
   → flip vertical
   → export PNG
 ```
@@ -583,9 +591,9 @@ xxd -s 0x06F7B4A0 -l 256 GAME_GDWs/FISH.GDW
 | System | Status | Output |
 |---|---|---|
 | Top-level chunk parsing | COMPLETE | — |
-| GTEXT texture extraction (RGB24, RGBA32) | COMPLETE | 4,673 PNGs across 20 GDWs |
-| GTEX texture extraction | COMPLETE | ~1,660 PNGs across 20 GDWs |
-| Global texture ID database | COMPLETE | `textures/texture_db.json` — 1,049 unique IDs |
+| GTEXT texture extraction (RGB24, RGBA32, 8bpp indexed) | COMPLETE | 4,923 PNGs across 20 GDWs (updated 2026-07-29, see `CLAUDE.md`) |
+| GTEX texture extraction | COMPLETE | 2,787 PNGs across 20 GDWs (updated 2026-07-29, see `CLAUDE.md`) |
+| Global texture ID database | COMPLETE | `textures/texture_db.json` — 1,049 unique IDs, 7,710 entries |
 | Reflection metadata (CLAS) | CONFIRMED | class names, property names extracted |
 | GMDL mesh extraction | COMPLETE | 11,948 `.obj` files across 20 GDWs |
 | BRTR scene graph decoding | COMPLETE | 2,782 CHBR nodes in FISH.GDW; 1,161 with mesh refs |
@@ -601,7 +609,7 @@ xxd -s 0x06F7B4A0 -l 256 GAME_GDWs/FISH.GDW
 | System | Status | Notes |
 |---|---|---|
 | Static environment geometry | **RESOLVED (2025-06-29)** | All terrain tiles, rocks, water planes, and dock structures ARE in BRTR as named mesh instances with full world transforms — no separate BSP/heightmap. |
-| Skeletal animation | UNSOLVED (partial) | `SKEL`/`BONE`/`WGHT`/`ROTS`/`BROT`/`MTOB`/`CHLD`/`ANIM` blocks confirmed and structure partially decoded in RSRC; extractor + Blender armature import not yet written. |
+| Skeletal animation | **RESOLVED (2026-07-17)** | `SKEL`/`BONE`/`WGHT`/`ROTS`/`BROT`/`MTOB`/`CHLD`/`ANIM` fully decoded — bind mesh, per-vertex weights, recursive bone hierarchy, per-bone quaternion keyframes sliced by named clips. Extractor `scripts/rip_skeletons.py` verified on all 30 of FISH.GDW's skeletons. Blender armature/animation import still not written. See CLAUDE.md's Skeletal Animation System section. |
 | SCRT scripting chunk | **RESOLVED (2026-07-08)** | Not obfuscated, not scripting — a plain named screen-overlay object tree (same PRPS/CHBR/PROP format as BRTR). |
 | In-game cutscene voice acting | NOT FOUND | Present in neither GSMP, SMPB, nor WMV files. |
 | Parent-child hierarchy transforms | **RESOLVED (2026-07-16)** | Physical nesting, not ID-based; local transforms compose through the full ancestor chain to world space. See `scripts/resolve_brtr_hierarchy.py`. |

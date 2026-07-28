@@ -44,23 +44,22 @@ The bite system (see `bite_system.md`) references `m_rubberskeletonid` — a rep
 
 ---
 
-## Current Status: Located, Not Yet Extracted
+## Current Status: Fully Decoded and Extracting
 
-~~Skeletal animation has **not** been extracted... the actual keyframe data (bone transforms per frame) has not been located in the RSRC chunk.~~ **RESOLVED (2025-06-29):** the keyframe data location IS now known. `SKEL` (skeleton container, ~1MB each, 3,030 in FISH.GDW), `BONE` (individual bone + rest-pose `MTOB` matrix), `WGHT` (per-vertex bone weights), `ROTS` (rotation keyframe stream), `BROT`/`MTOB`/`CHLD` (bone rotation tracks / transform matrices / child node groupings), and `ANIM` (animation name dictionary — confirmed clip names like `Shark_GW_BodySlam_Left`, `FrightenedRun`, `PanicRun`) are all confirmed chunk types inside `RSRC`, not a separate location. See CLAUDE.md's "Skeletal Animation System" section for the full chunk table and partial structure decode. **Still not extracted** — no SKEL hierarchy parser or Blender armature import has been written yet, so the practical status ("not usable yet") is similar to before, but the *location* question below is resolved.
+~~Skeletal animation has **not** been extracted... the actual keyframe data (bone transforms per frame) has not been located in the RSRC chunk.~~ ~~RESOLVED (2025-06-29): the keyframe data location IS now known... Still not extracted.~~ **FULLY DECODED (2026-07-17):** every open question below is now answered. `SKEL` (skeleton container — **30** in FISH.GDW, not 3,030 as earlier notes claimed; that figure was an accidental doubling) holds a bind-pose mesh (`VERT`/`NORM`), per-vertex bone weights (`WGHT`, decoded), and a recursive bone hierarchy (`BONE` root + `CHLD`/`BROT` children, each carrying a bind-pose `MTOB` transform and its own `ROTS` stream of per-frame unit quaternions). `ANIM` — present only on skeletons with named clips — slices each skeleton's shared quaternion pool into named ranges. Extractor: `scripts/rip_skeletons.py` → `skeletons/<NAME>/skel_<id>.json`, verified against all 30 of FISH.GDW's skeletons (zero false positives, 728/729 sampled quaternions unit-length, all clip frame ranges in-bounds). Full byte-level layout in CLAUDE.md's "Skeletal Animation System" section.
+
+**Still not done:** Blender armature/animation import (mesh-only import exists in `scenes/import_fish_blender.py`, no skinning wired in). Still open: an undecoded ~tens-of-KB blob preceding `VERT` in each `SKEL` (possible morph/blendshape data, unconfirmed), and the small per-bone `TRAN` field's exact role (near-zero in every sample checked).
 
 **What is known:**
 - Skeleton class names are in the CLAS reflection database
 - `XBone` and `XSkeletonModel` appear in FISH.GDW at offset `0x06F7B7C0` (note: this offset falls inside the file's second embedded archive's own `CLAS` region — see CLAUDE.md's GDW Archive Format section — so it's just that archive's own full class registry, not a special/unique location)
 - BRTR places `XSkeletonModel` instances with transforms (**caveat added 2026-07-16**: nested BRTR node transforms are LOCAL to their parent, not automatically world-space — see CLAUDE.md's Parent-child hierarchy note if resolving a skeleton instance's true world placement)
 - Mesh extraction is working — static poses are visible in extracted `.obj` files
-- `SKEL`/`BONE`/`WGHT`/`ROTS`/`BROT`/`MTOB`/`CHLD`/`ANIM` blocks are confirmed present in `RSRC` (see above)
+- `SKEL`/`BONE`/`WGHT`/`ROTS`/`BROT`/`MTOB`/`CHLD`/`ANIM` are all fully decoded (see CLAUDE.md)
 
 **What is not yet known:**
-- The exact binary layout/traversal order within `SKEL` (partial structure only — see CLAUDE.md)
-- How `ROTS`+`CHLD` per-frame keyframe data is organized
-- How animation clips (named via `ANIM`) are referenced from skeleton instances
-- Whether the animation format is keyframed matrices, quaternion+translation, or a different encoding
-- `WGHT`'s exact vertex-weight table format and skeleton hierarchy traversal order (flagged as an open problem in CLAUDE.md)
+- Cross-referencing `ANIM` clip names / decoded `SKEL` blocks to the `XAnimation`/`XAnimationSet`/`XAnimationNames` CLAS classes listed below, and to specific `XSkeletonModel` instances placed in `BRTR`
+- The undecoded pre-`VERT` blob and `TRAN`'s role (see CLAUDE.md's "Still open" list under Skeletal Animation System)
 
 ---
 

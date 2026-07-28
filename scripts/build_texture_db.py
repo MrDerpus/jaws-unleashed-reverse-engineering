@@ -67,7 +67,7 @@ def scan_gtext(gdw_name, data):
         height = u32(data, p + 0x1C)
         bpp    = u32(data, p + 0x20)
 
-        if None not in (tex_id, width, height, bpp) and bpp in (24, 32):
+        if None not in (tex_id, width, height, bpp) and bpp in (24, 32, 8):
             if 0 < width <= 4096 and 0 < height <= 4096:
                 yield tex_id, seq_idx, width, height, bpp
 
@@ -132,7 +132,7 @@ def scan_gtex(gdw_name, data):
 
 
 def gtext_filename(gdw_name, seq_idx, tex_id, width, height, bpp):
-    fmt = 'rgba32' if bpp == 32 else 'rgb24'
+    fmt = {32: 'rgba32', 24: 'rgb24', 8: 'idx8'}[bpp]
     return f'textures/{gdw_name}/gtext/texture_{seq_idx:04}_id{tex_id:08x}_{width}x{height}_{fmt}.png'
 
 

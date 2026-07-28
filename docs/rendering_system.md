@@ -12,7 +12,7 @@ The PC version targets **DirectX 8** (`d3d8.dll`, `IDirect3DDevice8`). The game 
 |---|---|
 | Graphics API | DirectX 8 (`d3d8.dll`) |
 | Device interface | `IDirect3DDevice8` |
-| Primary pixel format | `D3DFMT_A8R8G8B8` (32bpp ARGB) |
+| Primary pixel format | `D3DFMT_A8R8G8B8` (32bpp; name is MSB→LSB bit order, actual little-endian file/memory byte order is BGRA — see Texture Formats below) |
 | Coordinate system | D3D left-handed, Y-up |
 | Display resolution (confirmed) | 1920×1080 |
 | Runtime | Wine / Proton via DXVK d3d8 wrapper |
@@ -73,15 +73,17 @@ Called roughly every 5 frames — believed to be shadow map or reflection pass. 
 
 | Format | D3D Equivalent | Byte Order | Used For |
 |---|---|---|---|
-| GTEXT 32bpp | `D3DFMT_A8R8G8B8` | RGBA | Environment, character textures |
+| GTEXT 32bpp | `D3DFMT_A8R8G8B8` | BGRA (native little-endian) | Environment, character textures |
 | GTEXT 24bpp | — | BGR (swap to RGB) | Environment textures |
-| GTEX 32bpp | `D3DFMT_A8R8G8B8` | ARGB (byte[0]=A, byte[1]=R, byte[2]=G, byte[3]=B) | Sprite/overlay layers |
-| GTEX 24bpp | — | R, B, G (swap G↔B) | Sprite layers |
+| GTEX 32bpp | `D3DFMT_A8R8G8B8` | BGRA (native little-endian) | Sprite/overlay layers |
+| GTEX 24bpp | — | BGR (swap to RGB) | Sprite layers |
+
+> **Correction (2026-07-29):** the byte orders above were previously documented as GTEXT 32bpp = straight RGBA, GTEX 32bpp = ARGB (`byte[0]=A,1=R,2=G,3=B`), and GTEX 24bpp = R,B,G — all wrong. `D3DFMT_A8R8G8B8`'s name describes bit significance MSB→LSB, not actual little-endian file byte order, which for all three cases above is native **B,G,R(,A)** — the same convention GTEXT 24bpp already had right. The wrong GTEXT 32bpp assumption produced a subtle R/B swap (blue tint on warm-toned textures); the wrong GTEX assumptions produced a visible R/G swap. Both were masked by a separate, now-fixed pixel-offset bug (see `CLAUDE.md`'s "Texture System (GTEXT)"/"(GTEX)" sections) that scrambled positioning badly enough to hide the channel-order error. `scripts/rip_textures.py` and `scripts/rip_gtex.py` are both fixed.
 
 All textures stored bottom-up in GDW files (flip on export).
 
 ### Chroma Key
-Sprite/overlay textures use cyan `#00FFFF` as chroma key (D3D DWORD `0xFF00FFFF`, confirmed at binary VA `0x725427`). Pixels where R<20, G>235, B>235 are made fully transparent on extract.
+Sprite/overlay textures use cyan `#00FFFF` as chroma key (D3D DWORD `0xFF00FFFF`, confirmed at binary VA `0x725427`). Pixels where R<20, G>235, B>235 are made fully transparent on extract. (Detection must read R/G/B from the corrected BGRA byte positions above, per the 2026-07-29 correction — the old ARGB-based detection in `scripts/rip_gtex.py` was checking the wrong bytes.)
 
 ### Runtime Render Targets
 65 texture IDs in the global space are **runtime render targets** — reflections, shadow maps — created by the engine at startup. No pixel data is stored in GDW files for these. They appear in TSET references but cannot be extracted.
@@ -152,7 +154,7 @@ See `water_system.md` for full detail. Key rendering facts:
 
 ## Overlay / UI
 
-The engine uses `GDSprite`, `GDRotSprite`, `GDFont`, `GDTextSprite` for UI elements. The GTEX sprite system provides composited overlay layers — ~1,660 GTEX sprites extracted, including HUD elements, caustic overlays, and interface textures. Sprites use `D3DFMT_A8R8G8B8` with chroma-key transparency.
+The engine uses `GDSprite`, `GDRotSprite`, `GDFont`, `GDTextSprite` for UI elements. The GTEX sprite system provides composited overlay layers — 2,787 GTEX sprites extracted (updated 2026-07-29, was ~1,660 before the pixel-offset fix — see `CLAUDE.md`), including HUD elements, caustic overlays, and interface textures. Sprites use `D3DFMT_A8R8G8B8` with chroma-key transparency.
 
 ---
 
@@ -161,6 +163,6 @@ The engine uses `GDSprite`, `GDRotSprite`, `GDFont`, `GDTextSprite` for UI eleme
 | Problem | Status |
 |---|---|
 | ~~Static environment geometry (terrain, coastline, water surface)~~ | **RESOLVED 2025-06-29**: all terrain tiles, rocks, water planes, and dock structures are present in `BRTR` as regular named mesh instances with full world transforms — no hidden BSP/heightmap, fully extractable. The pier-area water surface (`Plane01/02` instances) may still be partly runtime-driven — soft open question. See CLAUDE.md's Scene Layout table. |
-| ~~Skeletal animation keyframe format~~ | **PARTIALLY RESOLVED 2025-06-29**: located, not fully decoded. `SKEL`, `BONE`, `WGHT`, `ROTS`, `BROT`, `MTOB`, `CHLD`, `ANIM` blocks confirmed in `RSRC` (not a separate chunk). Structure partially decoded; extraction parser and Blender armature import not yet written. See CLAUDE.md's Skeletal Animation System section. |
+| ~~Skeletal animation keyframe format~~ | **FULLY RESOLVED 2026-07-17**: `SKEL`, `BONE`, `WGHT`, `ROTS`, `BROT`, `MTOB`, `CHLD`, `ANIM` blocks in `RSRC` fully decoded — bind mesh, per-vertex bone weights, recursive bone hierarchy, per-bone quaternion keyframes sliced into named clips. Extractor `scripts/rip_skeletons.py` verified on all 30 of FISH.GDW's skeletons; Blender armature/animation import still not written. See CLAUDE.md's Skeletal Animation System section. |
 | Palette / indexed texture decoding | Some small textures decode incorrectly — CLUT format unresolved |
 | Shadow map / reflection pipeline detail | Secondary camera confirmed; full pass structure not decoded |
