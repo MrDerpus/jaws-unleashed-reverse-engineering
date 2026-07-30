@@ -192,6 +192,10 @@ Each entry gives the first GDW where the ID was found, plus its extracted filena
 python3 scripts/build_texture_db.py
 ```
 
+**Correction (2026-07-30) — texture IDs are not always genuinely shared content across GDWs; true collisions happen.** The "911 IDs appear in multiple GDWs" figure above was previously assumed to mean redundant copies of the *same* image per ID (consistent with the shared global asset pool described elsewhere in this doc). Spot-checking texture ID `0x2E9` (745) — encountered while cataloguing the Amity Island overview map, see below — found it resolves to **three unrelated images** in three different GDWs: `BEACH.GDW` (a Spanish-language "ability unlocked" tutorial popup, 640×480), `OPEN_NW.GDW` (a "The Underwater Caves / Loading..." splash screen, 1024×512), and `OPEN_NE.GDW` (the world map, 512×256, see below) — different dimensions in every case, confirming these are not the same asset re-embedded, just a coincidental ID collision. Not yet re-audited across the other 910 multi-GDW IDs, so treat "shared across GDWs" as **unverified same-content** for any given ID until spot-checked, not a guarantee.
+
+**World/stage-select map texture, catalogued 2026-07-30:** `OPEN_NE.GDW`'s `gtex_0123_id000002e9_512x256_rgba32.png` is the in-game Amity Island overview map, shown when the player presses `^MAP^` (see the `MAP OF AMITY ISLAND` strings in `game_binary/Jaws.exe`, already noted in `docs/mission_system.md`'s location string table). This is normal, fully shipped UI content, not cut — flagging only because the ID collision above means the same texture ID elsewhere is a red herring, and because this specific file became relevant to the BEACH cut-objective investigation below (the map's painted illustration of the interior near BEACH shows a distinct rounded landform and a lighter, stream-like break in the canopy leading to it from the coast — independent, suggestive-but-not-conclusive visual corroboration of that theory, since this is a painted overview graphic, not literal terrain data).
+
 ## Geometry Pipeline — `scripts/rip_meshes.py`
 
 Mesh extraction is **working** across all 20 GDWs. **11,948 total `.obj` files** extracted to `models/<NAME>/`.
@@ -623,6 +627,22 @@ Outputs to `scenes/`:
 
 To change target GDW, edit `NAME = 'FISH'` at the top of the script.
 
+**Known bug — false-positive `BRTR` tag match on some GDWs (found 2026-07-30, not yet patched into the script):** both `rip_brtr_scene.py` and `resolve_brtr_hierarchy.py` locate the `BRTR` chunk with a naive `data.find(b'BRTR')`, which on some files lands on a coincidental 4-byte `"BRTR"` match inside `RSRC` binary data instead of the real top-level chunk (same class of bug as the old `SCRT` false-positive — see that note above). Symptom: a nonsense declared size (e.g. `1,414,161,505`) and, in `resolve_brtr_hierarchy.py`, an `AssertionError: expected root PRPS at start of BRTR`. Confirmed affected: `KATATAMA.GDW` (previously documented, see M05 correction note below), `BEACH.GDW`, `BEACHPST.GDW`, `START.GDW` — likely more, not yet swept across all 20.
+**Fix:** scan every `BRTR` occurrence, keep only candidates where `magic==0x01025024` (4 bytes after the size field), `root_count==1`, and the next tag is `PRPS`, then take the **largest** matching size — the real top-level scene chunk is always much bigger than the small embedded loading-screen sub-archives' own `BRTR` (see the "second embedded archive" note above), which also pass the magic/root_count/PRPS check but are a fraction of the size.
+```python
+candidates = []
+pos = 0
+while True:
+    idx = data.find(b'BRTR', pos)
+    if idx == -1: break
+    sz = u32(data, idx+4)
+    if idx+16 <= len(data) and u32(data, idx+8) == 0x01025024 and u32(data, idx+12) == 1 and data[idx+16:idx+20] == b'PRPS':
+        candidates.append((sz, idx))
+    pos = idx + 4
+brtr_sz, brtr_pos = max(candidates)
+```
+Verified real offsets found this way: `BEACH.GDW` @ `0x6F93BA0` (size 6,648,364), `BEACHPST.GDW` @ `0x67CB268` (size 5,278,588), `START.GDW` @ `0x85E1298` (size 9,945,376). **TODO: patch both scripts with this fix properly** and re-sweep all 20 GDWs — any existing `*_brtr.json`/`*_resolved_hierarchy.json` for an affected file that predates this note may be wrong or incomplete.
+
 ### `scenes/import_fish_blender.py` — Blender import script
 
 Paste into Blender's Scripting workspace and run. Imports each unique mesh from `models/FISH/` once (shared mesh data), then places 1161 instances with proper Blender object transforms. Objects are sorted into named collections (Player, Characters, Buildings, Rocks, Flora, Dock, Terrain, Collision, etc.).
@@ -670,6 +690,29 @@ Explored growing the archive itself (not just in-place editing) toward the goal 
 2. **Repointing/relocating existing nodes**, including **nested** ones. For a nested node, relocating to an arbitrary world position requires composing through the parent's transform (`new_local = parent_M⁻¹ @ (target_world − parent_translation)`, i.e. invert the parent's 3×3 rotation+scale basis), not just adding a translation delta — a plain delta only works for depth-0 (unparented) nodes. AABB shifts by the plain **world-space** delta regardless of nesting depth.
 
 **Not working, unresolved:** appending a brand-new `CHBR` sibling node to `BRTR` itself (same size-field-cascade technique as above, applied to `BRTR` instead of `RSRC`) does not render in-game — tried 3 ways (out-of-range node_id, in-range node_id, and a verbatim byte-clone of a real working node with only mesh-ref/transform/AABB patched), all failing identically with no crash and no render, despite every build independently re-verified as structurally sound. Leading theory: some precomputed spatial/streaming index or node membership list, built at level-authoring time and not touched by these edits, gates which nodes the engine even considers loading — but this isn't confirmed, and a weak counter-signal (new node was placed well inside an already-densely-populated, currently-streaming cluster) argues against simple region-based gating. Static analysis is exhausted here; next step would be runtime instrumentation of the game via the `mod/` d3d8 proxy to directly observe `BRTR` node processing during level load. Full narrative in memory (`project_custom_map_feasibility`).
+
+### Cut Objective — BEACH/BEACHPST Submarine + Blocking Boulders (found 2026-07-30)
+
+User-reported anomaly: an underwater "drone" sits motionless under the bridge in `BEACH.GDW`/`BEACHPST.GDW` and never activates (unlike other similar drones elsewhere in the level, which move and chase the player), yet still drains player hunger on proximity. Investigation, prompted by the user recalling that `START.GDW` (M01 Tutorial) has a submarine which, when destroyed, blows up a boulder blocking the path and opens the next area:
+
+**`TKSub` — a fully code-complete miniature attack submarine class**, found in the shared `CLAS` reflection registry (present in every GDW, so class presence alone doesn't prove a specific level uses it): `m_faster`/`m_slower` (speed), `m_maxyturn`/`m_turnaccel` (turning), `m_crab` (strafe), `m_libegamp` (hover/bob amplitude — "lebegő" = Hungarian "floating"), `m_MaxScooter`/`m_MaxDiver`/`m_MaxTorpedo` (damage thresholds by weapon type), `m_ShotPosID`/`m_ShotPos2ID` (torpedo firing points), `m_DiverID`/`m_DiverPosID` (carries a pilot diver), `m_RudderID` (destructible rudder), `m_BubblesID`/`m_DustID` (engine FX), `m_PropExplID` (propeller blows off on death), `m_ExplID`/`m_ExplActID`/`m_CompleteID`/`m_marker` (death sequence). It's referenced by a single resource-ID field (not a spawn list) from `MSScooter`, alongside `m_ScooterID` (player's seascooter), `m_RomboloID` ("Rombolo" = Hungarian for Destroyer ship), and **`m_TesztID`** ("Teszt" = Hungarian for "Test") — a field literally named "Test ID" sitting next to the sub reference is a strong signal this Scooter/Sub/Rombolo/Teszt group was a dev-time vehicle-mount test harness, not something uniformly finished across every level that references it. No CHBR node named "Sub"/"TKSub"/"submarine" exists anywhere in BEACH's or START's static `BRTR` scene graph — these vehicles are almost certainly mounted/spawned by that single ID reference at runtime (hardcoded mission C++), not individually art-named like a static prop, so the specific stuck instance can't be pinned down by name search.
+
+**The mechanic is proven working in `START.GDW`.** A tight cluster at world pos ~`(535.6, -12.5, 23.5)`: `TunnelBlockingDust`/`TunnelBlockingRockDust` (literally "tunnel blocking rock dust"), `TunnelRoom` (the gated room, 17 units away), `FromStart2` (checkpoint marker), and a `LastSeaSeekerMissionBrick` mission trigger nesting `KoVizbeEsik` ("rock falls into water", Hungarian) and `TitokzatosKod` ("mysterious code"). `Szikla1 127` — one of ~200 generic numbered boulder props scattered through the level — sits directly on the dust marker and is almost certainly the actual blocking rock.
+
+**`BEACH.GDW` has a matching, explicitly-named blocking-boulder group that never opens.** Searching for meshes placed in groups of exactly 3 near the bridge (bridge center ≈ `(-220, 20, 280)`, see `BridgeShooters`/`Bridge Spot` nodes) found:
+```
+Level3_elzarokovek   ("Level3 Blocking Rocks" — BEACH is internally named "Level3")
+├── Elzaroko01  world (-343.5, -17.4, 338.6)
+├── Elzaroko02  world (-342.4,  -2.9, 342.0)
+└── Elzaroko03  world (-342.4, -15.2, 350.1)
+```
+"Elzáró" = Hungarian for "blocking/sealing/shutting off" — an explicitly-named, dedicated barrier group, ~140 units past the bridge. Each rock's mesh is ~16 units long (`models/BEACH/BEACH_mesh_0395.obj`) — a real boulder, not decoration. Right next to them (4 units) sits `Kizaro_Lap_Kozepes` ("Excluding Plate, Medium") — an invisible collision-blocker plate, the same mesh (`mesh_id 2394`) used elsewhere in the level as `LowTideBarrier`: a visual wall of 3 rocks *plus* an invisible hard collision stop, together forming a deliberate, reinforced dead end. The underwater canyon (built from 64 `Fal_alapkeszlet` modular wall-kit pieces, the same canyon the bridge crosses) continues for 200+ more units past the rocks, up to a rock breaching the surface around `Z≈570` — i.e. there's substantial, fully-built map geometry sealed behind this barrier, not a dead-end stub.
+
+**BEACH vs. BEACHPST (the post-mission-state variant of this level) are byte-identical for this group** — same 3 rock positions, same structure (only the mesh_id numbering differs: 2557 vs 2506, consistent with per-file mesh-index renumbering of the same asset, not a state change). If this were a working "destroy to progress" objective, the post-mission variant should show the rocks already cleared. It doesn't — strong evidence this objective was never completed/wired up before shipping, in either mission state.
+
+**Working theory (data-supported, not proven):** the inert submarine under the BEACH bridge and the permanently-sealed `Elzaroko` boulders are two halves of one abandoned objective — a "destroy the sub → blast open the canyon → reach the next area" sequence, mechanically proven to exist and work via the equivalent `TunnelBlockingDust` setup in `START.GDW`, that never got fully wired together in `BEACH`/`BEACHPST` before shipping. The exact causal trigger (sub kill → rock destruction) is almost certainly hardcoded in `Jaws.exe`'s mission C++, not data-driven, so it isn't provable from GDW data alone. No transition marker (`ToDocks`/`ToTown`-style) was found to confirm where the sealed canyon was meant to lead — worth checking `DOCKS.GDW`/`TOWN.GDW` for a matching `FromBeach`-style marker. Next step to go further: runtime instrumentation via the `mod/` d3d8 proxy to watch the sub and the `Elzaroko`/`Kizaro_Lap_Kozepes` objects live in-game.
+
+**Independent visual corroboration, found 2026-07-30 (user-provided, user is the sole known extractor of this asset):** the in-game Amity Island overview map (`OPEN_NE.GDW`'s `gtex_0123_id000002e9_512x256_rgba32.png` — see the Texture Database section above; this is normal shipped UI content, not cut, only the *area it depicts* is in question) independently shows a distinct, rounded, lighter-toned landform in the island's interior, roughly inland from the BEACH coastal cove, connected to that cove by a visibly lighter, meandering break in the tree-canopy texture consistent with an artist's rendering of a stream. This lines up geographically with the sealed canyon's direction of travel and its terminus at the literal edge of BEACH's built geometry (see above). Caveat: this is a painted overview illustration, not literal terrain data — it's suggestive corroboration from an independent source, not proof by itself. The stronger evidence remains the GDW-side findings above.
 
 ## Class Namespace Conventions
 
@@ -887,11 +930,52 @@ GSMP [block_size]
 
 The "category" field read at the standard offset is actually the OBPR size (20), not a real category. Sample rate and byte count come from the secondary header at `pos + 16 + 8 + obpr_size`.
 
-**Content:** NPC voice lines that appear to be unused/cut content — present in the GDW files but not triggered in the shipped game.
+**Content:** NPC voice lines (short barks/reactions, 0.3–7s — durations and skeleton clip names like `BeingDevouredLegs`, `PanicRun`, `FrightenedRun`, `StandCheer3x` suggest crowd-panic/reaction audio, not full mission dialogue).
+
+**Correction (2026-07-29) — these are NOT unused/cut content.** Previous docs claimed SMPB samples were "present but not triggered." This is wrong. Every SMPB sample is wired to a `GSFX` trigger block exactly like regular gameplay SFX — verified exhaustively on `START.GDW`: all 70/70 extracted SMPB sample IDs are referenced by a `GSFX` block's embedded sample-reference field (as are all 214/214 of that GDW's regular raw-PCM `GSMP` samples; only 3 of 287 total GSFX references in the file are dangling). See the `GSFX` decode note below — the old "unused" label was never verified against actual trigger data, just guessed from the format looking unusual.
 
 Output filename: `{STEM}_smpb_id{id:04d}_{rate}hz_{dur:.2f}s.wav`
 
 **Extracted: 1128 files across all GDWs.**
+
+### GSFX — Sound Effect Trigger Blocks (decoded 2026-07-29)
+
+`GSFX` is a real, distinct top-level RSRC tag (not literally a `GSMP` flags variant as earlier docs implied — that was an artifact of naive byte-pattern scanning landing mid-block). Fixed 68-byte payload, standard `[tag][uint32 size][payload]` framing (`size` = payload-only, consistent with the rest of the format):
+
+```
+GSFX [uint32 size=68]
+  [uint32 event/instance id]
+  [uint32 flags = 0x21]
+  OBPR [uint32 obpr_size = 0]
+  [40 bytes, mostly zero — one float32 near offset+20, observed range 0.8–1.0, likely playback volume]
+  [uint32 = 1]
+  ['GSMP' 4-byte ASCII type discriminator — same embedded-tag-as-marker pattern as PROP 0x08001873's 'GMDL']
+  [uint32 referenced_sample_id]   ← the GSMP/SMPB sample_id this event plays
+```
+This is the actual sound-trigger layer sitting between gameplay/AI logic and the raw audio resources: every `GSFX` block's `referenced_sample_id` was confirmed to resolve to either a regular `GSMP` sample or an `SMPB` sample (never both), never dangling except 3/287 stragglers in the one file checked. Use this to determine whether *any* given audio resource ID is actually triggered in-game, and (with more work — not yet done) to trace which gameplay object/quest fires it, by locating the `GSFX` block's containing `GMOA`/`GSQD`/`CHBR` context.
+
+### Lead: long-duration `GSMP` cat2 "SFX" samples may be the missing story dialogue (found 2026-07-29, unconfirmed — needs a human to listen)
+
+Regular `GSMP` category 2 (SFX) samples are documented as "typically <5s." Scanning actual extracted durations across all 20 GDWs turns up a small set of outliers, all confirmed **actively referenced by a `GSFX` trigger** (checked `BEACH_id0590`, not dangling data) — durations and per-level uniqueness (not duplicated across many GDWs like the shared ambient pool is) make them poor fits for footsteps/splashes/explosions and good fits for spoken dialogue:
+
+| File | Duration | Note |
+|---|---|---|
+| ~~`BEACH_id0590`, `BEACHPST_id0579`~~ | ~~44.58s~~ | **RULED OUT (2026-07-29, user confirmed by listening): this is a song playing diegetically on the beach (radio/boombox source), not dialogue.** Duration/GSFX-triggered alone is not sufficient evidence of speech — diegetic music cues are also filed under cat2 rather than cat3 (cat3 appears to be reserved for non-diegetic background/loop music). Downgrades confidence in the rest of this list; still worth checking but expect more music/ambient false positives, not just dialogue. |
+| `BEACH_id0476` | 16.44s | |
+| `WRACK_id0416` | 14.16s | |
+| `WRACK_id0427`, `TOWN_id0540` | 10.70s | |
+| `TOWN_id0541` | 10.31s | |
+| `KATATAMA_id0288` | 10.00s | |
+| `DEEPSEA_id0166`, `DEEPSEA2_id0564` | 9.98s | |
+| `WRACK_id0230` | 9.91s | |
+| `DEEPSEA_id0163` | 9.58s | |
+| `TOWN_id0109`, `id0110`, `id0111`, `id0112` | 7.12s, 9.55s, 9.55s, 9.55s | **4 consecutive resource IDs**, a strong signature for a short recorded back-and-forth exchange (sequential lines authored/exported together) |
+| `DEEPSEA_id0489`, `DEEPSEA2_id0516` | 8.02s | |
+| `DOCKS_id0301` | 7.43s | |
+| `DEEPSEA2_id0599` | 7.24s | |
+| `AQUARIUM_id0681` | 7.08s | |
+
+These files already exist in `audio/<LEVEL>/` right now (no re-extraction needed) — this project has no audio playback/transcription tool available, so this is an unconfirmed lead, not a verified finding. **Next step: a human listens to the `TOWN_id0109`–`id0112` sequence** (now the best remaining candidate — 4 consecutive resource IDs still looks like the strongest structural signature for a short recorded exchange) and works down the rest of the list, and confirms/denies each as spoken dialogue vs. diegetic music/ambience.
 
 ### WMV Cutscene Videos — `audio/wmv/`
 Pre-rendered cutscenes in Windows Media Video format, stored in `movie/` in the game install directory. Audio extracted via ffmpeg to `audio/wmv/`. All files are WMA2 stereo 48000 Hz. Notable files:
@@ -905,10 +989,10 @@ Pre-rendered cutscenes in Windows Media Video format, stored in `movie/` in the 
 | `JAWSC4/7/8/9/10/11.WMV` | 37–188s | Unlockable 1975 Jaws film clips |
 
 ### Missing: In-Game Cutscene Voice Acting
-The game has in-game cutscenes driven by the `NACutScene` engine class alongside `MPGPlay` / `StreamPlay` objects. Voice acting heard during these sequences has **not yet been located**. The game install contains only the 20 GDW files and the WMV movie files — no separate audio banks. Possible locations still to investigate:
+The game has in-game cutscenes driven by the `NACutScene` engine class alongside `MPGPlay` / `StreamPlay` objects. Voice acting heard during these sequences has **still not conclusively been located**, but see the SMPB correction and long-duration `GSMP` lead above (2026-07-29) — SMPB is confirmed in-use (not cut) but appears to be short crowd/reaction barks rather than full dialogue; a short list of unusually long, per-level-unique `GSMP` cat2 samples were flagged as a candidate lead for story dialogue, but the top candidate (`BEACH_id0590`/`BEACHPST_id0579`, 44.58s) was listened to and is a diegetic song (beach radio), not dialogue — so duration + per-level-uniqueness alone is not reliable evidence of speech, and the rest of the list is unconfirmed and now lower-confidence. Ruled out this session: no external audio middleware (checked for FMOD/Miles/Wwise — none present; `fmod` string in the binary is the C runtime `fmod()` math function, a false lead; `DSOUND.dll` is just standard DirectSound) and no separate movie/bank file format (`MPGPlay`'s `m_fname` field and `%s.WMV` format string confirm cutscene video is exclusively the already-extracted WMV files; `GDSoundEventScope`'s `m_AW_Resource`/`m_UW_Resource` fields are Above-Water/Under-Water reverb variants, not an external bank reference). Remaining possible locations:
 - Unknown chunk types in RSRC not yet decoded
-- `SCRT` scripting chunk (obfuscated — encoding not yet identified)
-- `BRTR` non-mesh CHBR nodes with `Audio` prefix names (1621 non-mesh nodes include audio source objects)
+- `BRTR` non-mesh CHBR nodes with `Audio` prefix names (1621 non-mesh nodes include audio source objects) — not yet cross-referenced against the GSFX sample IDs above
+- Possibility that regular (non-cutscene) story dialogue was never voiced at all — only the big pre-rendered WMV cinematics (INTRO/SHARK/OUTSCENE/PSYCHO) got real VO, with in-engine `NACutScene` sequences relying on subtitle text only. Not ruled out.
 
 ## PS2 Version Data — `.GDE` Files
 
@@ -964,7 +1048,7 @@ grep -rioab "search_term" GAME_GDWs/ game_binary/
 - **Static environment geometry** — ~~terrain not found~~ **RESOLVED (2025-06-29)**: all terrain tiles, rocks, water planes, and dock structures are present in BRTR as named mesh instances (see Scene Layout table). No hidden BSP or heightmap. The water surface at the pier area (Z~0 cluster) may still use runtime geometry — check `Plane01/02` instances.
 - ~~**Skeletal animation**~~ **RESOLVED (2026-07-17)**: `SKEL`/`BONE`/`WGHT`/`ROTS`/`BROT`/`MTOB`/`CHLD`/`ANIM` fully decoded — bind mesh, per-vertex weights, recursive bone hierarchy, and per-bone quaternion keyframe streams sliced into named clips by `ANIM`. Extractor `scripts/rip_skeletons.py` verified clean on all 30 of FISH.GDW's skeletons. See Skeletal Animation System section. Still open: the undecoded pre-`VERT` blob, `TRAN`'s role, and Blender armature/animation import (mesh-only import exists, no skinning wired in yet).
 - ~~**Parent-child hierarchy**~~ **RESOLVED (2026-07-16)**: nested `CHBR` nodes store transforms LOCAL to their parent, not world space. World position = compose the full ancestor chain (`world = parent_world ∘ local`, standard affine composition: `R_world = R_parent @ R_child`, `T_world = R_parent @ T_child + T_parent`), starting from the root "World" `PRPS` node (which itself carries an identity transform in FISH.GDW). Nesting is physical — a child `CHBR` sits inside its parent's payload after the parent's own `PRPS` block, not merely cross-referenced via `PROP 0x080003C7`. Validated on `FISH.GDW`: resolved node count (2782) exactly matches the known flat-scan `CHBR` tag count; a nested `WhaleCarcass Body` group (raw local pos reads near (0,0,0), a red herring) resolves to world pos `(60, -20, 105)`, exactly matching a separate top-level `Kis_Halaszhajo` (small fishing boat) cluster and a family of ship-sinking FX/audio nodes (`NewEffectShipSinking_above`, `SndShipExplo`, `boat_crash`, etc.) at the same coordinates — confirmed against in-game observation that the whale carcass sits right at the small boat/pier area. Also incidentally confirmed `FISH.GDW`'s BRTR *is* the SC17 "Mine All Mine" side-challenge instance (nodes named `MineAllMine Mission Shark 1-4`, `SideMissionRemainingTimeTextModel`, `You Have X PointS` all resolve to the same world region). Extractor: `scripts/resolve_brtr_hierarchy.py` → `scenes/<NAME>_resolved_hierarchy.json` (per-node name, resolved world_pos, local_pos, mesh_id, parent_id, depth). `rip_brtr_scene.py`'s flat local-position reads remain accurate only for top-level (`depth=0`) nodes; nested-node positions from it should be treated as unresolved/local, not world space, until re-run through the new resolver.
-- **In-game cutscene voice acting** — not found in GSMP, SMPB, or WMV files. SKEL/ANIM animation names suggest in-game cutscene data exists; audio may be in a not-yet-decoded block type. (Ruled out: `SCRT` — see below, resolved and it's not audio-related.)
+- **In-game cutscene voice acting** — still not conclusively found, but progress 2026-07-29: `GSFX` sound-trigger blocks fully decoded (see Audio System section), proving SMPB samples are NOT unused/cut as previously claimed — all are actively triggered, just appear to be short crowd/reaction barks. A short list of unusually long (7–44s), per-level-unique `GSMP` cat2 "SFX" samples was flagged as a lead, but the top candidate turned out to be a diegetic beach-radio song, not dialogue (user-confirmed by listening) — so this lead is weaker than initially thought; remaining candidates (esp. `TOWN_id0109`–`id0112`, 4 consecutive resource IDs) are still unconfirmed. External audio middleware and a separate movie-bank file format are both ruled out. (Ruled out: `SCRT` — see below, resolved and it's not audio-related.)
 - ~~`SCRT` scripting chunk (obfuscated)~~ **RESOLVED (2026-07-08)**: not obfuscated, not scripting. The offset previously cited was a false-positive tag match; the real `SCRT` is a small top-level `PRPS`/`CHBR`/`PROP` tree (same format as `BRTR`) holding named screen-space overlay objects (`GDScreen`, water reflection/transparency layers, motion blur). See the `SCRT` note in the GDW Archive Format section.
 - **Unknown PROP IDs** — `0x080017DB`–`0x080017E4`, `0x08001874`–`0x0800187B`, and (new, from `SCRT`) `0x08001980`–`0x08001993` / PS2's `0x08001957`–`0x0800196A` seen on CHBR nodes; most meanings not yet determined (see PROP ID table above for partial decode).
 - ~~`SKIP` chunk undecoded~~ **RESOLVED (2026-07-08)**: pure sector-alignment padding (`0xFF`-filled, pads to a 512-byte boundary before `FDIR`). See `SKIP` note in GDW Archive Format section.
@@ -973,3 +1057,5 @@ grep -rioab "search_term" GAME_GDWs/ game_binary/
 - **GMAT `TEXP` ↔ TSET linkage** — `TEXP` sub-chunks inside GMAT reference GTEX texture IDs; TSET records reference the same IDs. The exact relationship between GMAT (material parameters) and TSET (layer assignments) per mesh is not yet mapped.
 - **MREG `MOIL` content** — the large (~66 KB) `MOIL` sub-chunk inside `GMOA` blocks is undecoded. May contain AI pathfinding graph data or NPC navigation mesh.
 - **Brand-new BRTR node insertion silently fails to render** — see "Custom map feasibility" note above. Resource injection into `RSRC` and repointing/relocating existing `BRTR` nodes both work; appending an entirely new, structurally-valid `CHBR` sibling to `BRTR` does not appear in-game (3/3 attempts, no crash). Cause unknown — candidates are a precomputed spatial/streaming index or a node membership list/count consulted before individual `CHBR` parsing, neither located yet. Next step would be runtime instrumentation via the `mod/` d3d8 proxy rather than further static analysis.
+- **BRTR false-positive tag offset affects multiple GDWs beyond KATATAMA** — see the note under `rip_brtr_scene.py` above. Confirmed on `KATATAMA`, `BEACH`, `BEACHPST`, `START`; fix identified (scan for `magic==0x01025024`/`root_count==1`/next-tag `PRPS`, take the largest match) but not yet patched into `rip_brtr_scene.py`/`resolve_brtr_hierarchy.py`, and the other 16 GDWs haven't been swept to check if they're affected too.
+- **Cut objective — BEACH/BEACHPST submarine + blocking boulders, not confirmed** — see "Cut Objective" note above. Strong circumstantial evidence (named `Elzaroko`/`Level3_elzarokovek` blocking-rock group + matching invisible barrier, unchanged between BEACH and BEACHPST mission states, a fully-built canyon sealed behind it, and a proven working precedent of the same "destroy something → clear boulder → open room" mechanic in `START.GDW` via `TunnelBlockingDust`) but the causal trigger linking a `TKSub` kill to the boulders' destruction is not present in any GDW's static data — it's presumed hardcoded in `Jaws.exe`. Needs runtime instrumentation (`mod/` d3d8 proxy) to confirm, and `DOCKS.GDW`/`TOWN.GDW` haven't been checked for a matching transition marker on the far side of the sealed canyon.

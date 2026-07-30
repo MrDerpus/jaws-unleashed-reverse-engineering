@@ -124,6 +124,15 @@ This means the engine self-documents. Class names, property names, and component
 
 ---
 
+## Vehicles
+
+| Class | Purpose |
+|---|---|
+| `TKSub` | Miniature attack submersible — speed/turn/strafe (`m_faster`/`m_slower`/`m_maxyturn`/`m_turnaccel`/`m_crab`), hover bob (`m_libegamp`), damage thresholds by weapon type (`m_MaxScooter`/`m_MaxDiver`/`m_MaxTorpedo`), torpedo firing points (`m_ShotPosID`/`m_ShotPos2ID`), carries a pilot diver (`m_DiverID`/`m_DiverPosID`), destructible rudder + propeller-blows-off-on-death FX chain. Found 2026-07-30 investigating a stuck non-moving "drone" under the BEACH.GDW bridge — see CLAUDE.md's "Cut Objective — BEACH/BEACHPST Submarine + Blocking Boulders" note. |
+| `MSScooter` | Generic vehicle-mount handler; single-ID references to `m_ScooterID` (player's seascooter), `m_SubID` (`TKSub`), `m_RomboloID` ("Rombolo" = Hungarian for Destroyer ship), and `m_TesztID` ("Teszt" = Hungarian "Test") — the literal "Test ID" field alongside the others suggests this group was a dev-time vehicle-mount test harness, not a uniformly-shipped system. |
+
+---
+
 ## Skeleton / Animation
 
 | Class | Purpose |
