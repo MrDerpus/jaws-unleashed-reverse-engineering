@@ -65,24 +65,6 @@ public:
     HRESULT __stdcall GetDepthStencilSurface(IDirect3DSurface8** p) override       { return real_->GetDepthStencilSurface(p); }
     HRESULT __stdcall BeginScene() override {
         log_once_begin();
-        /* Write god mode values here too so they're pinned before every render pass,
-         * not just after — the game's update/damage runs between Present and BeginScene. */
-        if (god_mode_) {
-            *reinterpret_cast<float*>(0x8F11A8u) = 1.0f;
-            *reinterpret_cast<float*>(0x8F11B8u) = 1.0f;
-            *reinterpret_cast<float*>(0x8F11C8u) = 1.0f;
-            *reinterpret_cast<float*>(0x8F11D8u) = 1.0f;
-            *reinterpret_cast<float*>(0x8FB1B0u) = 1.0f;
-            *reinterpret_cast<float*>(0x8FB1C0u) = 10.0f;
-            *reinterpret_cast<float*>(0x9E907Cu) = 1.0f;
-            *reinterpret_cast<float*>(0x9E908Cu) = 1.0f;
-            *reinterpret_cast<float*>(0x9E909Cu) = 1.0f;
-            *reinterpret_cast<float*>(0x9E90ACu) = 1.0f;
-            *reinterpret_cast<float*>(0x9E90FCu) = 1.0f;
-            *reinterpret_cast<float*>(0xA14ED4u) = 1.0f;
-            *reinterpret_cast<float*>(0xA16318u) = 1.0f;
-            *reinterpret_cast<float*>(0xA59448u) = 1.0f;
-        }
         return real_->BeginScene();
     }
     HRESULT __stdcall Clear(DWORD c,const D3DRECT* r,DWORD f,D3DCOLOR col,float z,DWORD s) override { return real_->Clear(c,r,f,col,z,s); }
@@ -180,9 +162,6 @@ private:
     DWORD fc_last_real_ms_ = 0;
     bool  fc_time_init_    = false;
 
-    /* God mode — pins NAPredator health to max each EndScene */
-    bool  god_mode_  = false;
-
     /* Simulation pause — freezes game time while freecam remains live */
     bool  sim_paused_ = false;
 
@@ -196,8 +175,7 @@ private:
     int   screenshot_idx_ = 0;
 
     /* Input debounce */
-    bool  f1_prev_        = false;
-    bool  f2_prev_        = false;
+    bool  freecam_prev_   = false;
     bool  f3_prev_        = false;
     bool  f4_prev_        = false;
     bool  f5_prev_        = false;

@@ -20,7 +20,7 @@ Known level files:
 | `TOWN.GDW` | Town |
 | `OPEN_S.GDW` / `OPEN_NE.GDW` / `OPEN_NW.GDW` | Open ocean zones |
 | `DEEPSEA.GDW` / `DEEPSEA2.GDW` | Deep sea |
-| `MINEMSHA.GDW` | Menemsha |
+| `MINEMSHA.GDW` | Grand Occasus Canals (SC15 "Up a Creek") — identified 2026-08-12, see `mission_system.md`; "Menemsha" is just the internal dev filename |
 | `AQUARIUM.GDW` | Aquarium |
 | `ARMADA.GDW` | Armada |
 | `CHASE.GDW` | Chase |

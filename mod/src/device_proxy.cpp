@@ -10,7 +10,6 @@ static inline bool key_down(int vk)
     return (GetKeyState(vk) & 0x8000) != 0;
 }
 
-#define VK_F1  0x70
 #define VK_F2  0x71
 #define VK_F3  0x72
 #define VK_F4  0x73
@@ -200,7 +199,7 @@ void DeviceProxy::ExtractCamPos(const D3DMATRIX& v)
     cam_y_ = cy;
     cam_z_ = cz;
 
-    /* Rolling history for median-position seeding on F1 activation -- now only
+    /* Rolling history for median-position seeding on F2 activation -- now only
      * ever fed accepted (gated) samples, so this stays a real-camera history. */
     cam_hx_[cam_hidx_] = cam_x_;
     cam_hy_[cam_hidx_] = cam_y_;
@@ -238,10 +237,11 @@ HRESULT __stdcall DeviceProxy::EndScene()
         endscene_logged_ = true;
     }
 
-    /* Toggle freecam on F1 (rising edge) */
-    bool f1_now = key_down(VK_F1);
-    if (f1_now && !f1_prev_) {
-        log_msg("[jaws_mod] F1 toggled");
+    /* Toggle freecam on F2 (rising edge) — moved off F1 so F1 is free for
+     * the game's own map screen (freecam interferes with the map's 3D view). */
+    bool freecam_now = key_down(VK_F2);
+    if (freecam_now && !freecam_prev_) {
+        log_msg("[jaws_mod] F2 toggled");
         freecam_ = !freecam_;
         if (freecam_) {
             /* Seed from median of last 5 view matrices — picks the main camera
@@ -265,15 +265,7 @@ HRESULT __stdcall DeviceProxy::EndScene()
             mouse_captured_ = false;
         }
     }
-    f1_prev_ = f1_now;
-
-    /* Toggle god mode on F2 */
-    bool f2_now = key_down(VK_F2);
-    if (f2_now && !f2_prev_) {
-        god_mode_ = !god_mode_;
-        log_msg(god_mode_ ? "[jaws_mod] god mode ON" : "[jaws_mod] god mode OFF");
-    }
-    f2_prev_ = f2_now;
+    freecam_prev_ = freecam_now;
 
     /* F7 — two-pass health scanner.
      * Pass 1 (press at full health): records all floats in [0.001, 20.0] across full .data.
@@ -436,159 +428,6 @@ HRESULT __stdcall DeviceProxy::EndScene()
     }
     f9_prev_ = f9_now;
 
-    /* God mode — pin all candidate health/meter addresses every EndScene.
-     * Also written in BeginScene to catch the window before the render pass.
-     * Log pre-write values every 180 frames so we can verify writes stick. */
-    if (god_mode_) {
-        /* One-shot: dump the 4 NAPredator-area runtime pointers at 0x8AFFBC.
-         * These DWORDs sit just before the "JC!-napredator" class string in .data.
-         * At runtime they may hold vtable/object pointers — follow them to find health. */
-        static bool napred_dumped = false;
-        if (!napred_dumped) {
-            napred_dumped = true;
-            char buf[256];
-            DWORD* area = reinterpret_cast<DWORD*>(0x8AFFBCu);
-            for (int i = 0; i < 4; ++i) {
-                DWORD ptr = area[i];
-                snprintf(buf, sizeof(buf), "[jaws_mod] napred[%d] @ 0x%08lX = 0x%08lX", i, (DWORD)(area+i), ptr);
-                log_msg(buf);
-                /* Follow if plausible pointer */
-                if (ptr >= 0x100000u && ptr < 0xF0000000u) {
-                    DWORD* obj = reinterpret_cast<DWORD*>(ptr);
-                    for (int row = 0; row < 8; ++row) {
-                        snprintf(buf, sizeof(buf),
-                            "  +%02X: %08lX %08lX %08lX %08lX  (%.3f %.3f %.3f %.3f)",
-                            row*16,
-                            obj[row*4+0], obj[row*4+1], obj[row*4+2], obj[row*4+3],
-                            *reinterpret_cast<float*>(&obj[row*4+0]),
-                            *reinterpret_cast<float*>(&obj[row*4+1]),
-                            *reinterpret_cast<float*>(&obj[row*4+2]),
-                            *reinterpret_cast<float*>(&obj[row*4+3]));
-                        log_msg(buf);
-                    }
-                }
-            }
-            /* Also dump MLSharkCtrl area pointers at 0x906E40 and 0x9076D0 */
-            DWORD mlsc_addrs[2] = { 0x906E40u, 0x9076D0u };
-            for (int k = 0; k < 2; ++k) {
-                snprintf(buf, sizeof(buf), "[jaws_mod] MLSharkCtrl[%d] @ 0x%08lX:", k, mlsc_addrs[k]);
-                log_msg(buf);
-                DWORD* obj = reinterpret_cast<DWORD*>(mlsc_addrs[k]);
-                for (int row = 0; row < 12; ++row) {
-                    snprintf(buf, sizeof(buf),
-                        "  +%03X: %08lX %08lX %08lX %08lX  (%.3f %.3f %.3f %.3f)",
-                        row*16,
-                        obj[row*4+0], obj[row*4+1], obj[row*4+2], obj[row*4+3],
-                        *reinterpret_cast<float*>(&obj[row*4+0]),
-                        *reinterpret_cast<float*>(&obj[row*4+1]),
-                        *reinterpret_cast<float*>(&obj[row*4+2]),
-                        *reinterpret_cast<float*>(&obj[row*4+3]));
-                    log_msg(buf);
-                }
-            }
-        }
-
-        /* One-shot: dump 0xA164C0–0xA165C0 to understand the object containing
-         * 0xA164D8 (0.8668→0.0037) and 0xA164E8 (same) — both near zero. */
-        static bool a164_dumped = false;
-        if (!a164_dumped) {
-            a164_dumped = true;
-            char buf[256];
-            log_msg("[jaws_mod] obj dump 0xA164C0-0xA165C0:");
-            DWORD* base = reinterpret_cast<DWORD*>(0xA164C0u);
-            for (int row = 0; row < 16; ++row) {
-                snprintf(buf, sizeof(buf),
-                    "  +%03X: %08lX %08lX %08lX %08lX  (%.4f %.4f %.4f %.4f)",
-                    row*16,
-                    base[row*4+0], base[row*4+1], base[row*4+2], base[row*4+3],
-                    *reinterpret_cast<float*>(&base[row*4+0]),
-                    *reinterpret_cast<float*>(&base[row*4+1]),
-                    *reinterpret_cast<float*>(&base[row*4+2]),
-                    *reinterpret_cast<float*>(&base[row*4+3]));
-                log_msg(buf);
-            }
-            /* And 0xA14EC0–0xA14FC0 for the A14ED4 candidate: */
-            log_msg("[jaws_mod] obj dump 0xA14EC0-0xA14FC0:");
-            DWORD* base2 = reinterpret_cast<DWORD*>(0xA14EC0u);
-            for (int row = 0; row < 16; ++row) {
-                snprintf(buf, sizeof(buf),
-                    "  +%03X: %08lX %08lX %08lX %08lX  (%.4f %.4f %.4f %.4f)",
-                    row*16,
-                    base2[row*4+0], base2[row*4+1], base2[row*4+2], base2[row*4+3],
-                    *reinterpret_cast<float*>(&base2[row*4+0]),
-                    *reinterpret_cast<float*>(&base2[row*4+1]),
-                    *reinterpret_cast<float*>(&base2[row*4+2]),
-                    *reinterpret_cast<float*>(&base2[row*4+3]));
-                log_msg(buf);
-            }
-        }
-
-        /* One-shot: dump 0x9E8B00–0x9E8C00 to understand the object where
-         * 0x9E8B70 (health candidate) and 0x9E8BD0 (→0.0 on damage) live. */
-        static bool obj_dumped = false;
-        if (!obj_dumped) {
-            obj_dumped = true;
-            char buf[256];
-            log_msg("[jaws_mod] obj dump 0x9E8B00-0x9E8C00:");
-            DWORD* base = reinterpret_cast<DWORD*>(0x9E8B00u);
-            for (int row = 0; row < 16; ++row) {
-                snprintf(buf, sizeof(buf),
-                    "  +%03X: %08lX %08lX %08lX %08lX  (%.4f %.4f %.4f %.4f)",
-                    row*16,
-                    base[row*4+0], base[row*4+1], base[row*4+2], base[row*4+3],
-                    *reinterpret_cast<float*>(&base[row*4+0]),
-                    *reinterpret_cast<float*>(&base[row*4+1]),
-                    *reinterpret_cast<float*>(&base[row*4+2]),
-                    *reinterpret_cast<float*>(&base[row*4+3]));
-                log_msg(buf);
-            }
-            /* Also dump 0x9093A0–0x9094A0 (MLSharkCtrl-referenced object): */
-            log_msg("[jaws_mod] obj dump 0x9093A0-0x9094A0:");
-            DWORD* base2 = reinterpret_cast<DWORD*>(0x9093A0u);
-            for (int row = 0; row < 16; ++row) {
-                snprintf(buf, sizeof(buf),
-                    "  +%03X: %08lX %08lX %08lX %08lX  (%.4f %.4f %.4f %.4f)",
-                    row*16,
-                    base2[row*4+0], base2[row*4+1], base2[row*4+2], base2[row*4+3],
-                    *reinterpret_cast<float*>(&base2[row*4+0]),
-                    *reinterpret_cast<float*>(&base2[row*4+1]),
-                    *reinterpret_cast<float*>(&base2[row*4+2]),
-                    *reinterpret_cast<float*>(&base2[row*4+3]));
-                log_msg(buf);
-            }
-        }
-
-        static int gf = 0;
-        if (++gf % 180 == 0) {
-            char buf[320];
-            snprintf(buf, sizeof(buf),
-                "[jaws_mod] god pre-write: FC=%.4f 7C=%.4f ED4=%.4f 318=%.4f 448=%.4f",
-                *reinterpret_cast<float*>(0x9E90FCu),
-                *reinterpret_cast<float*>(0x9E907Cu),
-                *reinterpret_cast<float*>(0xA14ED4u),
-                *reinterpret_cast<float*>(0xA16318u),
-                *reinterpret_cast<float*>(0xA59448u));
-            log_msg(buf);
-        }
-        *reinterpret_cast<float*>(0x8F11A8u) = 1.0f;
-        *reinterpret_cast<float*>(0x8F11B8u) = 1.0f;
-        *reinterpret_cast<float*>(0x8F11C8u) = 1.0f;
-        *reinterpret_cast<float*>(0x8F11D8u) = 1.0f;
-        *reinterpret_cast<float*>(0x8FB1B0u) = 1.0f;
-        *reinterpret_cast<float*>(0x8FB1C0u) = 10.0f;
-        /* 9E90xx cluster (4 equal meters + 1 low): */
-        *reinterpret_cast<float*>(0x9E907Cu) = 1.0f;
-        *reinterpret_cast<float*>(0x9E908Cu) = 1.0f;
-        *reinterpret_cast<float*>(0x9E909Cu) = 1.0f;
-        *reinterpret_cast<float*>(0x9E90ACu) = 1.0f;
-        *reinterpret_cast<float*>(0x9E90FCu) = 1.0f;
-        /* 0xA1xxxx candidates: */
-        *reinterpret_cast<float*>(0xA14ED4u) = 1.0f;
-        *reinterpret_cast<float*>(0xA16318u) = 1.0f;
-        /* 0xA5xxxx candidate (identical 1.0→0.125 drop as A14ED4): */
-        *reinterpret_cast<float*>(0xA59448u) = 1.0f;
-    }
-
     /* Screenshot (F3 — rising edge, captures the current front buffer) */
     bool f3_now = key_down(VK_F3);
     if (f3_now && !f3_prev_) TakeScreenshot();
@@ -663,7 +502,7 @@ HRESULT __stdcall DeviceProxy::EndScene()
      * For now, fall back to the D3D camera-transform reading -- imperfect
      * (third-person camera orbits, occasional reflection-pass pollution)
      * but not actively wrong the way the memory candidate was. */
-    overlay_.Draw(real_, cam_x_, cam_y_, cam_z_, freecam_, god_mode_, fog_off_, wireframe_, hide_foliage_, sim_paused_);
+    overlay_.Draw(real_, cam_x_, cam_y_, cam_z_, freecam_, fog_off_, wireframe_, hide_foliage_, sim_paused_);
 
     return real_->EndScene();
 }

@@ -72,7 +72,7 @@ void Overlay::Release()
 
 /* ── Update the CPU-side texture via GDI ────────────────────────────────── */
 void Overlay::UpdateTexture(float cx, float cy, float cz,
-                             bool freecam, bool god,
+                             bool freecam,
                              bool fog_off, bool wireframe, bool hide_foliage,
                              bool sim_paused)
 {
@@ -134,19 +134,16 @@ void Overlay::UpdateTexture(float cx, float cy, float cz,
 
     /* Status lines */
     SetTextColor(memDC, freecam ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 58, freecam ? "[F1] FreeCam  ON" : "[F1] FreeCam OFF", 16);
-
-    SetTextColor(memDC, god ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 74, god ? "[F2] GodMode  ON" : "[F2] GodMode OFF", 16);
+    TextOutA(memDC, 6, 58, freecam ? "[F2] FreeCam  ON" : "[F2] FreeCam OFF", 16);
 
     SetTextColor(memDC, fog_off ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 90, fog_off ? "[F4] Fog      OFF" : "[F4] Fog       ON", 17);
+    TextOutA(memDC, 6, 74, fog_off ? "[F4] Fog      OFF" : "[F4] Fog       ON", 17);
 
     SetTextColor(memDC, sim_paused ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 106, sim_paused ? "[F5] Sim Pause ON " : "[F5] Sim Pause OFF", 18);
+    TextOutA(memDC, 6, 90, sim_paused ? "[F5] Sim Pause ON " : "[F5] Sim Pause OFF", 18);
 
     SetTextColor(memDC, hide_foliage ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 122, hide_foliage ? "[F6] Foliage  OFF" : "[F6] Foliage   ON", 17);
+    TextOutA(memDC, 6, 106, hide_foliage ? "[F6] Foliage  OFF" : "[F6] Foliage   ON", 17);
 
     SelectObject(memDC, hOldFont);
     DeleteObject(hFont);
@@ -267,10 +264,10 @@ void Overlay::DrawQuad(IDirect3DDevice8* dev)
 
 void Overlay::Draw(IDirect3DDevice8* dev,
                    float cx, float cy, float cz,
-                   bool freecam, bool god,
+                   bool freecam,
                    bool fog_off, bool wireframe, bool hide_foliage,
                    bool sim_paused)
 {
-    UpdateTexture(cx, cy, cz, freecam, god, fog_off, wireframe, hide_foliage, sim_paused);
+    UpdateTexture(cx, cy, cz, freecam, fog_off, wireframe, hide_foliage, sim_paused);
     DrawQuad(dev);
 }

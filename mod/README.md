@@ -9,8 +9,8 @@ Runs under Proton 10.0 on Linux. Targets DirectX 8 (`d3d8.dll`).
 
 | Key | Action |
 |-----|--------|
-| `F1` | Toggle freecam on / off |
-| `F2` | Toggle god-mode display (overlay only — no gameplay effect) |
+| `F1` | *(unbound by the mod — left free for the game's own map screen)* |
+| `F2` | Toggle freecam on / off *(moved off F1 2026-08-12 so F1 stays free for the map; god-mode removed the same pass)* |
 | `F3` | Screenshot — saves `C:\jaws_screenshot_NNNN.bmp` |
 | `F4` | Toggle fog on / off |
 | `F5` | Toggle sim pause — slows physics, AI, and cutscene playback to ~25% speed |
@@ -96,10 +96,10 @@ Direct3DCreate8 (our export, undecorated via d3d8.def)
 
 DeviceProxy intercepts:
   SetTransform(VIEW)  → extracts world-space camera pos/orientation;
-                        injects freecam view matrix when F1 active
+                        injects freecam view matrix when F2 active
   SetRenderState      → suppresses D3DRS_FOGENABLE (F4);
                         forces alpha test impossible to hide foliage (F6)
-  EndScene            → draws overlay HUD; polls F1–F6 keys; takes screenshots (F3)
+  EndScene            → draws overlay HUD; polls F2–F6 keys; takes screenshots (F3)
   Reset               → releases and re-initialises overlay after device reset
   (everything else)   → forwarded directly to the real DXVK device
 ```
@@ -224,7 +224,7 @@ States saved/restored: texture slot 0 (note: `GetTexture` adds a COM ref), textu
 
 - **Frustum culling follows the player.** The game culls geometry before calling `SetTransform`. Freecam only replaces the view matrix — objects outside the player's frustum are not rendered even if the freecam is pointed at them.
 - **Multi-pass rendering artefacts.** The view injection fires for every `SetTransform(VIEW)` call, including shadow and reflection passes, causing some visual artefacts in freecam mode.
-- **Map screen.** The map's 3D view is affected by freecam. Disable freecam (F1) before opening the map.
+- **Map screen.** The map's 3D view is affected by freecam. Disable freecam (F2) before opening the map — freecam was moved off F1 specifically so F1 is left free for the game's own map key.
 - **Sim pause choppiness.** At `SIM_DIVISOR=4`, the game renders at ~15 fps while paused. Increase the divisor for a stronger freeze at the cost of more choppiness.
 - **XYZ overlay is not a reliable position readout.** See [XYZ Overlay Accuracy](#xyz-overlay-accuracy--known-unsolved-issue) — extensively investigated, not yet solved.
 

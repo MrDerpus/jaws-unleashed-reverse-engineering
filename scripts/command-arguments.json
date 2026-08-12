@@ -1,0 +1,22 @@
+{
+	"comment":
+	"This json file contains arguments for the python script: 'md5-texture-assets.py'",
+
+
+	"file-location": "../textures",
+	"hash-to-find": "fa51a20c2214d5003a9f2ba82108e692",
+	"directories": [
+		"AQUARIUM", "ARMADA",
+		"BEACH", "BEACHPST",
+		"CHASE",
+		"DEEPSEA", "DEEPSEA2", "DOCKS",
+		"FISH",
+		"GAUNTLET",
+		"KATATAMA",
+		"MINEMSHA",
+		"OPEN_NE", "OPEN_NW", "OPEN_S",
+		"START",
+		"TITLE", "TITLE0", "TOWN",
+		"WRACK"
+	]
+}

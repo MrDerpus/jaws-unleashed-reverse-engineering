@@ -19,13 +19,13 @@ public:
     /* Draw the HUD. Call from EndScene hook, before the real EndScene. */
     void Draw(IDirect3DDevice8* dev,
               float cam_x, float cam_y, float cam_z,
-              bool freecam_on, bool god_mode_on,
+              bool freecam_on,
               bool fog_off, bool wireframe, bool hide_foliage,
               bool sim_paused);
 
 private:
     void UpdateTexture(float cam_x, float cam_y, float cam_z,
-                       bool freecam_on, bool god_mode_on,
+                       bool freecam_on,
                        bool fog_off, bool wireframe, bool hide_foliage,
                        bool sim_paused);
     void DrawQuad(IDirect3DDevice8* dev);
