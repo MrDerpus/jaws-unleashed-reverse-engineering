@@ -474,6 +474,7 @@ Key implementation notes:
 - `max(VIND)` must be `< POSI count` — use this to validate meshes and skip false positives
 - V coordinate flip (`1.0 - v`) required for standard UV convention in OBJ output
 - GMDL blocks with no POSI/VIND, or where max index ≥ vert count, are skipped
+- **Triangle winding must be reversed on export (found + fixed 2026-08-17):** raw `VIND` order is DirectX clockwise-front; swap the last two indices per triangle (`a c b`) for OBJ/OpenGL's counter-clockwise-front convention. Verified via cross-product-vs-stored-`NORM` check: 0/1,422 sampled triangles agreed unswapped, 1,422/1,422 agreed swapped. This is what was causing meshes/levels to look "flipped or mirrored" — `BRTR` world positions and rotation matrices were independently checked and are NOT mirrored (positions validated against the real Amity Island map texture, rotation determinants are positive/proper for 1,153/1,161 FISH.GDW objects). All 20 GDWs re-extracted with the fix (2026-08-17); placed-object/mesh counts matched pre-fix totals exactly, confirming no regression. See CLAUDE.md's GMDL Chunk Hierarchy section for full detail.
 
 ### Model Types
 
@@ -604,7 +605,7 @@ xxd -s 0x06F7B4A0 -l 256 GAME_GDWs/FISH.GDW
 | Audio extraction — GSMP | COMPLETE | ~2,873 WAV files |
 | Audio extraction — SMPB | COMPLETE | 1,128 WAV files (cut voice lines) |
 | WMV cutscene audio | COMPLETE | `audio/wmv/` via ffmpeg |
-| d3d8 proxy mod | WORKING | freecam, XYZ overlay, god-mode toggle |
+| d3d8 proxy mod | WORKING | freecam (F2), XYZ overlay, sim pause, foliage hide, screenshot (F3, fixed 2026-08-16); god mode removed 2026-08-12 |
 
 ### Open Problems
 
@@ -615,7 +616,7 @@ xxd -s 0x06F7B4A0 -l 256 GAME_GDWs/FISH.GDW
 | SCRT scripting chunk | **RESOLVED (2026-07-08)** | Not obfuscated, not scripting — a plain named screen-overlay object tree (same PRPS/CHBR/PROP format as BRTR). |
 | In-game cutscene voice acting | NOT FOUND | Present in neither GSMP, SMPB, nor WMV files. |
 | Parent-child hierarchy transforms | **RESOLVED (2026-07-16)** | Physical nesting, not ID-based; local transforms compose through the full ancestor chain to world space. See `scripts/resolve_brtr_hierarchy.py`. |
-| Texture–mesh material assignment | PARTIAL | TSET IDs resolvable via texture_db.json; UV mapping in Blender not yet implemented |
+| Texture–mesh material assignment | **PARTIAL, OBJ export side RESOLVED (2026-08-17)** | `scripts/rip_brtr_scene.py` now writes a real `.mtl` for scene OBJs (largest non-blank texture per mesh's TSET, heuristic — see CLAUDE.md's "Textured export" note); only FISH re-run so far. Blender import (`import_fish_blender.py`) still doesn't load these onto UV maps. TSET multi-layer blend semantics still undecoded. |
 | Palette / indexed textures | UNSOLVED (unverified this session) | Some small textures decode incorrectly — likely CLUT/indexed format. Not re-checked in this pass; the PS2 side's palette/PSMT8 format IS fully decoded (see CLAUDE.md's PS2 Version Data section) but that's a separate format from whatever's wrong here on PC. |
 | New: brand-new BRTR node insertion | **UNSOLVED (found 2026-07-17)** | Injecting a new resource into RSRC and repointing/relocating existing BRTR nodes both work in-game; appending an entirely new CHBR sibling node does not render, cause unknown. See CLAUDE.md's "Custom map feasibility" note. |
 

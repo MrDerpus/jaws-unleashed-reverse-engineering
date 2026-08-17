@@ -127,9 +127,14 @@ def main():
             has_uv = bool(uvs)
             has_n  = bool(norms)
             for i in range(0, n_indices - 2, 3):
+                # Winding swap (b<->c): GDW VIND order is DirectX clockwise-front;
+                # OBJ/OpenGL expect counter-clockwise-front. Verified 2026-08-17:
+                # swapping the last two indices makes 100% of sampled face normals
+                # (cross product of the swapped winding) agree with the game's own
+                # stored per-vertex NORM data (0% agreement unswapped).
                 a = indices[i] + 1
-                b = indices[i + 1] + 1
-                c = indices[i + 2] + 1
+                b = indices[i + 2] + 1
+                c = indices[i + 1] + 1
                 if has_uv and has_n:
                     f.write(f'f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}\n')
                 elif has_n:

@@ -44,6 +44,8 @@ The game renders **multiple passes per visible frame** using multiple `BeginScen
 
 `SetTransform(D3DTS_VIEW)` is called for each pass. Our d3d8 proxy injects the freecam matrix into all `SetTransform(VIEW)` calls, which affects all passes simultaneously — this causes some visual artefacts in freecam mode since shadow/reflection passes also get the injected matrix.
 
+**Anomaly (found 2026-08-16, unexplained):** `IDirect3D8::CreateDevice` — a full device teardown/recreation, not just `Reset()` — was observed firing 366 times over one play session (roughly every 35–45 proxy log lines), each one genuinely succeeding against the real DXVK device. This is far more frequent than any expected device-loss/alt-tab scenario. Surfaced as a real bug in the mod (a per-device-instance screenshot counter kept resetting — see `mod/README.md`'s "Screenshots (F3)" section for the fix), but the underlying cause of the frequent recreation itself is still unknown and not yet investigated.
+
 ---
 
 ## Camera System

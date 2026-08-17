@@ -171,9 +171,6 @@ private:
     bool  hide_foliage_     = false;
     bool  alpha_test_enabled_ = false; /* tracks D3DRS_ALPHATESTENABLE for foliage hide */
 
-    /* Screenshot counter */
-    int   screenshot_idx_ = 0;
-
     /* Input debounce */
     bool  freecam_prev_   = false;
     bool  f3_prev_        = false;

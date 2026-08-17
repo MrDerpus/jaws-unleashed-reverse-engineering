@@ -210,6 +210,18 @@ No pixel can satisfy this condition, so all alpha-tested draws discard every pix
 
 ---
 
+## Screenshots (F3)
+
+`TakeScreenshot()` (`device_proxy.cpp`) grabs the front buffer via `CreateImageSurface` + `GetFrontBuffer` + `LockRect` and writes an uncompressed 32bpp BMP to `C:\jaws_screenshot_NNNN.bmp`. Every failure branch (`CreateImageSurface`, `GetFrontBuffer`, `LockRect`, `CreateFileA`) now logs its `HRESULT`/`GetLastError()` to `jaws_mod.log` — previously these failed silently, which made a screenshot going missing undiagnosable.
+
+**Numbering bug fixed (2026-08-16) — screenshots were overwriting each other.** The `NNNN` index used to be a `DeviceProxy` member (`screenshot_idx_`), starting at 0 for each instance. Log analysis showed `IDirect3D8::CreateDevice` firing **366 times** in a single play session — a fresh `DeviceProxy` (and thus a fresh `screenshot_idx_ = 0`) roughly every 35–45 log lines, far more often than any real device-loss/alt-tab event should cause (see the "Frequent device recreation" note below). Every recreation reset the counter, so screenshots kept landing back on `jaws_screenshot_0000.bmp`/`0001.bmp` instead of incrementing indefinitely.
+
+Fix: the counter is now `NextScreenshotIdx()`, a function-local `static int` — process-wide, not per-`DeviceProxy`, so it survives device recreation. On first call it also scans `C:\` for existing `jaws_screenshot_*.bmp` files and seeds itself past the highest index found, so it won't clobber screenshots from a previous game launch either.
+
+**Frequent device recreation — real anomaly, not a mod bug, still unexplained.** `real_->CreateDevice(...)` genuinely succeeds each time (this isn't our proxy misfiring) — the game or DXVK is legitimately tearing down and rebuilding the D3D8 device far more often than expected for a title that isn't crashing or reloading levels that fast. Not yet investigated further; worth revisiting if other per-instance mod state (freecam toggle, render-state overrides, etc.) is ever seen resetting mid-session the same way the screenshot counter was.
+
+---
+
 ## Render State Isolation
 
 `Overlay::DrawQuad` saves and restores every device state it touches. D3D8 state blocks (`CreateStateBlock`) are unreliable under DXVK so all save/restore is done manually with explicit `Get`/`Set` calls.
@@ -227,6 +239,7 @@ States saved/restored: texture slot 0 (note: `GetTexture` adds a COM ref), textu
 - **Map screen.** The map's 3D view is affected by freecam. Disable freecam (F2) before opening the map — freecam was moved off F1 specifically so F1 is left free for the game's own map key.
 - **Sim pause choppiness.** At `SIM_DIVISOR=4`, the game renders at ~15 fps while paused. Increase the divisor for a stronger freeze at the cost of more choppiness.
 - **XYZ overlay is not a reliable position readout.** See [XYZ Overlay Accuracy](#xyz-overlay-accuracy--known-unsolved-issue) — extensively investigated, not yet solved.
+- **`CreateDevice` fires far more often than expected** (366 times in one session observed 2026-08-16) — cause unknown. Any mod state stored per-`DeviceProxy` instance (rather than as a process-wide `static`, like the screenshot counter used to be) is at risk of silently resetting mid-session. See [Screenshots](#screenshots-f3).
 
 ---
 

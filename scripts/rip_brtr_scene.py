@@ -1,13 +1,26 @@
 """
-Extract the pre-built scene from the BRTR chunk.
+Extract the pre-built scene from the BRTR chunk, with textures.
 
 BRTR is the Binary Resource Tree — it stores every scene object already placed
 in world space. Each CHBR sub-block is one placed instance: name, 4x3 world
 transform, mesh resource ID, vertex colors (baked lighting), and AABB.
 
+Each mesh's TSET block references 1+ texture IDs per layer (see CLAUDE.md's
+TSET Format section). TSET layer semantics are NOT fully decoded — a mesh can
+reference several unrelated textures (e.g. a rock referencing a black runtime
+render-target, an underwater caustic texture, AND a grass alpha decal, all at
+once). There is no single correct "the diffuse" texture in general. This
+script uses a heuristic: gather every texture ID referenced anywhere in a
+mesh's TSET, resolve each through textures/texture_db.json (preferring an
+entry from the same GDW being exported), skip ones whose PNG is degenerate
+(flat/blank — usually an unfilled runtime render target), and pick the
+largest remaining one as that mesh's material. Treat the resulting texture
+assignment as approximate, not authoritative.
+
 This produces:
   scenes/<NAME>_brtr.obj  — merged world-space geometry, one group per object
-  scenes/<NAME>_brtr.json — manifest: name, mesh_id, position, tri count
+  scenes/<NAME>_brtr.mtl  — one material per resolved texture, map_Kd per PNG
+  scenes/<NAME>_brtr.json — manifest: name, mesh_id, position, tri count, tex_id
 
 Run from project root:
   python3 scripts/rip_brtr_scene.py
@@ -16,6 +29,7 @@ Run from project root:
 import struct
 import json
 from pathlib import Path
+from functools import lru_cache
 
 # ============================
 # CONFIG
@@ -24,6 +38,7 @@ from pathlib import Path
 NAME       = 'FISH'
 INPUT_FILE = f'GAME_GDWs/{NAME}.GDW'
 OUTPUT_DIR = Path('scenes')
+TEXTURE_DB_FILE = Path('textures/texture_db.json')
 
 
 # ============================
@@ -42,6 +57,87 @@ def find_tag(data, tag, lo, hi):
     p = data.find(tag, lo, hi)
     if p == -1: return None, None
     return p, u32(data, p+4)
+
+
+# ============================
+# TEXTURE RESOLUTION
+# ============================
+
+def parse_tset_texture_ids(data, gmdl_pos, gmdl_end):
+    """Return all texture IDs referenced by a GMDL's TSET block, layer 0 first."""
+    tset = data.find(b'TSET', gmdl_pos, gmdl_end)
+    if tset == -1:
+        return []
+    tsz = u32(data, tset + 4)
+    n_layers = u32(data, tset + 8)
+    if not tsz or not n_layers or n_layers >= 50 or tsz != (1 + n_layers * 5) * 4:
+        return []
+    ids = []
+    for i in range(n_layers):
+        base = tset + 8 + 4 + i * 20
+        for j in range(1, 5):  # val_A, val_B, val_C, val_D
+            tid = u32(data, base + j * 4)
+            if tid and tid not in ids:
+                ids.append(tid)
+    return ids
+
+
+@lru_cache(maxsize=None)
+def _is_blank_image(png_path):
+    """True if the PNG is flat/single-color (likely an unfilled runtime render target)."""
+    try:
+        from PIL import Image
+        extrema = Image.open(png_path).convert('RGB').getextrema()
+        # blank/flat if every channel's (min, max) pair collapses to a single value
+        return all(lo == hi for lo, hi in extrema)
+    except Exception:
+        return False
+
+
+def load_texture_db():
+    if not TEXTURE_DB_FILE.exists():
+        print(f'  WARNING: {TEXTURE_DB_FILE} not found — run scripts/build_texture_db.py first. No textures will be assigned.')
+        return {}
+    with open(TEXTURE_DB_FILE) as f:
+        return json.load(f)
+
+
+def resolve_primary_texture(tex_ids, gdw_name, texture_db):
+    """Pick the largest non-blank texture among tex_ids, preferring same-GDW entries."""
+    best = None  # (area, tex_id, file_path)
+    for tid in tex_ids:
+        entries = texture_db.get(str(tid))
+        if not entries:
+            continue
+        entry = next((e for e in entries if e['gdw'] == gdw_name), entries[0])
+        png_path = Path(entry['file'])
+        if not png_path.exists():
+            continue
+        if _is_blank_image(str(png_path)):
+            continue
+        area = entry['w'] * entry['h']
+        if best is None or area > best[0]:
+            best = (area, tid, str(png_path))
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
+def build_texture_index(data, gmdl_index, gdw_name, texture_db):
+    """Returns res_id -> (tex_id, png_path) for meshes with a resolvable texture."""
+    tex_index = {}
+    for res_id, gmdl_pos in gmdl_index.items():
+        sz = u32(data, gmdl_pos + 4)
+        if not sz:
+            continue
+        end = gmdl_pos + 8 + sz
+        tex_ids = parse_tset_texture_ids(data, gmdl_pos, end)
+        if not tex_ids:
+            continue
+        resolved = resolve_primary_texture(tex_ids, gdw_name, texture_db)
+        if resolved:
+            tex_index[res_id] = resolved
+    return tex_index
 
 
 # ============================
@@ -146,10 +242,17 @@ def parse_prps_props(brtr, offset):
 
 def parse_brtr(data):
     """Return list of scene objects from the BRTR chunk."""
-    brtr_pos  = data.find(b'BRTR')
-    if brtr_pos == -1:
+    candidates = []
+    pos = 0
+    while True:
+        idx = data.find(b'BRTR', pos)
+        if idx == -1: break
+        if idx + 20 <= len(data) and u32(data, idx+8) == 0x01025024 and u32(data, idx+12) == 1 and data[idx+16:idx+20] == b'PRPS':
+            candidates.append((u32(data, idx+4), idx))
+        pos = idx + 4
+    if not candidates:
         raise RuntimeError('BRTR chunk not found')
-    brtr_sz   = u32(data, brtr_pos+4)
+    brtr_sz, brtr_pos = max(candidates)
     brtr      = data[brtr_pos+8 : brtr_pos+8+brtr_sz]
     print(f'BRTR @ 0x{brtr_pos:X}  size={brtr_sz:,}')
 
@@ -243,18 +346,21 @@ def xform_norms(norms, xf):
 # WRITE SCENE
 # ============================
 
-def write_scene(objects, data, gmdl_index, mesh_idx_map):
+def write_scene(objects, data, gmdl_index, mesh_idx_map, tex_index):
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     out_obj  = OUTPUT_DIR / f'{NAME}_brtr.obj'
+    out_mtl  = OUTPUT_DIR / f'{NAME}_brtr.mtl'
     out_json = OUTPUT_DIR / f'{NAME}_brtr.json'
 
-    placed = skipped_no_mesh = skipped_bad_geo = 0
+    placed = skipped_no_mesh = skipped_bad_geo = with_tex = 0
     v_off = n_off = uv_off = 1
     manifest = []
+    used_materials = {}  # tex_id -> png_path, for the .mtl file
 
     with open(out_obj, 'w') as fobj:
         fobj.write(f'# Jaws Unleashed — {NAME} BRTR scene (DirectX Y-up)\n')
-        fobj.write(f'# {sum(1 for o in objects if o["mesh_id"] and o["mesh_id"] in gmdl_index)} placed mesh instances\n\n')
+        fobj.write(f'# {sum(1 for o in objects if o["mesh_id"] and o["mesh_id"] in gmdl_index)} placed mesh instances\n')
+        fobj.write(f'mtllib {out_mtl.name}\n\n')
 
         for obj in objects:
             if not obj['mesh_id'] or obj['mesh_id'] not in gmdl_index:
@@ -277,6 +383,15 @@ def write_scene(objects, data, gmdl_index, mesh_idx_map):
             safe = (obj['name'] or f'node_{obj["node_id"]}').replace(' ','_').replace('/','_')
             fobj.write(f'o {safe}\n')
 
+            tex_res = tex_index.get(obj['mesh_id']) if uvs else None
+            if tex_res:
+                tid, png_path = tex_res
+                used_materials[tid] = png_path
+                fobj.write(f'usemtl mat_{tid}\n')
+                with_tex += 1
+            else:
+                fobj.write('usemtl none\n')
+
             for x, y, z in wv:
                 fobj.write(f'v {x:.4f} {y:.4f} {z:.4f}\n')
             for nx, ny, nz in wn:
@@ -287,13 +402,15 @@ def write_scene(objects, data, gmdl_index, mesh_idx_map):
             has_uv = bool(uvs)
             has_n  = bool(wn)
             for i in range(0, len(idxs)-2, 3):
-                a, b, c = idxs[i]+v_off, idxs[i+1]+v_off, idxs[i+2]+v_off
+                # Winding swap (b<->c) — see the note in rip_meshes.py: GDW VIND
+                # order is DirectX clockwise-front, OBJ/OpenGL expect CCW-front.
+                a, b, c = idxs[i]+v_off, idxs[i+2]+v_off, idxs[i+1]+v_off
                 if has_uv and has_n:
-                    au,bu,cu = idxs[i]+uv_off, idxs[i+1]+uv_off, idxs[i+2]+uv_off
-                    an,bn,cn = idxs[i]+n_off,  idxs[i+1]+n_off,  idxs[i+2]+n_off
+                    au,bu,cu = idxs[i]+uv_off, idxs[i+2]+uv_off, idxs[i+1]+uv_off
+                    an,bn,cn = idxs[i]+n_off,  idxs[i+2]+n_off,  idxs[i+1]+n_off
                     fobj.write(f'f {a}/{au}/{an} {b}/{bu}/{bn} {c}/{cu}/{cn}\n')
                 elif has_n:
-                    an,bn,cn = idxs[i]+n_off, idxs[i+1]+n_off, idxs[i+2]+n_off
+                    an,bn,cn = idxs[i]+n_off, idxs[i+2]+n_off, idxs[i+1]+n_off
                     fobj.write(f'f {a}//{an} {b}//{bn} {c}//{cn}\n')
                 else:
                     fobj.write(f'f {a} {b} {c}\n')
@@ -312,6 +429,7 @@ def write_scene(objects, data, gmdl_index, mesh_idx_map):
                 'pos':      [xf[9], xf[10], xf[11]],
                 'tris':     len(idxs)//3,
                 'vcols':    len(obj['vcols']),
+                'tex_id':   tex_res[0] if tex_res else None,
             })
 
             if placed % 100 == 0:
@@ -320,10 +438,23 @@ def write_scene(objects, data, gmdl_index, mesh_idx_map):
     with open(out_json, 'w') as fj:
         json.dump(manifest, fj, indent=2)
 
+    with open(out_mtl, 'w') as fmtl:
+        fmtl.write(f'# Jaws Unleashed — {NAME} BRTR scene materials\n')
+        fmtl.write('newmtl none\nKd 0.6 0.6 0.6\n\n')
+        for tid, png_path in sorted(used_materials.items()):
+            # scenes/ is a sibling of textures/ at project root — relative path from OUTPUT_DIR
+            rel_path = Path('..') / png_path
+            fmtl.write(f'newmtl mat_{tid}\n')
+            fmtl.write('Ka 1.0 1.0 1.0\nKd 1.0 1.0 1.0\n')
+            fmtl.write(f'map_Kd {rel_path.as_posix()}\n\n')
+
     print(f'\nPlaced          : {placed}')
+    print(f'  with texture  : {with_tex}')
     print(f'Skipped no mesh : {skipped_no_mesh}')
     print(f'Skipped bad geo : {skipped_bad_geo}')
+    print(f'Unique textures : {len(used_materials)}')
     print(f'OBJ             : {out_obj}  ({out_obj.stat().st_size//1024} KB)')
+    print(f'MTL             : {out_mtl}')
     print(f'JSON            : {out_json}')
 
 
@@ -340,6 +471,14 @@ def main():
     gmdl_index, mesh_idx_map = build_gmdl_index(data)
     print(f'  {len(gmdl_index)} valid meshes\n')
 
+    print('Loading texture database…')
+    texture_db = load_texture_db()
+    print(f'  {len(texture_db)} texture IDs known\n')
+
+    print('Resolving mesh textures via TSET…')
+    tex_index = build_texture_index(data, gmdl_index, NAME, texture_db)
+    print(f'  {len(tex_index)}/{len(gmdl_index)} meshes resolved a texture\n')
+
     print('Parsing BRTR scene…')
     objects = parse_brtr(data)
     print(f'  {len(objects)} CHBR nodes total')
@@ -349,7 +488,7 @@ def main():
     print(f'  {with_vcol} with vertex colors (baked lighting)\n')
 
     print('Writing scene OBJ…')
-    write_scene(objects, data, gmdl_index, mesh_idx_map)
+    write_scene(objects, data, gmdl_index, mesh_idx_map, tex_index)
 
 
 if __name__ == '__main__':

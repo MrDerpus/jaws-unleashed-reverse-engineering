@@ -143,8 +143,16 @@ def main():
     print(f'Loading {INPUT_FILE}...')
     data = open(INPUT_FILE, 'rb').read()
 
-    brtr_pos = data.find(b'BRTR')
-    brtr_sz  = u32(data, brtr_pos+4)
+    candidates = []
+    pos = 0
+    while True:
+        idx = data.find(b'BRTR', pos)
+        if idx == -1:
+            break
+        if idx + 20 <= len(data) and u32(data, idx+8) == 0x01025024 and u32(data, idx+12) == 1 and data[idx+16:idx+20] == b'PRPS':
+            candidates.append((u32(data, idx+4), idx))
+        pos = idx + 4
+    brtr_sz, brtr_pos = max(candidates)
     brtr_payload_start = brtr_pos + 8
     brtr_payload_end   = min(brtr_payload_start + brtr_sz, len(data))
     print(f'BRTR @ 0x{brtr_pos:X} size={brtr_sz:,}')

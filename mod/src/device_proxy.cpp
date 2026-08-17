@@ -117,19 +117,63 @@ HRESULT __stdcall DeviceProxy::SetRenderState(DWORD state, DWORD value)
 
 /* ── Screenshot — grab front buffer and write BMP to C:\ ─────────────────── */
 
+/* Process-wide (not per-DeviceProxy) so the numbering survives device
+ * recreation — the game calls CreateDevice far more often than a fresh
+ * DeviceProxy instance implies, which used to reset a per-instance counter
+ * back to 0 and made screenshots overwrite each other. Seeded from existing
+ * files on disk so it also survives across separate game launches. */
+static int NextScreenshotIdx()
+{
+    static int next_idx = -1;
+    if (next_idx == -1) {
+        next_idx = 0;
+        WIN32_FIND_DATAA fd;
+        HANDLE h = FindFirstFileA("C:\\jaws_screenshot_*.bmp", &fd);
+        if (h != INVALID_HANDLE_VALUE) {
+            do {
+                int n;
+                if (sscanf(fd.cFileName, "jaws_screenshot_%d.bmp", &n) == 1 && n >= next_idx)
+                    next_idx = n + 1;
+            } while (FindNextFileA(h, &fd));
+            FindClose(h);
+        }
+    }
+    return next_idx++;
+}
+
 void DeviceProxy::TakeScreenshot()
 {
     static const D3DFORMAT FMT_A8R8G8B8 = (D3DFORMAT)21;
+    char dbg[160];
+    snprintf(dbg, sizeof(dbg), "[jaws_mod] screenshot: attempt (vp=%ux%u)", vp_w_, vp_h_);
+    log_msg(dbg);
+
     IDirect3DSurface8* surf = nullptr;
-    if (FAILED(real_->CreateImageSurface(vp_w_, vp_h_, FMT_A8R8G8B8, &surf)))
+    HRESULT hr = real_->CreateImageSurface(vp_w_, vp_h_, FMT_A8R8G8B8, &surf);
+    if (FAILED(hr)) {
+        snprintf(dbg, sizeof(dbg), "[jaws_mod] screenshot: CreateImageSurface failed hr=0x%08lX", (unsigned long)hr);
+        log_msg(dbg);
         return;
-    if (FAILED(real_->GetFrontBuffer(surf))) { surf->Release(); return; }
+    }
+    hr = real_->GetFrontBuffer(surf);
+    if (FAILED(hr)) {
+        snprintf(dbg, sizeof(dbg), "[jaws_mod] screenshot: GetFrontBuffer failed hr=0x%08lX", (unsigned long)hr);
+        log_msg(dbg);
+        surf->Release();
+        return;
+    }
 
     D3DLOCKED_RECT lr;
-    if (FAILED(surf->LockRect(&lr, nullptr, 0))) { surf->Release(); return; }
+    hr = surf->LockRect(&lr, nullptr, 0);
+    if (FAILED(hr)) {
+        snprintf(dbg, sizeof(dbg), "[jaws_mod] screenshot: LockRect failed hr=0x%08lX", (unsigned long)hr);
+        log_msg(dbg);
+        surf->Release();
+        return;
+    }
 
     char path[MAX_PATH];
-    snprintf(path, sizeof(path), "C:\\jaws_screenshot_%04d.bmp", screenshot_idx_++);
+    snprintf(path, sizeof(path), "C:\\jaws_screenshot_%04d.bmp", NextScreenshotIdx());
 
     DWORD pixel_bytes = vp_w_ * vp_h_ * 4;
     BITMAPFILEHEADER fh = {};
@@ -157,6 +201,9 @@ void DeviceProxy::TakeScreenshot()
         char msg[MAX_PATH + 32];
         snprintf(msg, sizeof(msg), "[jaws_mod] screenshot: %s", path);
         log_msg(msg);
+    } else {
+        snprintf(dbg, sizeof(dbg), "[jaws_mod] screenshot: CreateFileA failed err=%lu", (unsigned long)GetLastError());
+        log_msg(dbg);
     }
     surf->UnlockRect();
     surf->Release();
