@@ -15,15 +15,18 @@ Runs under Proton 10.0 on Linux. Targets DirectX 8 (`d3d8.dll`).
 | `F4` | Toggle fog on / off |
 | `F5` | Toggle sim pause — slows physics, AI, and cutscene playback to ~25% speed |
 | `F6` | Toggle foliage hide — makes alpha-tested geometry (seaweed, kelp, plants) invisible |
-| `F7` | Dev tool: two-pass health-address memory scanner (not player-facing) |
-| `F9` | Dev tool: three-pass player-position memory scanner (not player-facing, unsolved — see below) |
+| `F7` | Dev tool: two-pass health-address memory scanner (legacy; only scans static `.data`, which is why it never found the real heap-allocated shark. Health is now read via the decompiled pointer chain) |
+| `F8` | Teleport text box: type `X Y Z` (or `X Z` to keep current depth), or a lone slot number `1`–`9` to jump to that bookmark; `Enter` to go, `Esc` to cancel. While open: `Ctrl+1`…`Ctrl+9` saves the current position to that bookmark slot, and saved slots are listed. Bookmarks persist in `C:\jaws_bookmarks.txt` (Linux: `<prefix>/drive_c/jaws_bookmarks.txt`), meant to be hand-edited: one `<slot> <X> <Y> <Z> [name]` line per slot, `#` comment lines ignored, re-read automatically when the file changes (even mid-game, checked each time F8 opens). Named slots show their name in the list. Plain world coords — not tied to a level. Game keyboard input is blocked while the box is open. |
+| `F10` | **Reload the current stage from disk** (added 2026-10-03, user-confirmed working; for testing GDW edits without leaving the area). Calls the engine's own deferred stage request (`[0x920E24]` vtable `+0x80` = `0x6C3C50`, `thiscall (flags=1, name)`) with the name the current stage was loaded with (`engine+0xB8`). The engine tick (`0x6C7800`) then unloads the world and reloads the `.GDW` at a safe point in its loop, the same path as the leftover dev "Open Stage" menu. Shows `Reloading <name> ...` in the message line. Debounced process-wide with a 3 s cooldown; ignored while the F8 box is open. Code: `src/stage.{h,cpp}`. |
+| `F11` | Invincibility + infinite hunger toggle: refills shark health (controller `+0x2B0`) to max (`+0x2A8`) and hunger (`+0x2B4`) to max (`+0x2AC`) every frame. Re-resolves the pointer chain each frame, so it survives level loads — unlike the old hardcoded-address god mode that crashed. Also blocks deaths that bypass health: while on, the shark controller's state setter (`0x65EDA0`, patched with a 6-byte entry jump) drops requests to enter state 7 (dead). All four death paths go through it — health ≤ 0 (`0x65D871`), the scripted `DIEM` kill message (`0x65B871`), and two timer-based deaths (`0x668CC6`, `0x66D4E9`). Blocked attempts are logged as `death block:` in `jaws_mod.log`. **Known limitation (user-tested 2026-10-01):** scripted deaths do more than set the state — blocking the state change leaves the shark alive but invisible, with the game otherwise behaving as if it died (buggy). Accepted as-is; health-based invincibility is the reliable part. |
+| `F9` | Dev tool: three-pass player-position memory scanner (superseded — position is now read via the decompiled pointer chain, see below) |
 | `I` / `K` | Freecam: move forward / backward |
 | `J` / `L` | Freecam: strafe left / right |
 | `U` / `O` | Freecam: move up / down |
 | `Alt` | Hold for fast movement (45× speed) |
 | Mouse | Freecam look (cursor captured and re-centred each frame) |
 
-The **XYZ overlay** (top-left corner) shows a camera-derived world-space position and all toggle states at all times. **Known accuracy issue:** this is not a reliable player-position readout — see [XYZ Overlay Accuracy](#xyz-overlay-accuracy--known-unsolved-issue) below.
+The **XYZ overlay** (top-left corner) shows the player shark's real world-space position (read directly from game memory — see [XYZ Overlay Accuracy](#xyz-overlay-accuracy--solved-2026-10-01) below) plus its facing (`Hdg` 0–360°: 0 = +Z, 90 = +X; `Pitch` + = nose up — from the world matrix's Z basis row, since the shark model faces local +Z), and all toggle states. The X line ends in `Shark` when showing the real position, or `Cam` when it falls back to the old camera-derived reading (menus, loading screens).
 
 Screenshots land at:
 ```
@@ -79,6 +82,9 @@ mod/
     ├── device_proxy.h      # DeviceProxy class declaration
     ├── device_proxy.cpp    # Freecam, view matrix injection, key toggles, EndScene hook
     ├── overlay.h / .cpp    # GDI → D3D texture HUD renderer
+    ├── shark.h / .cpp      # Player shark position/facing read + teleport (decompiled pointer chain)
+    ├── input_block.h / .cpp # DirectInput keyboard vtable patch — blocks game input while the F8 box is open
+    ├── bookmarks.h / .cpp  # 9 teleport bookmark slots, persisted to C:\jaws_bookmarks.txt
     ├── dinput8_proxy.cpp   # Abandoned injection attempt (not built)
     └── winmm_proxy.cpp     # Abandoned injection attempt (not built)
 ```
@@ -114,7 +120,7 @@ The game calls `SetTransform(D3DTS_VIEW, &viewMatrix)` each frame. We intercept 
 
 ### Seeding on activation
 
-The game calls `SetTransform(VIEW)` multiple times per frame for several different camera identities, not just one secondary camera (see [XYZ Overlay Accuracy](#xyz-overlay-accuracy--known-unsolved-issue) below for the full investigation). `ExtractCamPos` filters out the one degenerate case that's cheap and reliable to detect — a secondary camera whose translation is exactly `(0,0,0)` — and maintains a 5-sample rolling median of what's left for freecam seeding. This is good enough for seeding (a one-time snapshot on F1 press, where being off by a bit doesn't matter) but is **not** sufficient for the continuous, precise position readout the XYZ overlay is meant to provide.
+The game calls `SetTransform(VIEW)` multiple times per frame for several different camera identities, not just one secondary camera (see [XYZ Overlay Accuracy](#xyz-overlay-accuracy--solved-2026-10-01) below for the full investigation). `ExtractCamPos` filters out the one degenerate case that's cheap and reliable to detect — a secondary camera whose translation is exactly `(0,0,0)` — and maintains a 5-sample rolling median of what's left for freecam seeding. This is good enough for seeding (a one-time snapshot on F1 press, where being off by a bit doesn't matter) but is **not** sufficient for the continuous, precise position readout the XYZ overlay is meant to provide.
 
 ### Position extraction
 
@@ -154,7 +160,21 @@ Also fixed in the same pass: the overlay's texture was being locked with `D3DLOC
 
 ---
 
-## XYZ Overlay Accuracy — Known Unsolved Issue
+## XYZ Overlay Accuracy — Solved (2026-10-01)
+
+> **SOLVED (2026-10-01) via decompilation — everything below this note is the historical investigation, kept so it isn't repeated.**
+>
+> Decompiled `Jaws.exe` with Ghidra 12.1.4 (headless, `~/tools/ghidra_12.1.4_PUBLIC`) and found the game's own pointer chain to the player shark:
+>
+> | Step | Address / offset | Evidence |
+> |---|---|---|
+> | Player shark controller (singleton) | global `0x90BC04` | constructor at `0x664BD8` stores `this` there, destructor at `0x664C20` clears it; ~194 code references; holds shark state machine (`+0x240`), health/hunger (`+0x2A8`/`+0x2AC`), save-file-ability-scaled config object (`+0x54`) |
+> | Shark scene object ("brick") | `ctrl + 0x50` | the debug routine that prints `"SharkRelPos"` (`0x671060`, vtable `0x7F28FC` slot 21) reads the shark this way |
+> | World position | `brick + 0xA8` (3 floats X/Y/Z) | the engine's world-matrix updater (`0x696EA0`) shows the brick layout: `+0x0C` flags (`0x20` = world matrix stale), `+0x14` parent pointer, `+0x50` local 4x3 transform, `+0x84` world 4x3 transform = local x parent world, translation at `+0xA8` |
+>
+> `ReadSharkPos()` in `device_proxy.cpp` follows this chain every `EndScene` via `ReadProcessMemory` (fails cleanly rather than crashing if a pointer is dangling mid-load). **Verified in-game on Fisherman's Isle:** spawn reads `(2000, -6.4, -3630.7)` vs. the shark's authored BRTR spawn (`GWside`/`SharkPosReal`) at `(1998, -7, -3628)`; X/Z change smoothly while swimming and return identical values at the same spot; Y ≈ 0 at the water surface.
+>
+> **Why the old memory scan failed:** the F9 scanner only searched `0x845000`–`0xE70000`, which is exactly the exe's static `.data` section. The shark object is heap-allocated at level load, so it was never in range. The `0x008CFC88` false positive was a static scratch variable.
 
 The overlay renders correctly (see bug fix above) and shows *a* position, but it is **not a reliable readout of the player's actual position**. This was investigated extensively (2026-07-17) and is documented here so the investigation isn't repeated from scratch.
 
@@ -167,7 +187,7 @@ The game calls `SetTransform(D3DTS_VIEW, ...)` **multiple times per frame** for 
 - **Reflection determinant check (tried, failed).** A mirrored/reflected transform should mathematically have a negative determinant on its 3×3 rotation part, vs. positive for an ordinary camera. Logged determinants for both real and mirrored-looking samples: **always exactly `+1.0`**. This engine must implement reflections via a genuinely repositioned/reoriented second camera (still a proper rotation matrix), not a flipped-handedness matrix — so this check has no discriminating power here.
 - **Render-target gating (tried, failed).** Reflections normally render to an off-screen texture, so the theory was: only trust the camera set while the primary back buffer is the active render target. Interleaved logging of `SetRenderTarget` + `SetTransform(VIEW)` calls (in true call order, via a shared sequence counter) showed the real camera's `SetTransform(VIEW)` is **never** called while the back buffer is active — this engine renders the whole scene to off-screen textures first and only briefly touches the back buffer for a final composite blit at the end of the frame, with no camera transform set during that moment. There is no "this call is the real one" signal anywhere in the D3D call stream that was found.
 
-### Memory-scan pivot (also unsuccessful so far)
+### Memory-scan pivot (unsuccessful — historical)
 
 Bypassed the rendering pipeline entirely and tried reading the player's position directly from memory, the same technique used to find the existing god-mode health addresses (`0x8F11A8` etc., found via the `F7` two-pass scanner already in the codebase).
 
@@ -178,7 +198,7 @@ Built `F9`, a three-pass scanner in `device_proxy.cpp`:
 
 The best candidate found, `0x008CFC88`, passed the 3-pass test cleanly (cos=0.98 across two independent movement segments) but **failed live verification**. Per-frame logging of the raw value while swimming showed it cycling through several independently, slowly-drifting value clusters (roughly 645.x, 646.x, 666.x, then a jump to -461.x, then zeroed out entirely) rather than one continuously-moving value — consistent with a **shared/reused scratch address written by multiple different entities** (likely several nearby fish/NPCs, or a temp variable reused across position updates each frame), not a dedicated player-position field. Same fundamental class of problem as the D3D approach, just manifesting in memory instead of render calls.
 
-### Recommended next approach (not yet tried)
+### Recommended next approach (historical — superseded by decompilation)
 
 Scan for the position field **near the already-confirmed player-specific god-mode addresses** (`0x8F11A8`, `0x8FB1B0`, `0x8FB1C0`, `0x9E907C`, `0x9E908C`, `0x9E909C`, `0x9E90AC`, `0x9E90FC`, `0xA14ED4`, `0xA16318`, `0xA59448`) instead of the broad `0x845000`–`0xE70000` range. Those addresses are known-good because toggling god mode reliably keeps *the player* alive, not some other entity — the position field is very likely a small fixed byte offset away in the *same* player object struct, not somewhere else in memory shared with other entities. The `F9` scanner's 3-pass structure is reusable as-is; it just needs its scan range narrowed to a tight window around one of those addresses instead of the whole `.data` range.
 
@@ -238,7 +258,8 @@ States saved/restored: texture slot 0 (note: `GetTexture` adds a COM ref), textu
 - **Multi-pass rendering artefacts.** The view injection fires for every `SetTransform(VIEW)` call, including shadow and reflection passes, causing some visual artefacts in freecam mode.
 - **Map screen.** The map's 3D view is affected by freecam. Disable freecam (F2) before opening the map — freecam was moved off F1 specifically so F1 is left free for the game's own map key.
 - **Sim pause choppiness.** At `SIM_DIVISOR=4`, the game renders at ~15 fps while paused. Increase the divisor for a stronger freeze at the cost of more choppiness.
-- **XYZ overlay is not a reliable position readout.** See [XYZ Overlay Accuracy](#xyz-overlay-accuracy--known-unsolved-issue) — extensively investigated, not yet solved.
+- **Teleport bookmarks aren't per-level.** Slots store plain world coordinates; the same slot is a different place in each GDW.
+- **Blocked scripted deaths leave the shark invisible.** See `F11` in Controls. Accepted as-is.
 - **`CreateDevice` fires far more often than expected** (366 times in one session observed 2026-08-16) — cause unknown. Any mod state stored per-`DeviceProxy` instance (rather than as a process-wide `static`, like the screenshot counter used to be) is at risk of silently resetting mid-session. See [Screenshots](#screenshots-f3).
 
 ---

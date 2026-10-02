@@ -133,6 +133,8 @@ private:
     void BuildViewMatrix(D3DMATRIX& out) const;
     void ExtractCamPos(const D3DMATRIX& v);
     void TakeScreenshot();
+    void HandleTeleportInput();
+    void SetTpMsg(const char* fmt, ...);
 
     IDirect3DDevice8* real_    = nullptr;
     ULONG             refs_    = 1;
@@ -179,6 +181,21 @@ private:
     bool  f6_prev_        = false;
     bool  f7_prev_        = false;
     bool  f9_prev_        = false;
+    bool  f8_prev_        = false;
+    bool  f11_prev_       = false;
+
+    /* Invincibility (F11) — refills shark health to max every frame */
+    bool  invincible_     = false;
+
+    /* Teleport text box (F8) */
+    bool  tp_active_        = false;
+    char  tp_buf_[48]       = {};
+    int   tp_len_           = 0;
+    bool  tp_key_prev_[256] = {};
+    char  tp_msg_[96]       = {};
+    DWORD tp_msg_until_     = 0;
+    float tp_target_[3]     = {};
+    int   tp_verify_frames_ = 0;
     bool  endscene_logged_   = false;
     bool  beginscene_logged_ = false;
     int   call_count_        = 0;

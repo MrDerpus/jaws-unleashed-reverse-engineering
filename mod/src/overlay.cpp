@@ -71,10 +71,7 @@ void Overlay::Release()
 }
 
 /* ── Update the CPU-side texture via GDI ────────────────────────────────── */
-void Overlay::UpdateTexture(float cx, float cy, float cz,
-                             bool freecam,
-                             bool fog_off, bool wireframe, bool hide_foliage,
-                             bool sim_paused)
+void Overlay::UpdateTexture(const OverlayInfo& info)
 {
     if (!tex_) return;
 
@@ -124,26 +121,61 @@ void Overlay::UpdateTexture(float cx, float cy, float cz,
     SetBkMode(memDC, TRANSPARENT);
     SetTextColor(memDC, RGB(0, 255, 0)); /* green */
 
-    char buf[64];
-    snprintf(buf, sizeof(buf), "X: %8.1f", cx);
+    char buf[96];
+    /* Label which source the XYZ came from: the shark's own world position
+     * (read from game memory) or the camera fallback (menus/loading). */
+    const char* pos_src = info.pos_is_shark ? "Shark" : "Cam";
+    snprintf(buf, sizeof(buf), "X: %8.1f %s", info.x, pos_src);
     TextOutA(memDC, 6, 4,  buf, (int)strlen(buf));
-    snprintf(buf, sizeof(buf), "Y: %8.1f", cy);
+    snprintf(buf, sizeof(buf), "Y: %8.1f", info.y);
     TextOutA(memDC, 6, 22, buf, (int)strlen(buf));
-    snprintf(buf, sizeof(buf), "Z: %8.1f", cz);
+    snprintf(buf, sizeof(buf), "Z: %8.1f", info.z);
     TextOutA(memDC, 6, 40, buf, (int)strlen(buf));
+    if (info.has_facing) {
+        snprintf(buf, sizeof(buf), "Hdg: %5.1f  Pitch: %+5.1f", info.yaw_deg, info.pitch_deg);
+        TextOutA(memDC, 6, 58, buf, (int)strlen(buf));
+    }
 
     /* Status lines */
-    SetTextColor(memDC, freecam ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 58, freecam ? "[F2] FreeCam  ON" : "[F2] FreeCam OFF", 16);
+    SetTextColor(memDC, info.freecam ? RGB(255,255,0) : RGB(150,150,150));
+    TextOutA(memDC, 6, 78, info.freecam ? "[F2] FreeCam  ON" : "[F2] FreeCam OFF", 16);
 
-    SetTextColor(memDC, fog_off ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 74, fog_off ? "[F4] Fog      OFF" : "[F4] Fog       ON", 17);
+    SetTextColor(memDC, info.fog_off ? RGB(255,255,0) : RGB(150,150,150));
+    TextOutA(memDC, 6, 94, info.fog_off ? "[F4] Fog      OFF" : "[F4] Fog       ON", 17);
 
-    SetTextColor(memDC, sim_paused ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 90, sim_paused ? "[F5] Sim Pause ON " : "[F5] Sim Pause OFF", 18);
+    SetTextColor(memDC, info.sim_paused ? RGB(255,255,0) : RGB(150,150,150));
+    TextOutA(memDC, 6, 110, info.sim_paused ? "[F5] Sim Pause ON " : "[F5] Sim Pause OFF", 18);
 
-    SetTextColor(memDC, hide_foliage ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 106, hide_foliage ? "[F6] Foliage  OFF" : "[F6] Foliage   ON", 17);
+    SetTextColor(memDC, info.hide_foliage ? RGB(255,255,0) : RGB(150,150,150));
+    TextOutA(memDC, 6, 126, info.hide_foliage ? "[F6] Foliage  OFF" : "[F6] Foliage   ON", 17);
+
+    SetTextColor(memDC, info.invincible ? RGB(255,255,0) : RGB(150,150,150));
+    TextOutA(memDC, 6, 142, info.invincible ? "[F11] Invincible+Hunger ON " : "[F11] Invincible+Hunger OFF", 27);
+
+    /* Teleport box (F8): prompt with blinking cursor while open, otherwise
+     * the last result/error, otherwise just the key hint. */
+    if (info.tp_active) {
+        SetTextColor(memDC, RGB(0, 255, 255));
+        bool cursor = (GetTickCount() / 400) & 1;
+        snprintf(buf, sizeof(buf), "TP> %s%s", info.tp_text, cursor ? "_" : " ");
+        TextOutA(memDC, 6, 162, buf, (int)strlen(buf));
+        SetTextColor(memDC, RGB(150,150,150));
+        const char* hint = "X Y Z / X Z / slot#  Enter=go  Esc=cancel";
+        TextOutA(memDC, 6, 178, hint, (int)strlen(hint));
+        const char* hint2 = "Ctrl+1..9 = save current spot to slot";
+        TextOutA(memDC, 6, 194, hint2, (int)strlen(hint2));
+        /* Bookmark slots, two columns */
+        SetTextColor(memDC, RGB(200, 200, 200));
+        for (int i = 0; i < 9; ++i)
+            if (info.tp_slots[i])
+                TextOutA(memDC, 6 + (i / 5) * 250, 214 + (i % 5) * 16, info.tp_slots[i], (int)strlen(info.tp_slots[i]));
+    } else if (info.tp_msg) {
+        SetTextColor(memDC, RGB(255, 255, 0));
+        TextOutA(memDC, 6, 162, info.tp_msg, (int)strlen(info.tp_msg));
+    } else {
+        SetTextColor(memDC, RGB(150,150,150));
+        TextOutA(memDC, 6, 162, "[F8] Teleport", 13);
+    }
 
     SelectObject(memDC, hOldFont);
     DeleteObject(hFont);
@@ -262,12 +294,8 @@ void Overlay::DrawQuad(IDirect3DDevice8* dev)
     if (saved_tex) saved_tex->Release(); /* GetTexture added a ref */
 }
 
-void Overlay::Draw(IDirect3DDevice8* dev,
-                   float cx, float cy, float cz,
-                   bool freecam,
-                   bool fog_off, bool wireframe, bool hide_foliage,
-                   bool sim_paused)
+void Overlay::Draw(IDirect3DDevice8* dev, const OverlayInfo& info)
 {
-    UpdateTexture(cx, cy, cz, freecam, fog_off, wireframe, hide_foliage, sim_paused);
+    UpdateTexture(info);
     DrawQuad(dev);
 }

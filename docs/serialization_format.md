@@ -157,7 +157,7 @@ GMDL  [variable size]
   MATR  [52]        material colour properties
   MATS  [20]        material set
   GMAT              material definitions
-  TSET  [variable]  texture channel assignments
+  TSET  [variable]  triangle sets / submeshes (corrected 2026-10-01; see TSET Format)
   TANG  [variable]  triangle data container
     VIND            uint16 triangle list index buffer
     TNOR            per-triangle normals
@@ -170,6 +170,8 @@ GMDL  [variable size]
 ```
 
 ### TSET Format
+
+> **Corrected 2026-10-01:** TSET holds **triangle sets (submeshes), not texture IDs**. Each record is `[set_idx][first_vert][vert_count][first_tri][tri_count]`, and record i uses material `MATS[i]` → GMAT → `TEXP ['GTEX' id]`. See CLAUDE.md "TSET Format" and `scripts/gdw_materials.py`. The description below is the old, wrong reading.
 
 ```
 TSET [uint32 payload_size]

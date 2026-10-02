@@ -92,7 +92,7 @@ Chunks may contain nested subchunks using the same pattern. Multiple full `GDED`
 | `GMAT` | 1K–4K | Geometry material |
 | `VERT` | ~12K total | Vertex data |
 | `VIND` | ~12K total | Vertex index buffer |
-| `TSET` | ~12K total | Texture set |
+| `TSET` | ~12K total | Triangle set (submesh ranges; corrected 2026-10-01, not textures) |
 | `TANG` | ~12K total | Tangent data |
 | `MATR` | ~12K total | Material |
 | `POSI` | ~12K total | Position data |
@@ -100,7 +100,7 @@ Chunks may contain nested subchunks using the same pattern. Multiple full `GDED`
 | `ROTS` | ~16K total | Rotation |
 | `TMTX` | ~39K total | Transform matrix — prominent in ARMADA, DOCKS, DEEPSEA2, KATATAMA, WRACK |
 | `ACTN` | ~21K total | Action / animation action |
-| `GTEX` | ~21K total | Geometry texture reference (distinct from 5-byte `GTEXT` texture blocks) |
+| `GTEX` | ~21K total | Geometry texture reference (distinct from 5-byte `GTEXT` texture blocks). **Corrected 2026-10-03:** every texture is a `GTEX` chunk; "GTEXT" is `GTEX` + a size field whose low byte is `0x54` (`'T'`). See `CLAUDE.md` texture section. |
 | `MSHH` | ~1.4K total | Mesh header — contains named model references (e.g. `Shark2Reference`) |
 | `CHLD` | ~12K total | Child relationship |
 | `APRO` / `BPRO` / `CPRO` / `OBPR` | various | Property block variants |
@@ -116,6 +116,8 @@ Size: `0x28` bytes. Contains float-like values interpreted as world extents (~50
 ## Texture System
 
 ### GTEXT Structure
+
+> **Correction (2026-10-03):** "GTEXT" is not a separate tag. Walking `RSRC` as a chunk chain shows every texture is a `GTEX` chunk; the "T" is the low byte (`0x54`) of the size field that follows the tag. The real split is plain payload (258/321 FISH textures; the layout below) vs. payload carrying an `OBPR` block (63/321). New textures can be written byte-exactly: `scripts/gdw_textures.py`, see `docs/brtr_editing.md` "Custom textures".
 
 Textures are stored as `GTEXT` blocks. The header layout is fully confirmed:
 
@@ -440,6 +442,8 @@ PRIM
 
 `PRIM` is a render node / render graph descriptor, not a raw geometry container. It references geometry indirectly rather than storing vertex data directly.
 
+**DECODED (2026-10-03): `PRIM` is a node's collision link.** A `CHBR` node may carry a `PRIM` sub-chunk after its `PRPS`: class `0x20003002`, a zero ID, and its own `PRPS` with `PROP 0x080018D8` = `['MREG'][region_id]`, pointing the node at its `MREG` collision region (598 in FISH). A copied or generated `PRIM` gives an inserted object working collision (user-confirmed). See `CLAUDE.md` (Mesh reference clarification / BVH layout) and `docs/brtr_editing.md`.
+
 **CORRECTED (2026-07-17):** this nesting order is wrong for `BRTR`/`SCRT` scene objects — CLAUDE.md's fully-decoded, byte-verified structure is `CHBR[size]` → `magic(0x0107402F)` + `node_id` → `PRPS[size]` → a flat list of `PROP` entries (mesh ref, name, transform, AABB, flags, etc.), i.e. `CHBR` is the OUTER container and `PROP` entries are direct children of `PRPS`, not the reverse. `PRIM` was not encountered decoding a real node this way — may apply to a different sub-system, or may be a mistaken early read. Individual `PROP` entries are each independently padded to a 4-byte boundary before the next tag (a general alignment rule that also applies at the top chunk level — missing this causes a full parse desync when decoding a property list by hand).
 
 ---
@@ -456,7 +460,7 @@ GMDL  [variable size]
   MATR  [52]        material colour properties
   MATS  [20]        material set
   GMAT              material definitions (GMAT1, GMAT2 sub-entries)
-  TSET  [variable]  texture channel assignments (see TSET section)
+  TSET  [variable]  triangle sets / submeshes, one per MATS material (corrected 2026-10-01)
   TANG  [variable]  triangle data container
     VIND            uint16 triangle LIST index buffer (groups of 3 per triangle)
     TNOR            per-triangle normals
@@ -600,12 +604,13 @@ xxd -s 0x06F7B4A0 -l 256 GAME_GDWs/FISH.GDW
 | Reflection metadata (CLAS) | CONFIRMED | class names, property names extracted |
 | GMDL mesh extraction | COMPLETE | 11,948 `.obj` files across 20 GDWs |
 | BRTR scene graph decoding | COMPLETE | 2,782 CHBR nodes in FISH.GDW; 1,161 with mesh refs |
-| World-space scene reconstruction | COMPLETE | `scenes/FISH_brtr.obj` (15 MB), `FISH_brtr.json` |
+| World-space scene reconstruction | COMPLETE (fixed 2026-10-01) | `scripts/brtr_scene_graph.py` + `rip_brtr_scene.py`, all 20 GDWs: nested composition, absolute-transform flag (`m_nFlags` `0x20000000`), reference instancing (`PROP 0x080017F0`), SC17 whale relocation. Earlier output placed nested meshes with raw local transforms and omitted every reference copy. See CLAUDE.md "Reference Instancing…" |
 | Blender scene import | COMPLETE | `scenes/import_fish_blender.py` |
 | Audio extraction — GSMP | COMPLETE | ~2,873 WAV files |
-| Audio extraction — SMPB | COMPLETE | 1,128 WAV files (cut voice lines) |
+| Audio extraction — SMPB | COMPLETE | 1,128 WAV files (NPC barks, GSFX-triggered, **not** cut; corrected 2026-07-29, see CLAUDE.md) |
 | WMV cutscene audio | COMPLETE | `audio/wmv/` via ffmpeg |
-| d3d8 proxy mod | WORKING | freecam (F2), XYZ overlay, sim pause, foliage hide, screenshot (F3, fixed 2026-08-16); god mode removed 2026-08-12 |
+| d3d8 proxy mod | WORKING | freecam (F2), screenshot (F3), fog (F4), sim pause (F5), foliage hide (F6); **2026-10-01:** real shark XYZ + heading overlay, F8 teleport box + hand-editable bookmarks file, F11 invincibility + infinite hunger (replaces the old god mode removed 2026-08-12). See `mod/README.md` and `docs/exe_analysis.md` |
+| `Jaws.exe` static analysis | STARTED (2026-10-01) | Ghidra project + player shark controller, brick memory layout, death paths, reflection field table, see `docs/exe_analysis.md` |
 
 ### Open Problems
 
@@ -616,9 +621,9 @@ xxd -s 0x06F7B4A0 -l 256 GAME_GDWs/FISH.GDW
 | SCRT scripting chunk | **RESOLVED (2026-07-08)** | Not obfuscated, not scripting — a plain named screen-overlay object tree (same PRPS/CHBR/PROP format as BRTR). |
 | In-game cutscene voice acting | NOT FOUND | Present in neither GSMP, SMPB, nor WMV files. |
 | Parent-child hierarchy transforms | **RESOLVED (2026-07-16)** | Physical nesting, not ID-based; local transforms compose through the full ancestor chain to world space. See `scripts/resolve_brtr_hierarchy.py`. |
-| Texture–mesh material assignment | **PARTIAL, OBJ export side RESOLVED (2026-08-17)** | `scripts/rip_brtr_scene.py` now writes a real `.mtl` for scene OBJs (largest non-blank texture per mesh's TSET, heuristic — see CLAUDE.md's "Textured export" note); only FISH re-run so far. Blender import (`import_fish_blender.py`) still doesn't load these onto UV maps. TSET multi-layer blend semantics still undecoded. |
+| Texture–mesh material assignment | **RESOLVED (2026-10-01)** | TSET submesh ↔ MATS → GMAT → TEXP, same-GDW textures only (`scripts/gdw_materials.py`). Per-submesh `usemtl` in mesh + scene OBJs, per-face materials in `scenes/import_fish_blender.py`. All 20 GDWs regenerated. The 2026-08-17 heuristic misread TSET counts as texture IDs. See CLAUDE.md "TSET Format" |
 | Palette / indexed textures | UNSOLVED (unverified this session) | Some small textures decode incorrectly — likely CLUT/indexed format. Not re-checked in this pass; the PS2 side's palette/PSMT8 format IS fully decoded (see CLAUDE.md's PS2 Version Data section) but that's a separate format from whatever's wrong here on PC. |
-| New: brand-new BRTR node insertion | **UNSOLVED (found 2026-07-17)** | Injecting a new resource into RSRC and repointing/relocating existing BRTR nodes both work in-game; appending an entirely new CHBR sibling node does not render, cause unknown. See CLAUDE.md's "Custom map feasibility" note. |
+| New: brand-new BRTR node insertion | **SOLVED (2026-10-03)** | Was "unsolved" since 2026-07-17. Inserting new nodes works (`scripts/insert_brtr_node.py`, `build_scene.py`); the July attempts all cloned node 302, a hidden render-layer companion. Custom meshes, collision, textures, transparency, Blender scene export and a stripped blank base level all work now. See `docs/brtr_editing.md`. |
 
 ---
 

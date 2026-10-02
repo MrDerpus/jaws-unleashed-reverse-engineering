@@ -7,7 +7,11 @@ LDFLAGS  := -shared -static-libgcc -static-libstdc++ \
 
 SRCS := src/d3d8_proxy.cpp \
         src/device_proxy.cpp \
-        src/overlay.cpp
+        src/overlay.cpp \
+        src/shark.cpp \
+        src/input_block.cpp \
+        src/bookmarks.cpp \
+        src/stage.cpp
 
 TARGET := d3d8.dll
 

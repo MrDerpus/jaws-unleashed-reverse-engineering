@@ -2,6 +2,8 @@
 
 > **Note (2026-07-17):** this doc dates from June 2025; `/CLAUDE.md` at the project root is the actively-maintained, current source of truth for format/mission findings. Checked this file's content against today's corrections (FDIR/SCRT/SKIP/BRTR structure, PROP alignment, mission cut-content list) — nothing here touches those topics incorrectly; the mission-class mappings below (`MSHatchMission`, `ANSideMission25`, `OrcaExplorationMission`, `KillthemallMission`, etc.) are consistent with CLAUDE.md's current cut-content and mission-mapping sections. No corrections needed this pass.
 
+> **Update (2026-10-01):** the exe has now been decompiled (see `docs/exe_analysis.md`). Every reflected field is registered by a stub calling `0x70B6A0`, and `scripts/dump_class_fields.py` dumps all 6,457 of them (691 class descriptors) with their registration integers, which hint at in-object offsets (meaning not fully settled; confirm against code).
+
 The `CLAS` chunk in every GDW file contains the engine's full reflection database, serialized as length-prefixed strings:
 
 ```
@@ -17,7 +19,7 @@ This means the engine self-documents. Class names, property names, and component
 | Prefix | Domain |
 |---|---|
 | `GD` | Generic engine / rendering (GDModel, GDLight, GDFog) |
-| `NA` | Gameplay / shark systems (NAPredator, NABiteTarget, NAWayPoint) |
+| `NA` | Gameplay / shark systems (NABiteTarget, NAWayPoint; `NAPredator` is the predator-vision effect — see below) |
 | `MB` | Mission / boat systems (MBMissionBrick) |
 | `MS` | Menu / spawn / scenario (MSMissionGenerator, MSKatatamaMission) |
 | `ML` | Lighting / effects |
@@ -113,7 +115,7 @@ This means the engine self-documents. Class names, property names, and component
 
 | Class | Purpose |
 |---|---|
-| `NAPredator` | Shark/predator AI |
+| `NAPredator` | **Predator-vision screen effect, not the shark** (corrected 2026-10-01 — fields `m_magnification`, `m_power`, `m_freqpower`, `m_strength`, `m_smoothrate`). The player shark is driven by `MLSharkCtrl` + `SharkConfig`; see `docs/exe_analysis.md`. |
 | `NABiteTarget` | Bite interaction component (see bite_system.md) |
 | `NAChewingToy` | Physics-enabled prey/bait |
 | `NAWayPoint` | AI navigation node |

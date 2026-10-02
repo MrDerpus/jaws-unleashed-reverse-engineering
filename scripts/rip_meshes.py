@@ -1,5 +1,12 @@
+import os
 import struct
+import sys
 from pathlib import Path
+try:
+    from gdw_materials import MaterialResolver
+except ImportError:          # run via exec() from scripts/ or the project root
+    sys.path.insert(0, '.'); sys.path.insert(0, 'scripts')
+    from gdw_materials import MaterialResolver
 
 # =====================================
 # CONFIG
@@ -8,6 +15,8 @@ from pathlib import Path
 NAME = 'FISH'
 INPUT_FILE = f'../GAME_GDWs/{NAME}.GDW'
 OUTPUT_DIR = Path(f'../models/{NAME}')
+TEXTURES_ROOT = '../textures'
+MTL_NAME = f'{NAME}_materials.mtl'   # shared by every mesh OBJ in OUTPUT_DIR
 
 
 # =====================================
@@ -44,6 +53,8 @@ def main():
         data = f.read()
 
     print(f'Loaded {len(data):,} bytes from {INPUT_FILE}')
+    resolver = MaterialResolver(data, NAME, TEXTURES_ROOT)
+    used_textures = {}   # tex_id -> png Path
 
     offset    = 0
     mesh_idx  = 0
@@ -118,23 +129,42 @@ def main():
         fname = OUTPUT_DIR / f'{NAME}_mesh_{mesh_idx:04d}.obj'
         with open(fname, 'w') as f:
             f.write(f'# GMDL @ 0x{pos:X}  verts={n_verts}  tris={n_indices // 3}\n')
+            f.write(f'mtllib {MTL_NAME}\n')
+            # Per-triangle material from TSET submeshes + MATS -> GMAT -> TEXP
+            # (see gdw_materials.py). One usemtl per submesh run.
+            tri_mat = ['none'] * (n_indices // 3)
+            for first, count, tid, png in resolver.submesh_textures(pos, gmdl_end):
+                if png is not None:
+                    used_textures[tid] = png
+                    for t in range(first, min(first + count, len(tri_mat))):
+                        tri_mat[t] = f'mat_{tid}'
+            # Handedness: the game is DirectX LEFT-handed (X right, Y up, Z
+            # forward -- the shark's right fin "Jobb..." sits at +X); OBJ is
+            # RIGHT-handed. Writing raw coordinates mirrors every model, and no
+            # rotation can undo a mirror. Negate Z on positions and normals
+            # (2026-10-01; replaces the 2026-08-17 winding-swap-only "fix").
             for x, y, z in verts:
-                f.write(f'v {x:.6f} {y:.6f} {z:.6f}\n')
+                f.write(f'v {x:.6f} {y:.6f} {-z:.6f}\n')
             for nx, ny, nz in norms:
-                f.write(f'vn {nx:.6f} {ny:.6f} {nz:.6f}\n')
+                f.write(f'vn {nx:.6f} {ny:.6f} {-nz:.6f}\n')
             for u, v in uvs:
                 f.write(f'vt {u:.6f} {v:.6f}\n')
             has_uv = bool(uvs)
             has_n  = bool(norms)
+            cur_mat = None
             for i in range(0, n_indices - 2, 3):
-                # Winding swap (b<->c): GDW VIND order is DirectX clockwise-front;
-                # OBJ/OpenGL expect counter-clockwise-front. Verified 2026-08-17:
-                # swapping the last two indices makes 100% of sampled face normals
-                # (cross product of the swapped winding) agree with the game's own
-                # stored per-vertex NORM data (0% agreement unswapped).
+                if tri_mat[i // 3] != cur_mat:
+                    cur_mat = tri_mat[i // 3]
+                    f.write(f'usemtl {cur_mat}\n')
+                # Original VIND order. With Z mirrored (above), the game's own
+                # order is already counter-clockwise-front: verified 2026-10-01,
+                # 2307/2363 sampled FISH triangles' cross-product normals agree
+                # with the stored NORM data in mirrored space with the original
+                # order (8/2363 with the old b<->c swap). The 2026-08-17 swap was
+                # only right for raw, un-mirrored coordinates.
                 a = indices[i] + 1
-                b = indices[i + 2] + 1
-                c = indices[i + 1] + 1
+                b = indices[i + 1] + 1
+                c = indices[i + 2] + 1
                 if has_uv and has_n:
                     f.write(f'f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}\n')
                 elif has_n:
@@ -146,6 +176,15 @@ def main():
         extracted += 1
         mesh_idx  += 1
         offset = pos + 4
+
+    # Shared material library for this GDW's mesh OBJs
+    with open(OUTPUT_DIR / MTL_NAME, 'w') as fm:
+        fm.write(f'# Jaws Unleashed -- {NAME} mesh materials (base texture per GMAT, same-GDW textures only)\n')
+        fm.write('newmtl none\nKd 0.6 0.6 0.6\n\n')
+        for tid, png in sorted(used_textures.items()):
+            rel = os.path.relpath(png, OUTPUT_DIR)
+            fm.write(f'newmtl mat_{tid}\nKa 1.0 1.0 1.0\nKd 1.0 1.0 1.0\nmap_Kd {Path(rel).as_posix()}\n\n')
+    print(f'Materials : {len(used_textures)} textures -> {OUTPUT_DIR / MTL_NAME}')
 
     print(f'\nExtracted : {extracted}')
     print(f'Skipped   : {skipped}')

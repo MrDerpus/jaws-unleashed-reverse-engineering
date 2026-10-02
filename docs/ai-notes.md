@@ -37,6 +37,8 @@ grep -oba "GTEXT" FISH.GDW
 
 Searches the archive for occurrences of the `GTEXT` marker.
 
+> **Correction (2026-10-03):** "GTEXT" is not a real tag: it's the `GTEX` tag followed by a size field whose low byte is `0x54` (`'T'`). The grep works because most 24-bit texture sizes end in `0x54`, but it also misses some textures and hits false matches. Walk the `RSRC` chunk chain instead (see `CLAUDE.md` texture section).
+
 ## Result
 
 Multiple valid texture blocks were discovered.

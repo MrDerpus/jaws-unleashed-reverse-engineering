@@ -88,6 +88,8 @@ All textures stored bottom-up in GDW files (flip on export).
 Sprite/overlay textures use cyan `#00FFFF` as chroma key (D3D DWORD `0xFF00FFFF`, confirmed at binary VA `0x725427`). Pixels where R<20, G>235, B>235 are made fully transparent on extract. (Detection must read R/G/B from the corrected BGRA byte positions above, per the 2026-07-29 correction — the old ARGB-based detection in `scripts/rip_gtex.py` was checking the wrong bytes.)
 
 ### Runtime Render Targets
+> **Withdrawn 2026-10-01:** the "65 render-target IDs" came from misreading TSET vertex counts as texture IDs (TSET holds submesh ranges, see CLAUDE.md "TSET Format"). Real material bindings (MATS → GMAT → TEXP) resolve to a PNG in the same GDW for >99.9% of textured triangles; flat single-colour PNGs (true unfilled render targets) cover <0.5% of triangles.
+
 65 texture IDs in the global space are **runtime render targets** — reflections, shadow maps — created by the engine at startup. No pixel data is stored in GDW files for these. They appear in TSET references but cannot be extracted.
 
 ---

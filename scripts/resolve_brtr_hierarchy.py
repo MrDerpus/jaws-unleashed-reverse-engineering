@@ -22,12 +22,23 @@ Validated 2026-07-16 on FISH.GDW:
     exact same position — confirms the composed coordinates line up with
     real in-game landmarks.
 
+NOTE (2026-10-01): main() now delegates to brtr_scene_graph.resolve_nodes(),
+which adds the absolute-transform flag rule (m_nFlags 0x20000000 = world-space
+transform, parent ignored) and reports reference instancing / the whale
+relocation. See brtr_scene_graph.py's docstring.
+
 Run from project root:
   python3 scripts/resolve_brtr_hierarchy.py
 """
 
 import struct
 import json
+import sys
+try:
+    from brtr_scene_graph import resolve_nodes
+except ImportError:          # run via exec() from the project root
+    sys.path.insert(0, 'scripts')
+    from brtr_scene_graph import resolve_nodes
 from pathlib import Path
 
 NAME       = 'FISH'
@@ -143,39 +154,17 @@ def main():
     print(f'Loading {INPUT_FILE}...')
     data = open(INPUT_FILE, 'rb').read()
 
-    candidates = []
-    pos = 0
-    while True:
-        idx = data.find(b'BRTR', pos)
-        if idx == -1:
-            break
-        if idx + 20 <= len(data) and u32(data, idx+8) == 0x01025024 and u32(data, idx+12) == 1 and data[idx+16:idx+20] == b'PRPS':
-            candidates.append((u32(data, idx+4), idx))
-        pos = idx + 4
-    brtr_sz, brtr_pos = max(candidates)
-    brtr_payload_start = brtr_pos + 8
-    brtr_payload_end   = min(brtr_payload_start + brtr_sz, len(data))
-    print(f'BRTR @ 0x{brtr_pos:X} size={brtr_sz:,}')
-
-    p = brtr_payload_start + 8  # skip magic(4) + root_count(4)
-    assert data[p:p+4] == b'PRPS', 'expected root PRPS at start of BRTR'
-    root_sz = u32(data, p+4)
-    root_payload_start = p + 8
-    root_payload_end   = root_payload_start + root_sz
-    root_props = parse_prps_props(data, root_payload_start, root_payload_end)
-
-    root_R, root_T = IDENTITY_R, IDENTITY_T
-    if 0x080017DA in root_props:
-        off, psz = root_props[0x080017DA]
-        if psz >= 48:
-            xf = struct.unpack_from('<12f', data, off)
-            root_R, root_T = mat_from_xf(xf)
-
-    top_children_start = align4(root_payload_end)
-
-    results = {}
-    walk(data, top_children_start, brtr_payload_end, root_R, root_T, None, 0, results)
-    print(f'Resolved {len(results)} nodes')
+    # 2026-10-01: delegated to brtr_scene_graph, which also honors the
+    # absolute-transform flag (m_nFlags 0x20000000 -- the walk() above composed
+    # those through their parent and misplaced them), and reports reference
+    # instancing (ref_target / is_template) and the MSMineAllMineMission whale
+    # relocation (relocated_world_pos). walk() is kept above for reference only.
+    results = resolve_nodes(data)
+    print(f'Resolved {len(results)} nodes '
+          f'({sum(1 for r in results.values() if r["absolute_xf"])} absolute-transform, '
+          f'{sum(1 for r in results.values() if r["ref_target"])} references, '
+          f'{sum(1 for r in results.values() if r["is_template"])} in templates, '
+          f'{sum(1 for r in results.values() if r["relocated_world_pos"])} relocated)')
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUTPUT_DIR / f'{NAME}_resolved_hierarchy.json'

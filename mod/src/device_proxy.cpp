@@ -1,6 +1,11 @@
 #include "device_proxy.h"
+#include "shark.h"
+#include "input_block.h"
+#include "bookmarks.h"
+#include "stage.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 static inline bool key_down(int vk)
 {
@@ -16,7 +21,10 @@ static inline bool key_down(int vk)
 #define VK_F5  0x74
 #define VK_F6  0x75
 #define VK_F7  0x76
+#define VK_F8  0x77
 #define VK_F9  0x78
+#define VK_F10 0x79
+#define VK_F11 0x7A
 #define VK_W   0x57
 #define VK_A   0x41
 #define VK_S   0x53
@@ -532,26 +540,213 @@ HRESULT __stdcall DeviceProxy::EndScene()
         }
     }
 
-    /* Draw HUD.
-     * PAUSED (2026-07-17): 0x008CFC88 (found via F9 3-pass scan) turned out
-     * to be a shared/reused address -- per-frame F8 logging showed it cycling
-     * through several independently-drifting value clusters (~645.x, ~646.x,
-     * ~666.x, then a jump to ~-461.x, then zeroed out), consistent with
-     * multiple different entities' positions being written through the same
-     * scratch location rather than one dedicated player-position field.
-     * Same root problem as the D3D camera-transform approach: this engine
-     * reuses shared buffers across multiple entities/passes in a way that
-     * defeats "read one fixed address/hook one fixed call" reliably.
-     * Next attempt should scan near the already-confirmed player-specific
-     * god-mode health addresses (0x8F11A8 etc.) rather than the broad
-     * range -- much more likely to land in the player's own struct instead
-     * of shared/pooled data. See project_mod_state memory for full writeup.
-     * For now, fall back to the D3D camera-transform reading -- imperfect
-     * (third-person camera orbits, occasional reflection-pass pollution)
-     * but not actively wrong the way the memory candidate was. */
-    overlay_.Draw(real_, cam_x_, cam_y_, cam_z_, freecam_, fog_off_, wireframe_, hide_foliage_, sim_paused_);
+    /* F11 — invincibility toggle. Health refill runs every frame while on;
+     * the pointer chain is re-resolved each time, so it survives level
+     * loads (unlike the old hardcoded-address god mode, which crashed). */
+    bool f11_now = key_down(VK_F11);
+    if (f11_now && !f11_prev_) {
+        invincible_ = !invincible_;
+        log_msg(invincible_ ? "[jaws_mod] invincible ON" : "[jaws_mod] invincible OFF");
+    }
+    f11_prev_ = f11_now;
+    if (invincible_) RefillSharkHealth();
+    /* Scripted / timer deaths bypass health and set the shark's "dead"
+     * state directly -- block those too (see InstallDeathBlock). */
+    {
+        static bool tried = false;
+        if (!tried) {
+            tried = true;
+            log_msg(InstallDeathBlock() ? "[jaws_mod] death block: SetState hook installed"
+                                        : "[jaws_mod] death block: install FAILED (exe bytes differ?)");
+        }
+        g_block_shark_death = invincible_ ? 1 : 0;
+        static int logged = 0;
+        static DWORD last_log = 0;
+        if (g_blocked_deaths != logged && GetTickCount() - last_log > 1000) {
+            char buf[96];
+            snprintf(buf, sizeof(buf), "[jaws_mod] death block: blocked %d death request(s) so far", g_blocked_deaths);
+            log_msg(buf);
+            logged = g_blocked_deaths;
+            last_log = GetTickCount();
+        }
+    }
+
+    /* F10 — reload the current stage from disk (engine's own deferred stage
+     * request, see stage.h). Debounce and cooldown are process-wide statics:
+     * the proxy is recreated during loads, and a per-instance "previous key"
+     * would re-fire while the key is still held. Ignored while typing in F8. */
+    {
+        static bool  f10_prev = false;
+        static DWORD last_reload = 0;
+        bool f10_now = key_down(VK_F10);
+        if (f10_now && !f10_prev && !tp_active_ && GetTickCount() - last_reload > 3000) {
+            char msg[96];
+            if (RequestStageReload(msg, sizeof(msg)))
+                last_reload = GetTickCount();
+            SetTpMsg("%s", msg);
+            char buf[128];
+            snprintf(buf, sizeof(buf), "[jaws_mod] F10: %s", msg);
+            log_msg(buf);
+        }
+        f10_prev = f10_now;
+    }
+
+    /* F8 — teleport text box. Game keyboard input is swallowed while open. */
+    InstallInputBlock();
+    bool f8_now = key_down(VK_F8);
+    if (tp_active_) {
+        HandleTeleportInput();
+    } else if (f8_now && !f8_prev_) {
+        tp_active_ = true;
+        tp_len_ = 0; tp_buf_[0] = 0;
+        BookmarkReloadIfChanged();   /* pick up hand edits to the file */
+        g_block_game_input = true;
+        /* Seed edge detection with current key state so nothing held
+         * at open time gets typed. */
+        for (int vk = 0; vk < 256; ++vk) tp_key_prev_[vk] = key_down(vk);
+    }
+    f8_prev_ = f8_now;
+    /* Keep blocking until Enter/Esc are released, so the game never sees
+     * a lone key-up/down from closing the box. */
+    if (!tp_active_ && g_block_game_input && !key_down(VK_RETURN) && !key_down(VK_ESCAPE))
+        g_block_game_input = false;
+
+    /* Teleport readback: ~half a second later, check the shark is still
+     * where we put it (physics/controller could snap it back). */
+    if (tp_verify_frames_ > 0 && --tp_verify_frames_ == 0) {
+        SharkState st;
+        char buf[160];
+        if (ReadShark(st)) {
+            float dx = st.x - tp_target_[0], dy = st.y - tp_target_[1], dz = st.z - tp_target_[2];
+            float dist = sqrtf(dx*dx + dy*dy + dz*dz);
+            snprintf(buf, sizeof(buf), "[jaws_mod] TP readback: now (%.1f, %.1f, %.1f), target (%.1f, %.1f, %.1f), off by %.1f",
+                     st.x, st.y, st.z, tp_target_[0], tp_target_[1], tp_target_[2], dist);
+            log_msg(buf);
+            if (dist > 25.0f) SetTpMsg("TP didn't stick (moved back %.0f)", dist);
+        } else {
+            log_msg("[jaws_mod] TP readback: shark gone");
+        }
+    }
+
+    /* Draw HUD. Prefer the player shark's real world position (read from
+     * game memory, see shark.h); fall back to the D3D camera-derived
+     * position when the shark controller doesn't exist (menus, loading). */
+    OverlayInfo info = {};
+    SharkState st;
+    info.pos_is_shark = ReadShark(st);
+    if (info.pos_is_shark) {
+        info.x = st.x; info.y = st.y; info.z = st.z;
+        info.has_facing = true;
+        info.yaw_deg = st.yaw_deg; info.pitch_deg = st.pitch_deg;
+    } else {
+        info.x = cam_x_; info.y = cam_y_; info.z = cam_z_;
+    }
+    info.freecam = freecam_; info.fog_off = fog_off_; info.wireframe = wireframe_;
+    info.hide_foliage = hide_foliage_; info.sim_paused = sim_paused_;
+    info.invincible = invincible_;
+    info.tp_active = tp_active_;
+    info.tp_text   = tp_buf_;
+    char slot_text[BOOKMARK_SLOTS][40];
+    if (tp_active_) {
+        for (int i = 0; i < BOOKMARK_SLOTS; ++i) {
+            float bx, by, bz;
+            const char* label = "";
+            if (BookmarkGet(i + 1, bx, by, bz, &label) && label[0])
+                snprintf(slot_text[i], sizeof(slot_text[i]), "%d: %.22s", i + 1, label);
+            else if (BookmarkGet(i + 1, bx, by, bz))
+                snprintf(slot_text[i], sizeof(slot_text[i]), "%d: %.0f %.0f %.0f", i + 1, bx, by, bz);
+            else                                snprintf(slot_text[i], sizeof(slot_text[i]), "%d: -", i + 1);
+            info.tp_slots[i] = slot_text[i];
+        }
+    }
+    info.tp_msg    = (tp_msg_[0] && GetTickCount() < tp_msg_until_) ? tp_msg_ : nullptr;
+    overlay_.Draw(real_, info);
 
     return real_->EndScene();
+}
+
+/* ── Teleport text box (F8) ──────────────────────────────────────────────── */
+
+void DeviceProxy::SetTpMsg(const char* fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(tp_msg_, sizeof(tp_msg_), fmt, ap);
+    va_end(ap);
+    tp_msg_until_ = GetTickCount() + 4000;
+}
+
+void DeviceProxy::HandleTeleportInput()
+{
+    /* Typed characters: main-row and numpad digits, minus, period; space
+     * and comma both act as separators. */
+    static const struct { int vk; char ch; } keys[] = {
+        {'0','0'},{'1','1'},{'2','2'},{'3','3'},{'4','4'},{'5','5'},{'6','6'},{'7','7'},{'8','8'},{'9','9'},
+        {0x60,'0'},{0x61,'1'},{0x62,'2'},{0x63,'3'},{0x64,'4'},{0x65,'5'},{0x66,'6'},{0x67,'7'},{0x68,'8'},{0x69,'9'},
+        {0xBD,'-'},{0x6D,'-'},{0xBE,'.'},{0x6E,'.'},{0x20,' '},{0xBC,' '},
+    };
+    auto pressed = [this](int vk) {
+        bool now = key_down(vk), was = tp_key_prev_[vk];
+        tp_key_prev_[vk] = now;
+        return now && !was;
+    };
+
+    bool ctrl = key_down(VK_CONTROL);
+    for (const auto& k : keys) {
+        if (!pressed(k.vk)) continue;
+        /* Ctrl+1..9: bookmark the current position into that slot. */
+        if (ctrl && k.ch >= '1' && k.ch <= '9') {
+            SharkState cur;
+            if (!ReadShark(cur)) { SetTpMsg("Bookmark failed: no shark"); continue; }
+            BookmarkSet(k.ch - '0', cur.x, cur.y, cur.z);
+            SetTpMsg("Saved slot %c: %.0f %.0f %.0f", k.ch, cur.x, cur.y, cur.z);
+            char buf[96];
+            snprintf(buf, sizeof(buf), "[jaws_mod] bookmark %c = (%.2f, %.2f, %.2f)", k.ch, cur.x, cur.y, cur.z);
+            log_msg(buf);
+            continue;
+        }
+        if (!ctrl && tp_len_ < (int)sizeof(tp_buf_) - 1) {
+            tp_buf_[tp_len_++] = k.ch;
+            tp_buf_[tp_len_] = 0;
+        }
+    }
+    if (pressed(VK_BACK) && tp_len_ > 0) tp_buf_[--tp_len_] = 0;
+
+    if (pressed(VK_ESCAPE)) {
+        tp_active_ = false;
+        SetTpMsg("Teleport cancelled");
+        return;
+    }
+    if (!pressed(VK_RETURN)) return;
+
+    tp_active_ = false;
+    float v[3];
+    int n = sscanf(tp_buf_, "%f %f %f", &v[0], &v[1], &v[2]);
+    SharkState cur;
+    if (!ReadShark(cur)) { SetTpMsg("TP failed: no shark"); return; }
+    if (n == 1 && v[0] == floorf(v[0]) && v[0] >= 1 && v[0] <= BOOKMARK_SLOTS) {
+        /* A lone slot number jumps to that bookmark (a coordinate entry
+         * always has 2-3 numbers, so this can't be mistaken for one). */
+        int slot = (int)v[0];
+        if (!BookmarkGet(slot, v[0], v[1], v[2])) { SetTpMsg("Slot %d is empty", slot); return; }
+    }
+    else if (n == 2) { v[2] = v[1]; v[1] = cur.y; }     /* "X Z" keeps current depth */
+    else if (n != 3) { SetTpMsg("TP: need X Y Z, X Z, or slot 1-9"); return; }
+
+    char err[64];
+    char buf[160];
+    if (!TeleportShark(v[0], v[1], v[2], err, sizeof(err))) {
+        SetTpMsg("TP failed: %s", err);
+        snprintf(buf, sizeof(buf), "[jaws_mod] TP failed: %s", err);
+        log_msg(buf);
+        return;
+    }
+    snprintf(buf, sizeof(buf), "[jaws_mod] TP from (%.1f, %.1f, %.1f) to (%.1f, %.1f, %.1f)",
+             cur.x, cur.y, cur.z, v[0], v[1], v[2]);
+    log_msg(buf);
+    SetTpMsg("TP -> %.0f %.0f %.0f", v[0], v[1], v[2]);
+    tp_target_[0] = v[0]; tp_target_[1] = v[1]; tp_target_[2] = v[2];
+    tp_verify_frames_ = 30;
 }
 
 /* ── Freecam movement (called from SetTransform every view update) ────────── */
