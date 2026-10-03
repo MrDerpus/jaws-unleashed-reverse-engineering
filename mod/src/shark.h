@@ -68,5 +68,17 @@ extern "C" volatile int g_block_shark_death;
 extern "C" volatile int g_blocked_deaths;   /* incremented per dropped death */
 
 /* Moves the shark to a world position. Returns false (with a reason in
- * `err`) if the shark doesn't exist or memory access fails. */
+ * `err`) if the shark doesn't exist or memory access fails. Writes the brick's
+ * local and world translation and the controller's stored last position
+ * (ctrl+0x680), which the collision move sweeps from; without that, targets
+ * behind terrain snapped back (2026-10-04). */
 bool TeleportShark(float x, float y, float z, char* err, size_t err_sz);
+
+/* Debug (2026-10-04): lists every place that holds a position (`want`, or the
+ * shark's current one) as three consecutive floats within `tol`: the controller
+ * (0x2000 bytes), the brick (0x400) and every heap object a controller
+ * dword points at (0x400 each), plus one level deeper under ctrl+0x50/0x54/0x58. Used to find the collision code's stored
+ * "previous position", which makes teleports into/through geometry snap
+ * back. Writes one line per hit into `out` (newline-separated). Not called
+ * by default; it found ctrl+0x680 and [ctrl+0x58]+0xA8. */
+void ScanSharkPositionCopies(const float* want /* null = current */, float tol, char* out, size_t out_sz);

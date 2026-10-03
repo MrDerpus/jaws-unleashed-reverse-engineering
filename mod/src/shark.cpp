@@ -31,6 +31,7 @@ static const DWORD BRICK_FLAGS       = 0x0C;
 static const DWORD BRICK_PARENT      = 0x14;
 static const DWORD BRICK_LOCAL       = 0x50;
 static const DWORD BRICK_WORLD       = 0x84;
+static const DWORD CTRL_LAST_POS     = 0x680;   /* collision sweep start, see TeleportShark */
 static const DWORD FLAG_WORLD_STALE  = 0x20;
 static const DWORD CTRL_HEALTH_MAX   = 0x2A8;
 static const DWORD CTRL_HEALTH       = 0x2B0;
@@ -101,13 +102,92 @@ bool TeleportShark(float x, float y, float z, char* err, size_t err_sz)
     }
 
     float wt[3] = { x, y, z };
+    float old[3] = {};
+    rd(brick + BRICK_WORLD + 0x24, old, sizeof(old));
     flags |= FLAG_WORLD_STALE;
     if (!wr(brick + BRICK_LOCAL + 0x24, lt, sizeof(lt)) ||
         !wr(brick + BRICK_WORLD + 0x24, wt, sizeof(wt)) ||
         !wr(brick + BRICK_FLAGS, &flags, 4)) {
         snprintf(err, err_sz, "write failed"); return false;
     }
+
+    /* The collision move sweeps each frame from the controller's stored
+     * last position (ctrl+0x680, copied from the brick's world translation at
+     * 0x666611 and set to the resolved position at 0x670485) to the brick's
+     * new position, and stops at the first obstacle. Moving only the brick
+     * therefore snaps back (or stops part-way) whenever terrain lies between
+     * the old spot and the target. Move the stored copy too. */
+    DWORD ctrl = 0;
+    if (rd(SHARK_CTRL_GLOBAL, &ctrl, 4) && ctrl)
+        wr(ctrl + CTRL_LAST_POS, wt, sizeof(wt));
+    /* A second object at [ctrl+0x58] keeps the shark's world position at
+     * +0xA8 too (seen by the 2026-10-04 scan); update it only if it really
+     * mirrors the shark right now. */
+    DWORD other = 0;
+    float ow[3];
+    if (ctrl && rd(ctrl + 0x58, &other, 4) && other && rd(other + BRICK_WORLD + 0x24, ow, sizeof(ow)) &&
+        fabsf(ow[0] - old[0]) < 0.05f && fabsf(ow[1] - old[1]) < 0.05f && fabsf(ow[2] - old[2]) < 0.05f)
+        wr(other + BRICK_WORLD + 0x24, wt, sizeof(wt));
     return true;
+}
+
+void ScanSharkPositionCopies(const float* want, float tol, char* out, size_t out_sz)
+{
+    out[0] = 0;
+    DWORD ctrl = 0, brick = 0;
+    float pos[3];
+    if (!rd(SHARK_CTRL_GLOBAL, &ctrl, 4) || !ctrl || !SharkBrick(brick) ||
+        !rd(brick + BRICK_WORLD + 0x24, pos, sizeof(pos))) {
+        snprintf(out, out_sz, "scan: no shark");
+        return;
+    }
+    if (want) memcpy(pos, want, sizeof(pos));
+    size_t used = 0;
+    int hits = 0;
+    auto scan = [&](const char* label, DWORD base, DWORD len) {
+        static unsigned char buf[0x2000];
+        if (len > sizeof(buf) || !rd(base, buf, len)) return;
+        for (DWORD o = 0; o + 12 <= len; o += 4) {
+            float f[3];
+            memcpy(f, buf + o, 12);
+            if (fabsf(f[0] - pos[0]) < tol && fabsf(f[1] - pos[1]) < tol && fabsf(f[2] - pos[2]) < tol) {
+                ++hits;
+                if (used + 128 < out_sz)
+                    used += snprintf(out + used, out_sz - used, "  %s+0x%lX (%08lX) = (%.2f, %.2f, %.2f)\n",
+                                     label, (unsigned long)o, (unsigned long)(base + o), f[0], f[1], f[2]);
+            }
+        }
+    };
+    auto heap = [&](DWORD p) { return p >= 0x01000000 && !(p >= 0x400000 && p < 0xE70000); };
+    if (used + 96 < out_sz)
+        used += snprintf(out + used, out_sz - used, "scan for (%.2f, %.2f, %.2f) tol %.2f: ctrl %08lX brick %08lX\n",
+                         pos[0], pos[1], pos[2], tol, (unsigned long)ctrl, (unsigned long)brick);
+    scan("ctrl", ctrl, 0x2000);
+    scan("brick", brick, 0x400);
+    static DWORD words[0x2000 / 4];
+    if (rd(ctrl, words, sizeof(words))) {
+        for (DWORD i = 0; i < 0x2000 / 4; ++i) {
+            DWORD p = words[i];
+            if (!heap(p) || p == brick) continue;
+            char label[32];
+            snprintf(label, sizeof(label), "[ctrl+0x%lX]", (unsigned long)(i * 4));
+            scan(label, p, 0x400);
+        }
+        /* one level deeper for the objects most likely to hold physics state */
+        const DWORD deep[] = { 0x50, 0x54, 0x58 };
+        for (DWORD off : deep) {
+            DWORD obj = words[off / 4], sub[0x400 / 4];
+            if (!heap(obj) || !rd(obj, sub, sizeof(sub))) continue;
+            for (DWORD k = 0; k < 0x400 / 4; ++k) {
+                if (!heap(sub[k]) || sub[k] == brick || sub[k] == ctrl) continue;
+                char label[48];
+                snprintf(label, sizeof(label), "[[ctrl+0x%lX]+0x%lX]", (unsigned long)off, (unsigned long)(k * 4));
+                scan(label, sub[k], 0x400);
+            }
+        }
+    }
+    if (used + 64 < out_sz)
+        snprintf(out + used, out_sz - used, "  %d hit(s)", hits);
 }
 
 static bool RefillPair(DWORD ctrl, DWORD max_off, DWORD cur_off)

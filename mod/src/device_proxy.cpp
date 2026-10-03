@@ -28,6 +28,15 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+/* Teleport hold state: process-wide, the device proxy is recreated often. */
+static const int TP_HOLD_FRAMES = 45;     /* ~0.75 s; 20 was occasionally too short */
+static const bool TP_DEBUG_SCAN = false;  /* log memory still holding the old position (see shark.h) */
+static int   g_tp_late_check = 0;        /* frames until a second, later readback */
+static int   g_tp_hold_frames = 0;
+static int   g_tp_scan_frames = 0;
+static float g_tp_hold_target[3];
+static float g_tp_old[3];
+
 static inline bool key_down(int vk)
 {
     /* key_down can be unreliable under Wine when the window isn't
@@ -651,6 +660,44 @@ HRESULT __stdcall DeviceProxy::EndScene()
     if (!tp_active_ && g_block_game_input && !key_down(VK_RETURN) && !key_down(VK_ESCAPE))
         g_block_game_input = false;
 
+    /* Teleport hold: keep re-writing the target for a few frames so every
+     * "previous position" the physics keeps catches up. Without it a long
+     * jump reads as a huge one-frame velocity and flings the shark into the
+     * sky or under the map (2026-10-04). The first frames also log any
+     * memory still holding the pre-teleport position (debug). */
+    if (g_tp_hold_frames > 0) {
+        char err[64];
+        TeleportShark(g_tp_hold_target[0], g_tp_hold_target[1], g_tp_hold_target[2], err, sizeof(err));
+        --g_tp_hold_frames;
+        if (g_tp_scan_frames > 0) {
+            static char scanbuf[8192];
+            ScanSharkPositionCopies(g_tp_old, 2.0f, scanbuf, sizeof(scanbuf));
+            char hdr[96];
+            snprintf(hdr, sizeof(hdr), "[jaws_mod] TP hold frame %d, old-position scan:", 4 - g_tp_scan_frames);
+            log_msg(hdr);
+            for (char* line = strtok(scanbuf, "\n"); line; line = strtok(nullptr, "\n")) {
+                char lb[200];
+                snprintf(lb, sizeof(lb), "[jaws_mod]   %s", line);
+                log_msg(lb);
+            }
+            --g_tp_scan_frames;
+        }
+    }
+
+    /* Late readback (~2 s): catches the game pushing the shark away after
+     * the hold ended, e.g. out of geometry it landed in. */
+    if (g_tp_late_check > 0 && --g_tp_late_check == 0) {
+        SharkState st;
+        if (ReadShark(st)) {
+            float dx = st.x - g_tp_hold_target[0], dy = st.y - g_tp_hold_target[1], dz = st.z - g_tp_hold_target[2];
+            float dist = sqrtf(dx*dx + dy*dy + dz*dz);
+            char buf[160];
+            snprintf(buf, sizeof(buf), "[jaws_mod] TP late readback (2 s): now (%.1f, %.1f, %.1f), off by %.1f",
+                     st.x, st.y, st.z, dist);
+            log_msg(buf);
+        }
+    }
+
     /* Teleport readback: ~half a second later, check the shark is still
      * where we put it (physics/controller could snap it back). */
     if (tp_verify_frames_ > 0 && --tp_verify_frames_ == 0) {
@@ -787,6 +834,11 @@ void DeviceProxy::HandleTeleportInput()
     SetTpMsg("TP -> %.0f %.0f %.0f", v[0], v[1], v[2]);
     tp_target_[0] = v[0]; tp_target_[1] = v[1]; tp_target_[2] = v[2];
     tp_verify_frames_ = 30;
+    for (int k = 0; k < 3; ++k) { g_tp_hold_target[k] = v[k]; }
+    g_tp_old[0] = cur.x; g_tp_old[1] = cur.y; g_tp_old[2] = cur.z;
+    g_tp_hold_frames = TP_HOLD_FRAMES;
+    g_tp_scan_frames = TP_DEBUG_SCAN ? 3 : 0;
+    g_tp_late_check = 120;
 }
 
 /* ── Freecam movement (called from SetTransform every view update) ────────── */

@@ -134,3 +134,30 @@ TOWN sample **388** (`MovieTown1.VoiceCrew2`, 6.18 s) is the crew's "Something's
 | START | `SzetfroccsenoDarabokController3` (`DeathOfShawMovie`) | Adds blood-splash pieces 639–642 that no longer exist, next to the surviving `VerFrocs 4/5`. |
 | TITLE | `Mpeg Demo 1 Control …` | The attract-mode MPEG demo loaders reference deleted objects (1274/1280, 1286/1292). |
 
+## PC vs PS2 — loose boss-orca "inside" meshes in AQUARIUM (user-found 2026-10-04)
+
+**User discovery:** the PC `AQUARIUM.GDW` stage contains a bleeding carcass of what looks like a big fish, lying around in the level. In the Blender scene import it's named **`Boss_Orca_Inside01 2`**. That's the mesh you see when you take bites out of the boss orca at the end of the stage (its exposed insides).
+
+What the data shows (2026-10-04):
+- PC `AQUARIUM.GDW` has **three** nodes with that mesh (`GMDL 2647`):
+  - `Boss_Orca_Inside01` (node 27744): a child of the `Boss_Orca` model, the real one used during the boss fight;
+  - **`Boss_Orca_Inside01 2`** (node 2804) at about (−267, −1.0, 98);
+  - **`Boss_Orca_Inside01 3`** (node 2806) at about (−61, −1.5, −121).
+  The last two are **standalone top-level copies at the water surface**, attached to nothing (flags `0x4A`, plain model nodes), so they render as loose carcasses in the stage. **The user found both in-game** (2026-10-04).
+- PS2: the aquarium is split into `AQUARIUM.GDE` and `AQUA2.GDE`. `AQUARIUM.GDE` doesn't contain the name at all, and `AQUA2.GDE` contains it once, consistent with only the boss's own attached piece. PS2 names are pooled in a shared name table (`BNCH`), so one occurrence doesn't strictly rule out more objects, but there's no sign of the loose copies.
+- Likely explanation (not proven): leftover test or placement copies of the boss's "inside" model that were cleaned out of the PS2 build but left in the PC one. What, if anything, was meant to use them isn't known.
+
+## AQUARIUM — leftover static cage gate outside the boss-orca arena (user-found 2026-10-04)
+
+**User observation:** a cage gate, `Ketrec_Ajto01` ("cage door"), stands just out of bounds of the area where you fight the boss orca.
+
+What the data shows:
+- **Node 7430 `Ketrec_Ajto01`**: mesh 2678, a child of the orca tank group `orkarium-forgatott` ("orca tank, rotated"), at about (933, −193.5, −156.5). It's a plain model node, enabled (flags `0x5A`), with **no collision link** (no `PRIM`), no logic block, and **no script referencing it**. `m_Viewport` = `0x2` (probably underwater-only rendering; that bit isn't confirmed).
+- **It's the cage-gate model.** Mesh 2678 has the same 514 vertices as the breakable gate mesh 3070 and matches its shape after scaling (residual under 1 unit), with the scale baked into the vertices. The working breakable gates (`Ketrec_Ajto 1/4/6`, mesh 3070, under the breakable bars `TorhetoRacs…`) are scaled nodes, (0.6, 0.42, 0.5), instead. Its world size, about 9 × 12 × 8, suggests the gate set at an angle. (A first look at the raw mesh size wrongly suggested a smashed door; corrected after checking the node scales.)
+- **Its sibling `Ketrec_Ajto04`** (node 7427, mesh 2681, the same model baked differently) sits **exactly where breakable gate `Ketrec_Ajto 6` is** (world box x 1077–1082, z −196 to −189) and is **disabled** (flags `0x20000018`, no `0x2`), so it never shows.
+- **No breakable gate exists at `Ketrec_Ajto01`'s spot today** (the nearest, gate 1, is about 80 units away at (952, −234)).
+
+**Reading (not proven):** two static gate copies from an earlier pass, before the breakable-gate setup. One duplicate was switched off when gate 6 replaced it; `Ketrec_Ajto01` was left enabled at a position from an earlier arena layout, so it shows up outside the bounds as a gate you can't touch.
+
+PS2: both `AQUARIUM.GDE` and `AQUA2.GDE` contain the name `Ketrec_Ajto01` once. Because names are pooled (`BNCH`), that doesn't show whether it's placed the same way; not checked further.
+

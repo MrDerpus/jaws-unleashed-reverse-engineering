@@ -104,6 +104,8 @@ Verified on FISH.GDW: spawn reads `(2000, -6.4, -3630.7)` against the BRTR spawn
 | `+0x2B0` | **current health** (float) | clamped to `+0x2A8`; is-dead check tests `<= 0` |
 | `+0x2B4` | **current hunger** (float) | clamped to `+0x2AC`; user-verified in-game (refilling it keeps the hunger bar full) |
 | `+0x72C`–`+0x73C` | five ability multipliers (floats) | ability setup: `= save_byte * const`, from save-state bytes `0x8D0124`–`0x8D0128` |
+| `+0x680` | **last / collision-resolved position** (3 floats): copied from the brick's world translation after the scene update (`0x666611`), set to the resolved position from `0x5BEB80` when alive (`0x670485`). The collision move sweeps from here to the brick's new position each frame, so a teleport must move it too (mod F8 fix, 2026-10-04). | code above; runtime scan |
+| `+0x58` | object whose `+0xA8` also mirrors the shark's world position (also referenced from `+0xCC`, `+0x16C`) | runtime scan 2026-10-04 |
 | `+0x704` | flag; when set and the requested state is `0`, the state setter substitutes state `0x1D` (and clears controller `+0x3C`) | state setter `0x65EDA0` |
 
 **Ability setup `0x53AD50`** recomputes max health/hunger from the ability multipliers and `SharkConfig` tuning values, then clamps current to max: `max_hp = (cfg[0xD8C] * ability[0x73C] + k1) * k2` (constants `k1`/`k2` at `0x7CE0D8` / `0x7CEB90`), and the same shape for hunger with `cfg[0xD84]` / `ability[0x738]`.
