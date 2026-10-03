@@ -1,5 +1,7 @@
 # Audio Leads — Possible Story Dialogue
 
+> **Superseded 2026-10-03:** the story dialogue was found, as 49 captioned `SMPC` voice samples, which the old extractors skipped. See `docs/cutscene_dialogue.md`. The cat2 "long sample" candidates below were the wrong place to look.
+
 > Moved here from `CLAUDE.md` on 2026-10-02 to keep that file under its size limit. Text is verbatim.
 
 ## Lead: long-duration `GSMP` cat2 "SFX" samples may be the missing story dialogue (found 2026-07-29, unconfirmed — needs a human to listen)
