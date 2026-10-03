@@ -1,0 +1,8 @@
+# Generated locally from your own game files (scripts/make_level_kit.py, build.sh)
+*.GDW
+*.blend
+*.blend1
+*.obj
+*.mtl
+blender_export/
+build.log

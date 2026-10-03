@@ -158,6 +158,10 @@ This means the engine self-documents. Class names, property names, and component
 | `ANPolyArena` | AI arena zone |
 | `ANUnitRef` / `ANHeliRef` / `ANSeekerRef` | AI unit references. `ANSeekerRef` (class `0x0109C09B`, 74 fields): PROP ID = `0x080002E9` + field index; 0 = inherit template value, booleans tri-state 0 inherit / 1 off / 2 on. Field table and the BEACH stationary-seeker example in `docs/cut_content.md` "Resolution (2026-10-03)". |
 | `ANPosition` | AI position marker |
+| *(area trigger, class `0x01134132`)* | Level entrance/exit zone: fires `m_enter_act`/`m_leave_act` when `m_target` (the shark) crosses a circle of `m_radius` (fields `0x0800028D`–`0x08000296`). FISH's exit, the open-ocean entrances, DEEPSEA's room checks. See `docs/brtr_editing.md` "Area triggers and level exits". |
+| *(LoadChecker action, `0x0217B17A`)* | `OssLoadChecker`: shows the enter/leave prompt (message slot 598) and starts `m_toact` on OK. |
+| *(GDLoad action, `0x02038036`/`0x02038037`)* | Loads a stage; name in `PROP 0x08001839`. |
+| *(creature generator action, `0x02129128`)* | `MarlinGenAct`, `MantarayGen`, …: spawns ambient wildlife from a creature template (`PROP 0x08000A78`), count `0x08000A79`, area `0x08000A82`. |
 | `ANSideMission15` | SC14 Undertow — `KILL THE WATER SKIERS WHILE THEY ARE JUMPING OFF OF THE RAMPS!` |
 | `ANSideMission21` | SC20 Losing Your Head — drag banana boat to piers, knock riders off, kill them |
 | `ANSideMission22` | SC21 Scavenge — `COLLECT %d TIRES IN UNDER %d SECONDS.`; seekers + Coast Guard raft obstacles |

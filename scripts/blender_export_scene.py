@@ -40,9 +40,17 @@ Per-object custom properties (Object Properties > Custom Properties):
     jaws_collision  0 to make the object non-solid (default: solid)
     jaws_gmat       game material ID for faces with no usable Blender
                     material (default DEFAULT_GMAT)
+    jaws_exit       1 = not geometry but an exit zone: swimming into it
+                    leaves the level the way the base level's own exit does
+                    (FISH/TEST: back to Open Ocean South). An Empty's radius
+                    is its display size x its largest X/Y scale; a mesh's is
+                    half its largest X/Y size. Zones are vertical columns
+                    (any depth). Written to the manifest as 'exits'. Its
+                    material's colour (Base Color, or Viewport Display) is
+                    the colour of build_scene.py's --show-exits marker.
 
 Materials: a material named gmat_<id> / mat_<texture id> uses that game
-material. Any other material with an Image Texture node (preferably feeding
+material (a Blender duplicate suffix like mat_272.001 is ignored). Any other material with an Image Texture node (preferably feeding
 Principled Base Color) becomes a new game texture + material: the image is
 copied (file on disk) or saved as PNG (packed/generated) into EXPORT_DIR, and
 build_scene.py converts it. Materials without an image fall back to jaws_gmat.
@@ -123,8 +131,10 @@ def material_tokens(objs, dest_dir, materials):
             mat = slot.material
             if not mat or mat.name in tokens:
                 continue
-            if re.fullmatch(r'(gmat_(0x[0-9a-fA-F]+|\d+)|mat_\d+)', mat.name):
-                tokens[mat.name] = mat.name
+            # Blender's duplicate suffix (mat_272.001) still means game material 272
+            m = re.fullmatch(r'(gmat_(0x[0-9a-fA-F]+|\d+)|mat_\d+)(\.\d+)?', mat.name)
+            if m:
+                tokens[mat.name] = m.group(1)
                 continue
             img = material_image(mat)
             if img is None:
@@ -190,6 +200,50 @@ def game_transform(obj):
     return cols + [GAME_ORIGIN[i] + GAME_SCALE * t[i] for i in range(3)]
 
 
+def exit_zone(obj):
+    """Exit-zone object -> {'name', 'pos' (game space), 'radius' (game units)}."""
+    mw = obj.matrix_world
+    if obj.type == 'EMPTY':
+        sc = mw.to_scale()
+        r = obj.empty_display_size * max(abs(sc.x), abs(sc.y))
+        c = mw.translation
+    else:
+        pts = [mw @ v.co for v in obj.data.vertices]
+        lo = [min(p[i] for p in pts) for i in range(3)]
+        hi = [max(p[i] for p in pts) for i in range(3)]
+        r = max(hi[0] - lo[0], hi[1] - lo[1]) / 2
+        c = [(lo[i] + hi[i]) / 2 for i in range(3)]
+    t = swap_yz(c)
+    zone = {'name': obj.name, 'pos': [GAME_ORIGIN[i] + GAME_SCALE * t[i] for i in range(3)],
+            'radius': GAME_SCALE * r}
+    col = marker_colour(obj)
+    if col:
+        zone['colour'] = col
+    return zone
+
+
+def marker_colour(obj):
+    """sRGB 0-255 RGBA of an exit object's first material (for build_scene's
+    --show-exits markers): Principled Base Color + Alpha when not driven by a
+    texture, else the material's Viewport Display colour. None = no material."""
+    mat = next((sl.material for sl in obj.material_slots if sl.material), None)
+    if mat is None:
+        return None
+    rgba = list(mat.diffuse_color)
+    if mat.use_nodes:
+        bsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        if bsdf:
+            if not bsdf.inputs['Base Color'].is_linked:
+                rgba[:3] = list(bsdf.inputs['Base Color'].default_value)[:3]
+            if not bsdf.inputs['Alpha'].is_linked:
+                rgba[3] = bsdf.inputs['Alpha'].default_value
+
+    def srgb(c):
+        c = max(0.0, min(1.0, c))
+        return c * 12.92 if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+    return [round(255 * srgb(c)) for c in rgba[:3]] + [round(255 * max(0.0, min(1.0, rgba[3])))]
+
+
 def export_dir():
     if EXPORT_DIR:
         return EXPORT_DIR
@@ -202,7 +256,9 @@ def main():
     global EXPORT_DIR
     EXPORT_DIR = export_dir()
     coll = bpy.data.collections.get(COLLECTION)
-    objs = [o for o in (coll.all_objects if coll else bpy.context.selected_objects) if o.type == 'MESH']
+    every = list(coll.all_objects if coll else bpy.context.selected_objects)
+    exits = [exit_zone(o) for o in every if o.get('jaws_exit') and o.type in ('MESH', 'EMPTY')]
+    objs = [o for o in every if o.type == 'MESH' and not o.get('jaws_exit')]
     if not objs:
         raise SystemExit(f'nothing to export: make a collection named {COLLECTION!r} or select mesh objects')
     os.makedirs(EXPORT_DIR, exist_ok=True)
@@ -230,10 +286,11 @@ def main():
             'collision': bool(obj.get('jaws_collision', 1)),
         })
     manifest = {'game_origin': GAME_ORIGIN, 'game_scale': GAME_SCALE, 'meshes': meshes,
-                'materials': materials, 'objects': objects}
+                'materials': materials, 'objects': objects, 'exits': exits}
     with open(os.path.join(EXPORT_DIR, 'manifest.json'), 'w') as f:
         json.dump(manifest, f, indent=1)
-    print(f'exported {len(objects)} objects, {len(meshes)} meshes, {len(materials)} textured materials to {EXPORT_DIR}')
+    print(f'exported {len(objects)} objects, {len(meshes)} meshes, {len(materials)} textured materials, '
+          f'{len(exits)} exit zones to {EXPORT_DIR}')
 
 
 main()

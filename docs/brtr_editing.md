@@ -2,13 +2,18 @@
 
 > Moved here from `CLAUDE.md` on 2026-10-02 to keep that file under its size limit. Text is verbatim.
 
-**Level-editing tool index (2026-10-03, all in `scripts/`, run from there):**
+> **Building a level yourself?** Start with the step-by-step tutorial, [`custom_level_tutorial.md`](custom_level_tutorial.md). This file is the technical background.
+
+**Level-editing tool index (2026-10-04, all in `scripts/`, run from there unless noted):**
 
 | Script | Does |
 |---|---|
 | `blender_export_scene.py` | runs **in Blender**: exports collection `JAWS` (meshes, transforms, images, material blend/culling settings) to `blender_export/` + `manifest.json` |
-| `build_scene.py BASE OUT EXPORT_DIR [--deploy NAME]` | one-command build: textures + materials + meshes + collision + nodes, verified, optionally deployed (then F10 in-game) |
-| `strip_level.py IN OUT [--keep-class/--keep-name/--keep-id]` | blank base: removes scenery, keeps gameplay layer, protects referenced nodes |
+| `build_scene.py BASE OUT EXPORT_DIR [--deploy NAME] [--show-exits] [--tile N]` | one-command build: textures + materials + meshes (large ones tiled) + collision + nodes + exit zones, verified, optionally deployed (then F10 in-game) |
+| `strip_level.py IN OUT [--minimal] [--keep-class/--keep-name/--keep-id]` | blank base: removes scenery, keeps gameplay layer, protects referenced nodes; `--minimal` also removes NPCs, animals, the SC17 mission and collectibles |
+| `make_level_kit.py [--force] [--kit DIR]` | (project root) creates the custom-level kit `levels/custom_fish/`: minimal base + starter `.blend` |
+| `redirect_stage.py IN OUT FROM TO` | make a level entrance load another `.GDW` (OPEN_S `FISH` → `TEST`) |
+| `../levels/custom_fish/build.sh` | the kit's one-command export + build + install (`--show-exits`, `--no-deploy`) |
 | `obj_to_gmdl.py IN OUT model.obj [ID] [--gmat --scale --collision]` | single OBJ → `GMDL` (+ generated `MREG`) appended to `RSRC`; library for `build_scene.py` |
 | `insert_brtr_node.py IN OUT` | append node clones (edit `SPECS`); `build_node` is the library used by `build_scene.py` |
 | `gdw_textures.py` | library: `build_gtex` (new texture blocks), `clone_gmat` (new materials), `find_block` |
@@ -148,6 +153,10 @@ Earlier builds tested at the 35138 slot: the generated test ring (mesh `0x7000`:
 - **`scripts/build_scene.py`**: converts every unique mesh (`obj_to_gmdl.load_parts` + `build_gmdl`, with `build_mreg` if any object using it is solid), assigns consecutive next-free resource IDs, appends everything to `RSRC` in one go, then appends one `BRTR` node per object. Solid objects clone **node 77** (has a `PRIM`, viewport `0x20003`) with the `PRIM` pointed at the mesh's `MREG`; non-solid ones clone **node 79** with viewport set to `0x20003`. Full 12-float transform, AABB from the mesh, vertex colours resized. Then it verifies the `RSRC`/`BRTR` chains, `FSIZ`/`SKIP`/`FDIR`, and with `--deploy NAME` copies to the live `data/NAME.GDW` (first-time backup `NAME.GDW.pre_build`).
 - **Verification (headless Blender 4.0.2):** each placed node's world AABB equals Blender's world-space vertex bounds mapped to game space, within 0.0001. Triangle winding agrees with vertex normals on 12/12 (cube) and 968/968 (Suzanne) triangles.
 
+### Large objects fade out (found 2026-10-04, user-confirmed)
+
+A single 1,500×1,500-unit floor object (the `custom_fish` starter seafloor, one node at its centre, correct world AABB) **slowly faded out whenever the shark looked away from it and faded back in when it looked at it**. Cutting the same floor into 8×8 tiles (~190 units each, origin at each tile's centre) removed the fading completely (user-confirmed). So the engine runs a per-object, time-smoothed visibility fade whose test misjudges very large objects; the AABB was correct, so it isn't the stale-AABB culling. Shipped terrain is tiled the same way (FISH `Homokos_PartSzakasz_*`). The exact test (pivot point vs. bounding sphere vs. distance) isn't traced in `Jaws.exe`. **`build_scene.py` now tiles automatically:** any mesh wider than 300 game units on an axis is cut (by triangle centroid, mesh-local) into cells of at most 200 units, each its own `GMDL`/`MREG`/node with re-centred vertices and the node translation moved through the object's basis (`--tile 0` = off). Verified: the 64 auto-tiles' AABBs union to exactly the one-piece floor's AABB, also for a 30°-rotated copy. It also lifts the 65,535-vertex limit for big terrain.
+
 ### Limits
 
 - Mirrored objects (negative scale) aren't handled specially.
@@ -259,6 +268,10 @@ Survey of FISH's 1,074 top-level nodes by class: apart from those two scenery cl
 - **`Sun` (3569, a plain model):** `NAWater2004 Hiwave`'s property **`0x08001376` points at it**. With it removed, the water surface stopped rendering above and below (the shark could still swim and breach). Found by bisection: keeping all plain models brought the water back, then the render-settings survey showed `Sun` as the odd one out (`m_RenderSetting` `0x82842`, flags `0x12`). The strip tool now protects anything a kept node points at through `ID_PROPS` (`0x080017F0` reference, `0x08000AE5`/`AE6` whale/shark mission links, `0x080004A1` collectible template, `0x080003C7` child list, `0x08001376` water sun) and keeps such nodes unchanged.
 - **8 nodes named inside top-level `ACTN` blocks** (stage/quest logic): `Kotelszakito_szikla_vf16` (rope-breaking rock), `szikla elem52`, `Plane01 1`, `fishbone 1` (whale skull/spine/ribs), `szikla elem41 1`, `szikla elem64 1`, `Box185 2`, `Box216 2`. Deleting them could leave dangling IDs, so they're **kept but moved 50,000 units down** (translation of the top node and any absolute-flag descendants, AABB of every node). Confirmed gone from view in-game.
 
+### Minimal mode (2026-10-04, untested in-game at time of writing)
+
+`strip_level.py --minimal` also removes the visible gameplay layer: NPCs (`0x01085081`), waypoints (`0x010C80C7`), the bird flock (`0x01096095`), fish schools (`0x01078077`), the SC17 mission root and sharks (`0x01104103`, `0x01094092`), the collectible `07 - Treasure Chest` (`0x0112B12A`), the beach sound area (`0x0101B019`), and by name `WhaleCarcass MorePrim`, `CrowdAllo`, `CollectableObjects`, `CollectibleAddOn`. **Ambient wildlife comes from creature generators**, not the creature templates: `ACTN` class `0x02129128` (`SeaOtterGenAct`, `BarracudaGenAct`, `MarlinGenAct`, `SwordfishGen`, `MantarayGen`), each on a group node `Parent<X>Gen` (FISH 1795–1803). `PROP 0x08000A78` = creature template node (e.g. `Marlin Root` 22836), `0x08000A79` = count, `0x08000A82` = 6 floats (area box). The first minimal build kept them and marlins and rays still spawned (user, 2026-10-04); `--minimal` now removes any top-level node carrying that action. FISH: 842 top-level nodes removed (1,400 incl. children), 232 left. Kept: water, sun, sky, cameras, fog, lights, HUD, effects, sound definitions, weapons, creature templates, `GameState`/`Stage Completed Save`, the `OPEN_S` exit.
+
 ### False lead
 
 `PROP 0x08001051` looked like a node reference (`NAWater2004`'s value 93 = rock `szikla elem24`), but it's set on 301 particle/effect nodes with values like 2141 that aren't nodes. It's a texture/material resource ID that happens to collide with rock node IDs (both are small numbers). Lesson: small-number "references" between node IDs and resource IDs are often coincidences; confirm with a test.
@@ -267,6 +280,25 @@ Survey of FISH's 1,074 top-level nodes by class: apart from those two scenery cl
 
 - `SCENERY_GROUPS` / `SCENERY_TEMPLATES` / `KEEP_NAMES` are FISH names; other levels will need their own lists (the class-based rule and the reference protection are generic).
 - The ocean floor is gone, so the shark can swim down to wherever the engine limits depth. Build a floor in Blender if needed.
+
+## Area triggers and level exits (2026-10-04)
+
+A level's exit and the Open Ocean level entrances are **area triggers**, node class **`0x01134132`**. Fields (reflection class `?@0x8cc320`, PROP IDs consecutive from `0x0800028D`):
+
+| PROP | Field | FISH exit `OPEN_S` (1551) |
+|---|---|---|
+| `0x0800028D` | `m_type` | 1 = vertical column (2 = with `m_top`/`m_bottom`, DEEPSEA rooms) |
+| `0x0800028E` | `m_target` | 26116 `SHARRRK` (the shark) |
+| `0x0800028F` | `m_radius` | 795.0 |
+| `0x08000290` | `m_enter_act` | empty (`[0]`) |
+| `0x08000291` | `m_leave_act` | `[1, 1552]` |
+| `0x08000292` | `m_rate` | 10 |
+| `0x08000293`/`94` | `m_top`/`m_bottom` | 0 / 0 |
+| `0x08000295`/`96` | `m_color1`/`m_color2` | 1 / 9 |
+
+Lists are `[count, ids…]`. FISH's exit fires when the shark **leaves** the circle; its 72 `BolyaReference` children are just the buoy ring marking it. Action 1552 `OssLoadChecker` (class `0x0217B17A`, fields `m_type`, `m_stage`, `m_toact` = 1553, `m_toactcancel`) starts the `Accept` control 1553 (adds `LoadingPredatorEffect`, then after 90 ticks starts 1554, a `GDLoad` action with stage name `FISH00`, `PROP 0x08001839`). The open-ocean entrances use **enter** instead: OPEN_S `FISHERMAN` r 615, `WRACK` r 115, OPEN_NW `GAUNTLET` r 415 and so on; GAUNTLET's own exit is a leave-type one (r 820). 17 area triggers in 6 GDWs.
+
+**Exit zones from Blender:** an object in `JAWS` with custom property `jaws_exit` = 1 (Empty: radius = display size × largest X/Y scale; mesh: half its largest X/Y size) becomes an exit zone instead of geometry. `build_scene.py` rebuilds the base's leave-type exit as the first zone (buoys dropped, moved, radius set, action list moved from leave to enter) and copies its `PRPS` for further zones (new IDs, same enter list, no `ACTN`s). User-confirmed in-game 2026-10-04 (both test zones exit). `build_scene.py --show-exits` adds a see-through, non-solid marker column per zone (user-confirmed) in the exit object's material colour (exporter `colour`: Principled Base Color/Alpha, else Viewport Display; default pink).
 
 ## Level scripting (`GDControl`)
 
@@ -300,20 +332,21 @@ The red monkey is Blender's Suzanne: exported as OBJ (triangulated, smart-UV), `
 
 About 15 in-game iterations. Visual probes (hide + collision-off steps, delays, an ID test row of differently coloured monkeys) separated "control never starts" from "steps don't work", and **the mod's F12 dump** (`mod/README.md`) settled it by showing the registry: the control was registered with correct data but had no live instance (`+0x24` = 0), while the destructible's runtime held the right hook value. Wrong turns worth not repeating: the "max file ID + 1" collision theory (partly right, not the cause), IDs at `0x100000` (break objects), `m_nFlags` = 2 as "auto-start" (it isn't), and pointing a hook at a shipped plain-node control (`LoadingEffectControl`), which has no live instance either.
 
-## Current live state (end of 2026-10-03 session)
+## Current live state (2026-10-04)
+
+The custom level is now a reproducible kit (`levels/custom_fish/`, `scripts/make_level_kit.py`, user tutorial `docs/custom_level_tutorial.md`); `TEST.GDW` is whatever `levels/custom_fish/build.sh` last installed.
 
 Game install `data/` folder (`~/.steam/debian-installation/steamapps/compatdata/2342933845/pfx/drive_c/Program Files (x86)/Jaws Unleashed/data/`):
 
 | File | Contents |
 |---|---|
-| `TEST.GDW` | **live** (end of 2026-10-03): scripted-trigger test, `add_trigger.py` defaults (one suspend step) on `TEST.GDW.pre_insert` + the white texture and Suzanne mesh above: pink trigger post (×1.3) at (2036, 1.5, −3971), red monkey at (2110, 12, −3960). |
-| `TEST.GDW.pre_trigger` | previous live build: `strip_level.py`(`TEST.GDW.pre_insert`) + the 7-object Blender test scene (2 rock cubes, Suzanne, 4 transparency planes), built with `build_scene.py` |
-| `TEST.GDW.pre_insert` | base: copy of FISH with the construction-worker face, rocks tinted magenta, sand cyan. **Use this as the input for `strip_level.py` / `build_scene.py`.** |
+| `TEST.GDW` | **live:** the user's custom level, built by `levels/custom_fish/build.sh` from `custom_fish.blend` on `FISH_minimal_base.GDW` (`strip_level.py --minimal` of stock FISH) |
+| `TEST.GDW.trigger_test` | end of 2026-10-03: scripted-trigger test, `add_trigger.py` defaults on `TEST.GDW.pre_insert` + white texture and Suzanne: pink trigger post (×1.3) at (2036, 1.5, −3971), red monkey at (2110, 12, −3960) |
+| `TEST.GDW.pre_trigger` | `strip_level.py`(`TEST.GDW.pre_insert`) + the 7-object Blender test scene (2 rock cubes, Suzanne, 4 transparency planes) |
+| `TEST.GDW.pre_insert` | copy of FISH with the construction-worker face, rocks tinted magenta, sand cyan (don't use as a base for real levels: its textures are tinted) |
 | `TEST.GDW.pre_build` | earlier build: the user's `something.obj` sculpture (×15, generated collision) + wall C |
-| `OPEN_S.GDW` (+ `.orig`) | Fisherman's Isle transition renamed `FISH` → `TEST` (so entering Fisherman's Isle loads `TEST.GDW`) |
+| `OPEN_S.GDW` (+ `.orig`) | Fisherman's Isle entrance loads `TEST` (`GDLoad` name `FISH` → `TEST`; `scripts/redirect_stage.py` reproduces it byte for byte) |
 | `FISH.GDW` (+ `.orig`), `DOCKS.GDW` (+ `.orig`) | construction-worker face texture swap only |
-| `../d3d8.dll` (+ `.pre_reload`, `.pre_iddump`) | mod with F10 stage reload and the F12 ID-registry dump |
-| `BEACH.GDW`, `BEACHPST.GDW` (+ `.orig`) | **restored to stock** (2026-10-03) after the boulder-removal test; the `.orig` backups are identical copies. The patched no-boulder versions are kept in the project root as `*.open_barrier.GDW`. |
-
-Test assets (Blender test `.blend`, PIL-generated images, export folder) lived in the session scratchpad and aren't kept. They're easy to recreate; the user's own `something.obj` is in the repo root.
-
+| `../d3d8.dll` (+ `.pre_messages`, `.pre_reload`, `.pre_iddump`) | mod with F10 reload, F12 ID dump and message overrides |
+| `../../../jaws_messages.txt` (= `C:\jaws_messages.txt`) | message overrides: `TEST 598` exit prompt (copy kept in `levels/custom_fish/`) |
+| `BEACH.GDW`, `BEACHPST.GDW` (+ `.orig`) | stock (restored 2026-10-03); no-boulder versions kept in the project root as `*.open_barrier.GDW` |

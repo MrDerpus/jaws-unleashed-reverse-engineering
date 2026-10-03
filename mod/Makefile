@@ -30,7 +30,8 @@ SRCS := src/d3d8_proxy.cpp \
         src/input_block.cpp \
         src/bookmarks.cpp \
         src/stage.cpp \
-        src/iddump.cpp
+        src/iddump.cpp \
+        src/messages.cpp
 
 TARGET := d3d8.dll
 

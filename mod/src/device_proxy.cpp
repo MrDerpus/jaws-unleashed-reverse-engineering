@@ -23,6 +23,7 @@
 #include "input_block.h"
 #include "bookmarks.h"
 #include "stage.h"
+#include "messages.h"
 #include "iddump.h"
 #include <math.h>
 #include <stdio.h>
@@ -318,6 +319,8 @@ HRESULT __stdcall DeviceProxy::SetTransform(D3DTRANSFORMSTATETYPE state,
 
 HRESULT __stdcall DeviceProxy::EndScene()
 {
+    UpdateMessageOverrides();
+
     if (!endscene_logged_) {
         log_msg("[jaws_mod] EndScene firing — proxy is active");
         endscene_logged_ = true;

@@ -265,6 +265,17 @@ Found while getting a scripted trigger to work (see `docs/brtr_editing.md` "Scri
 - `0x920E24` engine object layout.
 - Whether the scripted-death side effects (model hide, mission notification) can also be suppressed cleanly. The user said this isn't wanted (2026-10-01), so it's parked.
 
+## On-screen message tables (2026-10-04)
+
+The game's on-screen messages (prompts, hints, mission text) live in **5 language tables of 1,000 `char*` each**, in writable `.data`. `[0x854D14 + 4*lang]` points at each table; English is `0x84FEF0`, the other four follow at `0x850E94`, `0x851E34`, `0x852DD4`, `0x853D74`.
+
+- **Startup** (`FUN_00453ac0`): creates a hash (`FUN_006b8140(0x7F7, 0x18)`: flag `0x8` = case-insensitive, `0x10` = keys aren't copied) and adds every English message as key → number 1…1000 (`FUN_006b8300`).
+- **Lookup** (`FUN_00453d00(text)`): hashes the English text (`FUN_006b8910`), and if found returns `tables[lang][n − 1]`, with `lang = [0x920E24]+0x38` clamped to 0…4. Otherwise it returns the text unchanged.
+- So code refers to messages by their English text, e.g. `MBSwimoutChecker` pushes the mixed-case `"Do you want to leave this stage?…"` (`0x8A13E0`, pushed at `0x496B4B`), which resolves case-insensitively to slot 201.
+- Because the hash keys are the original strings, **repointing a table slot changes the displayed text without breaking the lookup**. The mod does this per stage (`mod/src/messages.cpp`, file `C:\jaws_messages.txt`). User-confirmed 2026-10-04.
+
+Exit-related slots: **598** `\nDO YOU WANT TO ENTER THIS AREA?…` (the `LoadChecker` prompt used by area-trigger exits; the game puts the destination name, e.g. `OPEN OCEAN - SOUTH`, in front of it), **201** leave this stage (`MBSwimoutChecker`), **199**/**851** completed stage, **200** stage locked. In the game font `[` and `]` draw the Esc and Enter key icons; `^OK^`, `^CANCEL^`, `^CONT^` are the button tokens. Full numbered list: `docs/game_messages.txt` (`scripts/dump_messages.py`).
+
 ## Stage loading and the F10 reload (2026-10-03)
 
 - **Engine object** `[0x920E24]`, vtable `0x7F6018` (the base class's is `0x7D2810`; both share the slots below). Found by locating the dword `0x6C3FD0` in `.rdata`. **Caution:** the tables at `0x7D2818`/`0x7F6020` are 8 bytes off; reading slots from them gives wrong functions.

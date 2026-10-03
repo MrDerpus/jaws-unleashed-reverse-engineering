@@ -1,0 +1,3 @@
+# Python bytecode (embeds local file paths)
+__pycache__/
+*.pyc

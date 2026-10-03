@@ -20,6 +20,7 @@ Runs under Proton 10.0 on Linux. Targets DirectX 8 (`d3d8.dll`).
 | `F10` | **Reload the current stage from disk** (added 2026-10-03, user-confirmed working; for testing GDW edits without leaving the area). Calls the engine's own deferred stage request (`[0x920E24]` vtable `+0x80` = `0x6C3C50`, `thiscall (flags=1, name)`) with the name the current stage was loaded with (`engine+0xB8`). The engine tick (`0x6C7800`) then unloads the world and reloads the `.GDW` at a safe point in its loop, the same path as the leftover dev "Open Stage" menu. Shows `Reloading <name> ...` in the message line. Debounced process-wide with a 3 s cooldown; ignored while the F8 box is open. Code: `src/stage.{h,cpp}`. |
 | `F11` | Invincibility + infinite hunger toggle: refills shark health (controller `+0x2B0`) to max (`+0x2A8`) and hunger (`+0x2B4`) to max (`+0x2AC`) every frame. Re-resolves the pointer chain each frame, so it survives level loads — unlike the old hardcoded-address god mode that crashed. Also blocks deaths that bypass health: while on, the shark controller's state setter (`0x65EDA0`, patched with a 6-byte entry jump) drops requests to enter state 7 (dead). All four death paths go through it — health ≤ 0 (`0x65D871`), the scripted `DIEM` kill message (`0x65B871`), and two timer-based deaths (`0x668CC6`, `0x66D4E9`). Blocked attempts are logged as `death block:` in `jaws_mod.log`. **Known limitation (user-tested 2026-10-01):** scripted deaths do more than set the state — blocking the state change leaves the shark alive but invisible, with the game otherwise behaving as if it died (buggy). Accepted as-is; health-based invincibility is the reliable part. |
 | `F12` | **Object-ID registry dump** (added 2026-10-03, debug, read-only). For each ID in `C:\jaws_ids.txt` (one per line, decimal or `0x` hex; a built-in list if the file is missing) it appends to `C:\jaws_iddump.txt`: the registry entry, the registered object's first 64 dwords, and the objects its `+0x20`/`+0x24` point at (live instances). Registry = hash map at `engine+0x50` (`engine = [0x920E24]`), entry `[id, ?, object, next]`; the header line also shows the runtime ID counter (`engine+0x14`). Only memory reads, no game code called. Used to debug the scripted trigger (see `docs/brtr_editing.md` "Scripted triggers"). Code: `src/iddump.{h,cpp}`. |
+| *(file)* | **Message overrides** (added 2026-10-04, user-confirmed): `C:\jaws_messages.txt` replaces on-screen messages per stage, re-read when saved. See [Message overrides](#message-overrides-cjaws_messagestxt-2026-10-04). Code: `src/messages.{h,cpp}`. |
 | `F9` | Dev tool: three-pass player-position memory scanner (superseded — position is now read via the decompiled pointer chain, see below) |
 | `I` / `K` | Freecam: move forward / backward |
 | `J` / `L` | Freecam: strafe left / right |
@@ -35,6 +36,12 @@ Screenshots land at:
 ```
 
 ---
+
+### Message overrides (`C:\jaws_messages.txt`, 2026-10-04)
+
+Replaces any of the game's on-screen messages while a given stage is loaded, without touching `Jaws.exe` on disk. One line per override: `<STAGE or *> <slot> <text>`. `\n` is a line break, `^OK^` / `^CANCEL^` / `^CONT^` are the game's button icons, and `#` starts a comment. Slot numbers: run `scripts/dump_messages.py`, which writes them to `docs/game_messages.txt` (generated locally from your `Jaws.exe`; not in the repo). The file is re-read when saved. Overrides apply when the named stage loads and are undone on the next stage without overrides. Example: `TEST 598 LEAVE THE CUSTOM LEVEL?\n\nPRESS ^OK^ TO LEAVE OR ^CANCEL^ TO STAY.`
+
+How it works (`src/messages.{h,cpp}`): `[0x854D14 + 4*lang]` points at 5 language tables of 1,000 message pointers (English `0x84FEF0`, writable `.data`). Code asks for a message by its English text; `FUN_00453d00` hashes it (case-insensitive; hash built once at startup from the original strings) to a number and returns `tables[lang][number − 1]`. The mod repoints that slot in every language table each time the stage changes. **In-game notes (user-tested 2026-10-04):** FISH/TEST's exit zone shows **slot 598**, and the game puts the destination name (`OPEN OCEAN - SOUTH`) in front of it, so start the text with `\n` like the original. `[` and `]` draw the Esc and Enter key icons, so don't use square brackets as text. Exit prompts: 598 "enter this area" (`LoadChecker`), 201 "leave this stage" (`MBSwimoutChecker`), 199/851 "completed stage", 200 "locked".
 
 ## Build
 
@@ -86,6 +93,9 @@ mod/
     ├── shark.h / .cpp      # Player shark position/facing read + teleport (decompiled pointer chain)
     ├── input_block.h / .cpp # DirectInput keyboard vtable patch — blocks game input while the F8 box is open
     ├── bookmarks.h / .cpp  # 9 teleport bookmark slots, persisted to C:\jaws_bookmarks.txt
+    ├── messages.h / .cpp   # per-stage on-screen message overrides from C:\jaws_messages.txt
+    ├── stage.h / .cpp      # F10 stage reload through the engine's deferred stage request
+    ├── iddump.h / .cpp     # F12 object-ID registry dump (debug)
     ├── dinput8_proxy.cpp   # Abandoned injection attempt (not built)
     └── winmm_proxy.cpp     # Abandoned injection attempt (not built)
 ```

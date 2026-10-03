@@ -15,7 +15,7 @@ All scripts live in `scripts/` and are standalone Python files. Run from the pro
 python3 scripts/rip_textures.py
 
 # Scripts that reference FISH.GDW directly need to run from GAME_GDWs/
-cd GAME_GDWs && python3 ../scripts/object_parser.py
+cd GAME_GDWs && python3 ../scripts/archive/object_parser.py   # archived exploration script
 ```
 
 **Dependency:** `Pillow` for image output (`pip install Pillow`). No other dependencies beyond stdlib.
@@ -27,15 +27,17 @@ cd GAME_GDWs && python3 ../scripts/object_parser.py
 
 **Run a script across all GDWs at once:**
 ```bash
-# rip_gtex.py uses NAME (uppercase) and runs from project root
+# rip_gtex.py uses NAME (uppercase) and, like rip_textures.py, must run from scripts/ (../GAME_GDWs/ path)
+cd scripts
 for name in AQUARIUM ARMADA BEACH BEACHPST CHASE DEEPSEA2 DEEPSEA DOCKS FISH GAUNTLET KATATAMA MINEMSHA OPEN_NE OPEN_NW OPEN_S START TITLE0 TITLE TOWN WRACK; do
     python3 -c "
 import re; from pathlib import Path
-script = Path('scripts/rip_gtex.py').read_text()
+script = Path('rip_gtex.py').read_text()
 script = re.sub(r\"^NAME = .*\$\", \"NAME = '$name'\", script, flags=re.MULTILINE)
 exec(compile(script, 'rip_gtex.py', 'exec'))
 "
 done
+cd ..
 
 # rip_textures.py uses name (lowercase) and must run from scripts/ (uses ../GAME_GDWs/ path)
 cd scripts
@@ -542,6 +544,8 @@ FISH.GDW BRTR stats:
 
 **Mesh reference clarification:** PROP `0x08001873` first uint32 is literally the ASCII tag `GMDL` (= `0x4C444D47`) stored as a type discriminator, not an "unknown" field. Second uint32 = mesh resource ID matching the first uint32 of the GMDL 12-byte sub-header.
 
+**Area triggers = level entrances and exits (decoded 2026-10-04):** node class **`0x01134132`**, fields `m_type` (`0x0800028D`: 1 = vertical column, 2 = with `m_top`/`m_bottom`), `m_target` (`0x0800028E`, the shark node `SHARRRK`), `m_radius` (`0x0800028F`, float), `m_enter_act` / `m_leave_act` (`0x08000290`/`0x08000291`, `[count, action ids…]`), `m_rate`, `m_top`, `m_bottom`, two debug colours (`…0292`–`…0296`). 17 in 6 GDWs. FISH's exit `OPEN_S` (1551, centre (2005, −4004)) fires on **leave** at radius 795; its 72 `BolyaReference` children are only the buoy ring. The open-ocean entrances (OPEN_S `FISHERMAN`, `WRACK`, …) fire on **enter**. Action chain: `OssLoadChecker` (`0x0217B17A`: `m_type`, `m_stage`, `m_toact`, `m_toactcancel`) shows the prompt (message slot 598, below), then a `GDControl` adds the loading effect and starts a `GDLoad` action (`0x02038036`/`0x02038037`, stage name `PROP 0x08001839`). `build_scene.py` turns Blender objects with `jaws_exit` into enter-type zones; `scripts/redirect_stage.py` rewrites a `GDLoad` stage name (OPEN_S's Fisherman's Isle loader sits in an embedded sub-archive). **Ambient wildlife** comes from creature generators: `ACTN` class `0x02129128` on `Parent<X>Gen` group nodes, `PROP 0x08000A78` = creature template, `0x08000A79` = count, `0x08000A82` = area box. Details: `docs/brtr_editing.md` "Area triggers and level exits".
+
 **Class-specific PROP IDs (decoded 2026-08-13, `BSCollectibleGameObject`):** in addition to the generic `0x080017Dx`/`0x08001873` engine-wide fields above, individual gameplay classes have their own PROP ID ranges for class-specific fields, found by matching the class's field-name list in `Jaws.exe`'s reflection strings (`BSCollectibleGameObject.m_Template..m_AutoYPlacement....m_AutoY_Offset..m_myid`) against a live node's raw PROP IDs, in declaration order:
 
 | ID | Field | Meaning |
@@ -713,9 +717,13 @@ Paste into Blender's Scripting workspace and run. Imports each unique mesh from 
 
 | Script | Does |
 |---|---|
+| `../levels/custom_fish/build.sh` | **custom-level kit** (2026-10-04): `.blend` → export → build on `FISH_minimal_base.GDW` → install as `TEST.GDW` (`--show-exits`, `--no-deploy`). User tutorial: `docs/custom_level_tutorial.md` |
 | `blender_export_scene.py` | runs **in Blender**: exports collection `JAWS` (meshes, transforms, images, material blend/culling settings) to `blender_export/` + `manifest.json` |
-| `build_scene.py BASE OUT EXPORT_DIR [--deploy NAME]` | one-command build: textures + materials + meshes + collision + nodes, verified, optionally deployed (then F10 in-game) |
-| `strip_level.py IN OUT [--keep-class/--keep-name/--keep-id]` | blank base: removes scenery, keeps gameplay layer, protects referenced nodes |
+| `build_scene.py BASE OUT EXPORT_DIR [--deploy NAME] [--show-exits] [--tile N]` | one-command build: textures + materials + meshes (large ones tiled) + collision + nodes + exit zones, verified, optionally deployed (then F10 in-game); `--show-exits` adds see-through marker columns in the exit object's material colour |
+| `strip_level.py IN OUT [--minimal] [--keep-class/--keep-name/--keep-id]` | blank base: removes scenery, keeps gameplay layer, protects referenced nodes; `--minimal` also removes NPCs, waypoints, animals + creature generators, the SC17 mission, collectibles |
+| `make_level_kit.py [--force] [--kit DIR]` | run from project root: creates `levels/custom_fish/` (`FISH_minimal_base.GDW` + starter `custom_fish.blend` with material palette) from the user's own files |
+| `redirect_stage.py IN OUT FROM TO` | rewrite a `GDLoad` stage name (same length), e.g. OPEN_S `FISH` → `TEST` (byte-identical to the hand patch) |
+| `dump_messages.py [OUT]` | the exe's 1,000 English on-screen messages with slot numbers → `docs/game_messages.txt` (mod message overrides) |
 | `obj_to_gmdl.py IN OUT model.obj [ID] [--gmat --scale --collision]` | single OBJ → `GMDL` (+ generated `MREG`) appended to `RSRC`; library for `build_scene.py` |
 | `insert_brtr_node.py IN OUT` | append node clones (edit `SPECS`); `build_node` is the library used by `build_scene.py` |
 | `gdw_textures.py` | library: `build_gtex` (new texture blocks), `clone_gmat` (new materials), `find_block` |
@@ -737,6 +745,8 @@ The game re-reads a level's `.GDW` from disk on stage re-entry (deploy by backup
 - **Transparency works (2026-10-03, user-confirmed):** 32-bit texture alpha alone makes pixels see-through. Node render settings pick the mode: normal = smooth blend, FISH seaweed values (`0x08001876` = `0x80000920`, `0x08001875` = `0x81000021`) = hard cut-out. Back faces depend only on the material's `TWOS` (clone GMAT 668 = two-sided, 1073 = one-sided). The pipeline maps Blender's Blend Mode (Opaque / Alpha Blend / Alpha Clip) and Backface Culling onto these. Details: `docs/brtr_editing.md` "Transparency".
 - **Custom textures work (2026-10-03, user-confirmed):** images on Blender materials become new `GTEX` blocks (`scripts/gdw_textures.build_gtex`: plain variant, 24/32-bit, power-of-two resize; rebuilding shipped textures gives byte-identical blocks, 240/241 FISH) plus a new `GMAT` cloned from 1073 with `ID` and `TEXP` base texture replaced (`clone_gmat`). Handled automatically by `blender_export_scene.py` + `build_scene.py`. Details in `docs/brtr_editing.md` "Custom textures".
 - **Blender scene → level in one command (2026-10-03, user-confirmed):** `scripts/blender_export_scene.py` (run in Blender; exports collection `JAWS`, scale baked into meshes, Y/Z swap, origin → (2160, −25, −3650), ×15; custom props `jaws_collision`, `jaws_gmat`) + `scripts/build_scene.py BASE OUT EXPORT_DIR --deploy TEST` (meshes + generated collision + nodes with full rotation; solid → template 77, non-solid → 79), then F10. Position/rotation/scale verified against Blender to 0.0001. How-to: `docs/brtr_editing.md` "Blender scene export".
+- **Exit zones from Blender (2026-10-04, user-confirmed):** `jaws_exit = 1` on a cylinder/Empty → enter-type area trigger (radius from its size); the first zone reuses the base's leave-type exit node (buoys dropped), more zones copy its `PRPS`. Without any, the stock exit stays. Materials named `mat_<id>.001` (Blender duplicates) now map to `mat_<id>`.
+- **Large objects fade out; the build tiles them (2026-10-04, user-confirmed):** a one-piece 1,500-unit floor faded whenever the shark looked away from it; 8×8 tiles fixed it. `build_scene.py` now cuts any mesh wider than 300 units into ≤200-unit tiles (`--tile`). `strip_level.py --minimal` also removes NPCs, animals (incl. creature generators, `ACTN` class `0x02129128`), the SC17 mission and collectibles. Custom-level project: `levels/custom_fish/`. Details: `docs/brtr_editing.md`.
 - **Collision for custom meshes works (2026-10-03, user-confirmed):** `obj_to_gmdl.py --collision` pads the mesh to a multiple of 4 triangles, writes `TNOR`/`TFLG`, and appends a generated `MREG` (next free ID after the mesh). Place it with a template that has a `PRIM` (node 77) and `{'prim_region': <MREG id>}` in `insert_brtr_node.py`'s `SPECS`.
 - **Custom meshes from OBJ work (2026-10-03):** `scripts/obj_to_gmdl.py` writes a minimal-layout `GMDL` (byte-identical on 132 shipped meshes; container sizes exclude the last child's padding) and appends it to `RSRC` (`--gmat` for material-less OBJs, `--scale` since Blender units are tiny in-game); a user-confirmed custom ring renders in-game. Step-by-step Blender → in-game workflow and the current live `TEST.GDW` contents: `docs/brtr_editing.md` ("Workflow: Blender model → in-game object"). **New resource IDs must be the next free ID** (one shared ID space, FISH 1–2832); `0x7000` was silently ignored. Swapping a node's mesh requires resizing its baked vertex colours (`0x0800187A`, one float4 per vertex); `insert_brtr_node.py` does it. Details in `docs/brtr_editing.md`.
 - **Scripted triggers work (2026-10-03, user-confirmed):** `scripts/add_trigger.py`. Breaking a cloned pier post removes a target's visibility and collision. Rules: (1) the `GDControl` must sit on a **group-type node** (`0x010B10AA`/`0x010AA0A4`), because a destructible's hook (`MBRombolhato.m_robbcontrol` `0x08000673` / `m_megutcontrol` `0x0800067C`) starts the control's *live instance* and plain model nodes never get one; (2) **new IDs must be below `0x100000`** (the engine's runtime ID counter starts there; objects with IDs ≥ `0x100000` vanish); (3) steps at **delay −1** when the trigger deletes itself (posts have `m_killparent`). (4) One **suspend** step (`0x4B000400`) removes a target completely; hide (`0x8F000100`) and clearing `0x10`/`0x40` (`0x4F000040`) do too, while **kill alone leaves it solid** (user-tested one step per target). Details: `docs/brtr_editing.md` "Scripted triggers"; engine side in `docs/exe_analysis.md` "Object registry, live actions and destructibles".
@@ -764,6 +774,8 @@ The suspected cut "destroy the sub → boulders clear" objective isn't real. The
 
 **Death paths:** every death goes through the controller's state setter **`0x65EDA0`** (`thiscall SetState(state,-1,-1)`, `ret 0xC`) with state `7`, from four call sites: health ≤ 0 (`0x65D871`), a **scripted `DIEM` kill message** (`0x65B871`, which also zeroes health and hunger), and two timer-based deaths (`0x668CC6`, `0x66D4E9`).
 
+**On-screen message tables (2026-10-04):** `[0x854D14 + 4*lang]` → 5 language tables of 1,000 message pointers (English `0x84FEF0`, writable `.data`). Code asks for a message by its English text: `FUN_00453d00` looks it up in a case-insensitive hash built once at startup (`FUN_00453ac0`) and returns `tables[lang][n − 1]`, lang = `[0x920E24]+0x38`. Repointing a slot changes the text (the mod's message overrides). Exit prompts: slot 598 "enter this area" (`LoadChecker`, the game prefixes the destination name), 201 "leave this stage" (`MBSwimoutChecker`), 199/851 completed stage, 200 locked. `[`/`]` render as the Esc/Enter key icons. List: `docs/game_messages.txt`.
+
 **Reflection field table:** every class field is registered by a stub calling `0x70B6A0` (6,457 sites). `scripts/dump_class_fields.py <out.json>` dumps all of them (691 class descriptors, 132 with resolved names). Each stub passes two integers: **`a` = offset of the property wrapper in the class's props object, `b` = offset of its mirrored copy in the runtime object (0 = none); the value sits at +4** (settled 2026-10-03 via `GDControl`, see `docs/exe_analysis.md`). A class's BRTR PROP IDs are consecutive in registration order (e.g. `ANSeekerRef`: `0x080002E9` + field index).
 
 **Correction:** `NAPredator` is the **"predator vision" screen effect** (fields `m_magnification`, `m_power`, `m_strength`…), **not** the shark. The shark is driven by `MLSharkCtrl` + `SharkConfig`, and the camera/minimap by `MLSharkCamera`.
@@ -780,6 +792,7 @@ All user-tested 2026-10-01. Full controls and internals are in `mod/README.md`.
 | `F8` | **Teleport box**: type `X Y Z` / `X Z` / a bookmark slot number. `Ctrl+1..9` saves the current spot. Bookmarks live in hand-editable `C:\jaws_bookmarks.txt` (`slot x y z [name]`, `#` comments; reloaded when F8 opens if the file changed; plain coords, not tied to a level). Game keyboard input is blocked while the box is open (DirectInput device vtable patch). Teleport writes the brick's local translation (solved through the parent's world matrix) and world translation, sets the stale flag, **moves the controller's collision start point `ctrl+0x680`, and holds the target for 45 frames** (2026-10-04 fix: without these, jumps through terrain snapped back and long jumps flung the shark into the sky or under the map). Still occasionally finicky right next to geometry. |
 | `F11` | **Invincible + infinite hunger**: refills health and hunger to max every frame, and hooks `SetState` to drop state-7 (dead) requests. Known limitation: a blocked *scripted* death leaves the shark alive but invisible and the game confused. The user has accepted this; don't chase it. |
 | `F10` | **Reload current stage from disk** (2026-10-03): calls engine vtable `+0x80` `RequestStage(1, engine+0xB8 name)`; the engine tick unloads and re-reads the `.GDW` at a safe point. For testing GDW edits in place. `src/stage.{h,cpp}`. **User-confirmed working 2026-10-03.** |
+| file | **Message overrides** (2026-10-04): `C:\jaws_messages.txt` lines `<STAGE or *> <slot> <text>` replace on-screen messages per stage by repointing the exe's language tables (`[0x854D14+4*lang]`, 1,000 slots, list in `docs/game_messages.txt` via `scripts/dump_messages.py`). `src/messages.{h,cpp}`. No exe patch. |
 | `F12` | **Object-ID registry dump** (2026-10-03, debug, read-only): registry entries + objects for the IDs in `C:\jaws_ids.txt` → `C:\jaws_iddump.txt`. `src/iddump.{h,cpp}`. |
 | `F2`/`F3`/`F4`/`F5`/`F6` | Freecam / screenshot / fog / sim pause / foliage hide (unchanged) |
 
@@ -1069,10 +1082,11 @@ grep -rioab "search_term" GAME_GDWs/ game_binary/
 
 ## Open Problems
 
-- **Resolved** (details live in their sections): FISH whale position (mission relocation), scene `mesh_idx` mismatch, static terrain (it's in BRTR), skeletal animation, parent-child hierarchy, `SCRT`, `SKIP`, texture–mesh linkage, Blender mirroring (handedness), BRTR false-positive tag offset; and on 2026-10-03: brand-new node insertion, `PRIM` (collision link), `STRI`/BVH layout, "GTEXT" (not a tag), custom meshes/collision/textures/transparency, Blender scene export, blank base level, in-game stage reload (mod F10), field-registration integers (props/runtime offsets), `GDControl` scripting, custom scripted triggers (`add_trigger.py`), cutscene voice acting (`SMPC`, `rip_smpc.py`). Also 2026-10-03: the BEACH/BEACHPST "cut objective" (not cut; stationary SeaSeeker + unfinished canyon stub, see its section).
+- **Resolved** (details live in their sections): FISH whale position (mission relocation), scene `mesh_idx` mismatch, static terrain (it's in BRTR), skeletal animation, parent-child hierarchy, `SCRT`, `SKIP`, texture–mesh linkage, Blender mirroring (handedness), BRTR false-positive tag offset; and on 2026-10-03: brand-new node insertion, `PRIM` (collision link), `STRI`/BVH layout, "GTEXT" (not a tag), custom meshes/collision/textures/transparency, Blender scene export, blank base level, in-game stage reload (mod F10), field-registration integers (props/runtime offsets), `GDControl` scripting, custom scripted triggers (`add_trigger.py`), cutscene voice acting (`SMPC`, `rip_smpc.py`). Also 2026-10-03: the BEACH/BEACHPST "cut objective" (not cut; stationary SeaSeeker + unfinished canyon stub, see its section). 2026-10-04: truly empty base level (`--minimal`, creature generators), large-object fading (tiling), area triggers / custom exit zones, the stage redirect as a script, on-screen message tables (mod overrides), and a reproducible custom-level kit + tutorial (`docs/custom_level_tutorial.md`).
 - **`GDControl` / trigger leftovers** (scripting decoded and custom triggers working 2026-10-03; suspend, hide or clearing `0x10`/`0x40` each fully remove an object, kill alone leaves it solid (user-tested); the engine code that instantiates group-node actions at load isn't traced): the node flag `0x400000` (ops `0x2000`/`0x4000`), why kill keeps collision, spawn modes 3 vs 4, how quest code starts controls that no other control starts, and whether the dangling `missing#` target IDs are deleted objects or runtime-created ones.
 - **Skeletal animation leftovers** — solved 2026-10-03 apart from bone names, how bodies bind to the shared human clip skeleton at runtime, playback rate, and `MORF`; see the Skeletal Animation section.
 - ~~**In-game cutscene voice acting**~~ — **found 2026-10-03**: 49 captioned `SMPC` voice lines, `scripts/rip_smpc.py`, `docs/cutscene_dialogue.md`.
+- **Custom-level leftovers (2026-10-04):** the engine's exact test behind fading out very large objects (pivot, bounding sphere or distance; worked around by tiling); `OssLoadChecker.m_type` values ↔ prompt slots; exits to destinations other than the base level's own (needs a new `GDLoad` stage name per zone); per-level strip lists for levels other than FISH.
 - **Unknown PROP IDs** — `0x080017DB`–`0x080017E4`, `0x08001874`–`0x0800187B`, and (new, from `SCRT`) `0x08001980`–`0x08001993` / PS2's `0x08001957`–`0x0800196A` seen on CHBR nodes; most meanings not yet determined (see PROP ID table above for partial decode).
 - **`BNCH` record mapping (PS2)** — how the ~1,272 80-byte transform records map to the 3,495 names in the string pool.
 - **Unused material data** — extra `TEXP` layers beyond the base texture, and GMAT colour/shininess/transparency parameters.

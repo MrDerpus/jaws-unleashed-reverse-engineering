@@ -33,19 +33,43 @@ per object, cloned from a known-visible template:
 with the object's full game-space transform. The result is checked (chunk
 chain, FSIZ/SKIP/FDIR, BRTR walk) before writing.
 
+Large meshes are cut into tiles (2026-10-04): the engine fades a very large
+object out whenever it judges it out of view (a one-piece 1500-unit floor
+faded when the shark looked away; 8x8 tiles of ~190 units fixed it,
+user-confirmed). Any mesh wider than SPLIT_OVER game units on an axis is cut
+into a grid of cells of at most TILE units (by triangle centroid, in
+mesh-local space); each cell becomes its own GMDL (+ MREG) and node, with its
+vertices re-centred and the node translation moved to match. Also keeps each
+piece under the 65,535-vertex GMDL limit. --tile 0 turns it off.
+
+Exit zones (2026-10-04): manifest 'exits' (Blender objects with jaws_exit)
+replace the base level's own exit. That exit is an area trigger (class
+AREA_TRIGGER, fields m_type/m_target/m_radius/m_enter_act/m_leave_act/...):
+FISH's fires when the shark LEAVES a 795-unit circle marked by 72 buoy
+children. The first zone reuses that node (buoys dropped, moved, radius set,
+its leave action list moved to the enter list, like OPEN_S's level entrances);
+further zones are copies of its PRPS pointing at the same action.
+
+--show-exits (testing) adds a see-through, non-solid column at each exit zone
+(radius = the zone's), so zones can be seen in-game: in the exit object's
+material colour, or bright pink without one. Opaque colours are made
+see-through; a material Alpha below 1 is kept.
+
 --deploy NAME copies OUT.GDW to the live game's data/NAME.GDW (a first-time
 backup NAME.GDW.pre_build is kept). Then press F10 in-game to reload.
 Run from scripts/ (imports the sibling tools).
 """
 import argparse
 import json
+import math
 import os
 import shutil
 import struct
+import tempfile
 
-from gdw_grow import append_to_chunk, find_brtr, top_chunks, u32
+from gdw_grow import append_to_chunk, find_brtr, replace_chunk_payload, top_chunks, u32
 from gdw_materials import build_gmat_index
-from insert_brtr_node import build_node, max_node_id, top_level_nodes
+from insert_brtr_node import build_node, max_node_id, prop_offsets, replace_prop, top_level_nodes
 from gdw_textures import build_gtex, clone_gmat
 from obj_to_gmdl import build_gmdl, build_mreg, load_parts, next_free_id
 
@@ -66,6 +90,130 @@ TEMPLATE_GMAT_TWO_SIDED = 668   # FISH seaweed: same, but TWOS 1
 # counting the panels left-to-right while looking at them from behind).
 CUTOUT_NODE = {0x08001876: 0x80000920, 0x08001875: 0x81000021}
 P_VIEWPORT, VIEWPORT_ALL = 0x080017DD, 0x20003
+AREA_TRIGGER = 0x01134132
+P_AT_RADIUS, P_AT_ENTER, P_AT_LEAVE = 0x0800028F, 0x08000290, 0x08000291
+P_TRANSFORM, P_AABB = 0x080017DA, 0x080017DF
+EXIT_PINK = (255, 20, 200, 150)   # --show-exits default marker colour (RGBA)
+TILE = 200.0         # max tile size, game units
+SPLIT_OVER = 300.0   # only meshes wider than this on some axis get cut
+
+
+def split_parts(parts, tile):
+    """[(gmat, verts, tris)] -> [(offset, parts)]: one entry per grid cell,
+    vertices re-centred on the cell's bounds centre (offset, mesh-local)."""
+    pts = [v[0] for _, verts, _ in parts for v in verts]
+    lo = [min(p[i] for p in pts) for i in range(3)]
+    hi = [max(p[i] for p in pts) for i in range(3)]
+    ext = [hi[i] - lo[i] for i in range(3)]
+    if not tile or max(ext) <= SPLIT_OVER:
+        return [((0.0, 0.0, 0.0), parts)]
+    n = [max(1, math.ceil(e / tile)) if e > SPLIT_OVER else 1 for e in ext]
+    size = [ext[i] / n[i] or 1.0 for i in range(3)]
+    cells = {}   # cell -> {part index: [tri]}
+    for pi, (_, verts, tris) in enumerate(parts):
+        for t in tris:
+            c = [sum(verts[j][0][i] for j in t) / 3 for i in range(3)]
+            key = tuple(min(n[i] - 1, int((c[i] - lo[i]) / size[i])) for i in range(3))
+            cells.setdefault(key, {}).setdefault(pi, []).append(t)
+    out = []
+    for key in sorted(cells):
+        sub = []
+        for pi, tris in sorted(cells[key].items()):
+            g, verts, _ = parts[pi]
+            remap = {}
+            for t in tris:
+                for j in t:
+                    remap.setdefault(j, len(remap))
+            sub.append((g, [verts[j] for j in remap], [[remap[j] for j in t] for t in tris]))
+        cp = [v[0] for _, verts, _ in sub for v in verts]
+        off = tuple((min(p[i] for p in cp) + max(p[i] for p in cp)) / 2 for i in range(3))
+        sub = [(g, [(tuple(v[0][i] - off[i] for i in range(3)),) + tuple(v[1:]) for v in verts], tris)
+               for g, verts, tris in sub]
+        out.append((off, sub))
+    return out
+
+
+def exit_nodes(d, brtr, exits, first_new_id):
+    """Rebuild the level's exit trigger as the given zones; returns the new
+    BRTR payload."""
+    nodes, end = top_level_nodes(d, brtr)
+    old = [n for n, (p, s) in nodes.items() if u32(d, p + 8) == AREA_TRIGGER
+           and len(d[p:p + 8 + s]) and _prop(d[p:p + 8 + s], P_AT_LEAVE)[:4] != bytes(4)]
+    if len(old) != 1:
+        raise SystemExit(f'expected one leave-type exit trigger in the base, found {old}')
+    p, s = nodes[old[0]]
+    src = bytes(d[p:p + 8 + s])
+    acts = _prop(src, P_AT_LEAVE)
+    # header + PRPS + the node's own ACTNs; no CHBR children (the buoy ring)
+    head, q, own = src[:16], 16, b''
+    prps = b''
+    while q < len(src):
+        t, n = src[q:q + 4], (q + 8 + u32(src, q + 4) + 3) & ~3
+        if t == b'PRPS':
+            prps = src[q:n]
+        elif t != b'CHBR':
+            own += src[q:n]
+        q = n
+    out = []
+    for k, z in enumerate(exits):
+        node = bytearray(head + prps + (own if k == 0 else b''))
+        struct.pack_into('<I', node, 4, len(node) - 8)
+        if k:
+            struct.pack_into('<I', node, 12, first_new_id + k - 1)
+        node = replace_prop(bytes(node), P_AT_ENTER, acts)
+        node = replace_prop(node, P_AT_LEAVE, bytes(4))
+        node = replace_prop(node, P_AT_RADIUS, struct.pack('<f', z['radius']))
+        x, y, zz = z['pos']
+        r = z['radius']
+        node = replace_prop(node, P_TRANSFORM, struct.pack('<12f', 1, 0, 0, 0, 1, 0, 0, 0, 1, x, y, zz))
+        node = replace_prop(node, P_AABB, struct.pack('<6f', x - r, y - 50, zz - r, x + r, y + 50, zz + r))
+        out.append(node)
+        print(f"exit zone {u32(node, 12)}: {z['name']} at ({x:.0f}, {y:.0f}, {zz:.0f}), radius {r:.0f}"
+              + (' (base exit, buoys removed)' if k == 0 else ''))
+    payload = d[brtr + 8:p] + b''.join(out) + d[(p + 8 + s + 3) & ~3:end]
+    return bytes(payload)
+
+
+def _prop(node, prop_id):
+    po = prop_offsets(node)
+    return node[po[prop_id]:po[prop_id] + u32(node, po[prop_id] - 8) - 4]
+
+
+def add_exit_markers(man, tmp):
+    """Add a see-through column per exit zone to the manifest (in place), in
+    the zone's material colour (exporter 'colour'), default bright pink."""
+    mats = man.setdefault('materials', {})
+    for k, z in enumerate(man['exits']):
+        r, seg, y0, y1 = z['radius'], 32, -60.0, 40.0   # local, around the zone's y
+        rgba = tuple(z.get('colour') or EXIT_PINK)
+        if rgba[3] >= 255:
+            rgba = rgba[:3] + (EXIT_PINK[3],)    # opaque material: keep it see-through
+        tok = 'bmat_exitviz_%02x%02x%02x%02x' % rgba
+        if tok not in mats:
+            png = os.path.join(tmp, tok + '.png')
+            Image.new('RGBA', (8, 8), rgba).save(png)
+            mats[tok] = {'blender_material': f'exit marker #%02x%02x%02x' % rgba[:3], 'image': png,
+                         'alpha': 'BLEND', 'backface_culling': False}
+        lines = [f'usemtl {tok}']
+        for i in range(seg):
+            a = 2 * math.pi * i / seg
+            lines += [f'v {r * math.cos(a):.4f} {y0} {r * math.sin(a):.4f}',
+                      f'v {r * math.cos(a):.4f} {y1} {r * math.sin(a):.4f}']
+        for i in range(seg + 1):
+            lines.append(f'vt {i / seg:.4f} 0\nvt {i / seg:.4f} 1')
+        lines.append('vn 0 1 0')
+        for i in range(seg):
+            a0, a1, b0, b1 = 2 * i + 1, 2 * i + 2, 2 * ((i + 1) % seg) + 1, 2 * ((i + 1) % seg) + 2
+            t0, t1, u0, u1 = 2 * i + 1, 2 * i + 2, 2 * i + 3, 2 * i + 4
+            lines += [f'f {a0}/{t0}/1 {b0}/{u0}/1 {b1}/{u1}/1', f'f {a0}/{t0}/1 {b1}/{u1}/1 {a1}/{t1}/1']
+        obj = os.path.join(tmp, f'exit_marker_{k}.obj')
+        open(obj, 'w').write('\n'.join(lines) + '\n')
+        key = f'exit_marker_{k}'
+        man['meshes'][key] = {'obj': obj, 'gmat': TEMPLATE_GMAT, 'source': f"exit zone {z['name']}",
+                              'tokens': [tok]}
+        x, y, zz = z['pos']
+        man['objects'].append({'name': f"exit marker {z['name']}", 'mesh': key,
+                               'xf': [1, 0, 0, 0, 1, 0, 0, 0, 1, x, y, zz], 'collision': False})
 
 
 def check(d):
@@ -93,11 +241,19 @@ def main():
     ap.add_argument('out')
     ap.add_argument('export_dir')
     ap.add_argument('--deploy', metavar='NAME')
+    ap.add_argument('--tile', type=float, default=TILE,
+                    help=f'cut meshes wider than {SPLIT_OVER:g} units into tiles of this size (0 = off)')
+    ap.add_argument('--show-exits', action='store_true',
+                    help='testing: pink see-through column at each exit zone')
     ap.add_argument('--templates', default=TEMPLATES_GDW,
                     help='GDW to copy template nodes 77/79 from (default: stock FISH)')
     a = ap.parse_args()
 
     man = json.load(open(os.path.join(a.export_dir, 'manifest.json')))
+    tmp = None
+    if a.show_exits and man.get('exits'):
+        tmp = tempfile.mkdtemp(prefix='jaws_exitviz_')
+        add_exit_markers(man, tmp)
     d = bytearray(open(a.base, 'rb').read())
     gmats = build_gmat_index(d)
     solid = {o['mesh'] for o in man['objects'] if o['collision']}
@@ -125,21 +281,26 @@ def main():
               f"{alpha.lower()}, back faces {'shown' if show_back else 'culled'}")
         next_id += 1
 
-    # Meshes (+ collision regions) -> RSRC
-    ids = {}
+    # Meshes (+ collision regions) -> RSRC; large meshes become several tiles
+    ids = {}     # mesh key -> [(mesh_id, region, local offset)]
     for key, m in man['meshes'].items():
         print(f"mesh {m['obj']} (from {m['source']}):")
         parts = load_parts(os.path.join(a.export_dir, m['obj']), 1.0, m['gmat'], gmats, named)
-        mesh_id = next_id
-        g, nv, nt, corners = build_gmdl(mesh_id, parts, collision=key in solid)
-        blob += g
-        region = None
-        if key in solid:
-            region = mesh_id + 1
-            blob += build_mreg(region, mesh_id, corners)
-        next_id = (region or mesh_id) + 1
-        ids[key] = (mesh_id, region)
-        print(f'  -> GMDL {mesh_id:#x}: {nv} verts, {nt} tris' + (f', MREG {region:#x}' if region else ', no collision'))
+        pieces = split_parts(parts, a.tile)
+        if len(pieces) > 1:
+            print(f'  large mesh: cut into {len(pieces)} tiles')
+        ids[key] = []
+        for off, sub in pieces:
+            mesh_id = next_id
+            g, nv, nt, corners = build_gmdl(mesh_id, sub, collision=key in solid)
+            blob += g
+            region = None
+            if key in solid:
+                region = mesh_id + 1
+                blob += build_mreg(region, mesh_id, corners)
+            next_id = (region or mesh_id) + 1
+            ids[key].append((mesh_id, region, off))
+            print(f'  -> GMDL {mesh_id:#x}: {nv} verts, {nt} tris' + (f', MREG {region:#x}' if region else ', no collision'))
     append_to_chunk(d, top_chunks(d)['RSRC'], blob)
 
     # Objects -> BRTR
@@ -148,22 +309,36 @@ def main():
     tnodes, _ = top_level_nodes(tdata, find_brtr(tdata))
     node_id = max_node_id(d, brtr) + 1
     blob = b''
+    nodes = 0
     for o in man['objects']:
-        mesh_id, region = ids[o['mesh']]
         extra = CUTOUT_NODE if cutout & set(man['meshes'][o['mesh']].get('tokens', [])) else {}
-        if o['collision']:
-            blob += build_node(d, tnodes[TEMPLATE_SOLID], node_id, o['xf'], mesh_id, {'prim_region': region, **extra}, tdata)
-        else:
-            blob += build_node(d, tnodes[TEMPLATE_GHOST], node_id, o['xf'], mesh_id, {P_VIEWPORT: VIEWPORT_ALL, **extra}, tdata)
+        pieces = ids[o['mesh']]
+        for mesh_id, region, off in pieces:
+            # move the node by the tile's offset, through the object's basis
+            xf = list(o['xf'])
+            for i in range(3):
+                xf[9 + i] += xf[i] * off[0] + xf[3 + i] * off[1] + xf[6 + i] * off[2]
+            if o['collision']:
+                blob += build_node(d, tnodes[TEMPLATE_SOLID], node_id, xf, mesh_id, {'prim_region': region, **extra}, tdata)
+            else:
+                blob += build_node(d, tnodes[TEMPLATE_GHOST], node_id, xf, mesh_id, {P_VIEWPORT: VIEWPORT_ALL, **extra}, tdata)
+            node_id += 1
+            nodes += 1
         t = o['xf'][9:]
-        print(f"node {node_id}: {o['name']} at ({t[0]:.1f}, {t[1]:.1f}, {t[2]:.1f})"
+        print(f"node {node_id - len(pieces)}{f'-{node_id - 1}' if len(pieces) > 1 else ''}: {o['name']} "
+              f"at ({t[0]:.1f}, {t[1]:.1f}, {t[2]:.1f})"
+              + (f' [{len(pieces)} tiles]' if len(pieces) > 1 else '')
               + ('' if o['collision'] else ' [no collision]') + (' [cut-out]' if extra else ''))
-        node_id += 1
     append_to_chunk(d, brtr, blob)
+    if man.get('exits'):
+        brtr = find_brtr(d)
+        replace_chunk_payload(d, brtr, exit_nodes(d, brtr, man['exits'], node_id))
 
     check(d)
+    if tmp:
+        shutil.rmtree(tmp)
     open(a.out, 'wb').write(d)
-    print(f'wrote {a.out} ({len(man["objects"])} objects, {len(man["meshes"])} meshes), checks passed')
+    print(f'wrote {a.out} ({len(man["objects"])} objects, {len(man["meshes"])} meshes, {nodes} nodes), checks passed')
 
     if a.deploy:
         live = os.path.join(LIVE_DATA, a.deploy + '.GDW')

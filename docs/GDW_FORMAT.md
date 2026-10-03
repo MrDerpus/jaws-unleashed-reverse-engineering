@@ -419,7 +419,7 @@ Hammerhead SkeletonModel
 
 Transform values represent local-space rotation matrices and positions. Bounds are axis-aligned bounding boxes. Spatial layouts match expected anatomy when visualized.
 
-**Pipeline:** `scripts/object_parser.py` → `dumps/object_parser/objects.txt` → `scripts/hierarchy_rebuilder.py` → `dumps/hierarchy_rebuilder/scene_hierarchy.txt`
+**Pipeline (archived scripts, now in `scripts/archive/`):** `scripts/object_parser.py` → `dumps/object_parser/objects.txt` → `scripts/hierarchy_rebuilder.py` → `dumps/hierarchy_rebuilder/scene_hierarchy.txt`
 
 **SUPERSEDED (2026-07-16):** this `ChildLink`-ID cross-referencing approach was an early attempt before the real mechanism was found. CLAUDE.md now confirms `BRTR` parent-child nesting is **physical, not ID-based**: a child `CHBR` node sits directly inside its parent's `PRPS` payload, and nested transforms are LOCAL to the parent (not world-space) — world position requires composing the full ancestor chain (`world = parent_world ∘ local`) starting from the root "World" `PRPS` node. Current extractor: `scripts/resolve_brtr_hierarchy.py` → `scenes/<NAME>_resolved_hierarchy.json`. Validated: resolved node count (2,782) exactly matches the flat-scan `CHBR` tag count in `FISH.GDW`.
 

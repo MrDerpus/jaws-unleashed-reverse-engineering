@@ -18,7 +18,8 @@
 
 """Strip a level's scenery to get a blank base for custom scenes (2026-10-03).
 
-    python3 scripts/strip_level.py IN.GDW OUT.GDW [--keep-class 0x0107402F ...]
+    python3 scripts/strip_level.py IN.GDW OUT.GDW [--minimal]
+                                   [--keep-class 0x0107402F ...]
                                    [--keep-name NAME ...] [--keep-id ID ...]
 
 Removes top-level BRTR nodes (with their whole subtree) that are scenery:
@@ -38,6 +39,14 @@ Kept no matter what:
 Everything else (cameras, lights, fog, water, sounds, HUD, weapons, AI,
 missions, effects, creature/NPC templates, stage exits) is untouched, and so
 is RSRC (unused meshes/textures simply stay unreferenced).
+
+--minimal (2026-10-04) also removes the visible gameplay content, leaving
+only engine plumbing (water, sun, sky, cameras, fog, lights, HUD, effects,
+sound definitions, creature templates, the stage exit): classes
+MINIMAL_CLASSES (NPCs, waypoints, bird flock, fish schools, the SC17 mission
+root and sharks, the collectible, the beach sound area), any top-level node with a creature-generator action
+(MINIMAL_ACTN_CLASSES: ambient marlins, rays, otters...) and top-level nodes
+named in MINIMAL_NAMES (FISH: whale carcass, crowd, collectible groups).
 """
 import struct
 import sys
@@ -50,6 +59,22 @@ SCENERY_TEMPLATES = {'molo', 'Kis_Halaszhajo', 'Torheto_pozna 1'}
 # seafloor/flora meshes: ope seafloor clusters, plants, trees, corals).
 SCENERY_GROUPS = {'Tiles'}
 KEEP_NAMES = {'NEW_SKY_OPEN'}
+MINIMAL_CLASSES = {
+    0x01085081,  # NPCs (FemOld, Leanyka, Izmiguy, ConstrWorker 1)
+    0x010C80C7,  # NAWayPoint (NPC walk points)
+    0x01096095,  # bird flock (Madarraj)
+    0x01078077,  # fish school sprites
+    0x01104103,  # MineAllMine Mission Root
+    0x01094092,  # MineAllMine Mission Shark 1-5
+    0x0112B12A,  # collectible ('07 - Treasure Chest')
+    0x0101B019,  # PartiHangArea (beach sound area)
+}
+# Creature generators: ACTN class 0x02129128 ('MarlinGenAct', 'MantarayGen'...)
+# on group nodes 'Parent<X>Gen'; PROP 0x08000A78 = creature template node,
+# 0x08000A79 = count, 0x08000A82 = area. They spawn ambient wildlife at runtime
+# (marlins and rays still appeared in the first minimal build, 2026-10-04).
+MINIMAL_ACTN_CLASSES = {0x02129128}
+MINIMAL_NAMES = {'WhaleCarcass MorePrim', 'CrowdAllo', 'CollectableObjects', 'CollectibleAddOn'}
 P_NAME, P_REF, P_FLAGS, P_TRANSFORM, P_AABB = 0x080017D8, 0x080017F0, 0x080017D9, 0x080017DA, 0x080017DF
 HIDE_DY = -50000.0  # moves stage-logic-referenced scenery far below the world
 # Kept nodes' properties known to hold node IDs (see CLAUDE.md).
@@ -67,22 +92,26 @@ def props(d, q, qend):
     return out
 
 
-def main(src, dst, keep_classes=(), keep_names=(), keep_ids=()):
+def main(src, dst, keep_classes=(), keep_names=(), keep_ids=(), minimal=False):
     d = bytearray(open(src, 'rb').read())
     brtr = find_brtr(d)
     end = brtr + 8 + u32(d, brtr + 4)
     nodes = {}                 # id -> (class, props, children ids)
+    actns = {}                 # id -> classes of the node's own ACTN blocks
     offsets = {}               # id -> CHBR file offset
 
     def walk(p):
-        s, q, pr, kids = u32(d, p + 4), p + 16, {}, []
+        s, q, pr, kids, acts = u32(d, p + 4), p + 16, {}, [], set()
         while q < p + 8 + s:
             if d[q:q + 4] == b'PRPS':
                 pr = props(d, q + 8, q + 8 + u32(d, q + 4))
             elif d[q:q + 4] == b'CHBR':
                 kids.append(walk(q))
+            elif d[q:q + 4] == b'ACTN':
+                acts.add(u32(d, q + 8))
             q = (q + 8 + u32(d, q + 4) + 3) & ~3
         nodes[u32(d, p + 12)] = (u32(d, p + 8), pr, kids)
+        actns[u32(d, p + 12)] = acts
         offsets[u32(d, p + 12)] = p
         return u32(d, p + 12)
 
@@ -130,8 +159,12 @@ def main(src, dst, keep_classes=(), keep_names=(), keep_ids=()):
     top = [c[3] for c in chunks if c[3] is not None]
     templates = {n for n in top if name(n) in SCENERY_TEMPLATES}
     keep = set(KEEP_NAMES) | set(keep_names)
+    classes = SCENERY_CLASSES | (MINIMAL_CLASSES if minimal else set())
+    groups = SCENERY_GROUPS | (MINIMAL_NAMES if minimal else set())
+    spawners = MINIMAL_ACTN_CLASSES if minimal else set()
     remove = {n for n in top if name(n) not in keep and n not in keep_ids and nodes[n][0] not in keep_classes and (
-        nodes[n][0] in SCENERY_CLASSES or n in templates or name(n) in SCENERY_GROUPS
+        nodes[n][0] in classes or n in templates or name(n) in groups
+        or any(actns[x] & spawners for x in subtree(n))
         or u32(nodes[n][1].get(P_REF, bytes(4)), 0) in templates)}
     doomed = {x for n in remove for x in subtree(n)}
 
@@ -174,8 +207,10 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('src')
     ap.add_argument('dst')
+    ap.add_argument('--minimal', action='store_true',
+                    help='also remove NPCs, animals, missions and collectibles')
     ap.add_argument('--keep-class', nargs='*', default=[], type=lambda s: int(s, 0))
     ap.add_argument('--keep-name', nargs='*', default=[])
     ap.add_argument('--keep-id', nargs='*', default=[], type=int)
     a = ap.parse_args()
-    main(a.src, a.dst, set(a.keep_class), set(a.keep_name), set(a.keep_id))
+    main(a.src, a.dst, set(a.keep_class), set(a.keep_name), set(a.keep_id), a.minimal)
