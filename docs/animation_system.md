@@ -48,7 +48,13 @@ The bite system (see `bite_system.md`) references `m_rubberskeletonid` — a rep
 
 ~~Skeletal animation has **not** been extracted... the actual keyframe data (bone transforms per frame) has not been located in the RSRC chunk.~~ ~~RESOLVED (2025-06-29): the keyframe data location IS now known... Still not extracted.~~ **FULLY DECODED (2026-07-17):** every open question below is now answered. `SKEL` (skeleton container — **30** in FISH.GDW, not 3,030 as earlier notes claimed; that figure was an accidental doubling) holds a bind-pose mesh (`VERT`/`NORM`), per-vertex bone weights (`WGHT`, decoded), and a recursive bone hierarchy (`BONE` root + `CHLD`/`BROT` children, each carrying a bind-pose `MTOB` transform and its own `ROTS` stream of per-frame unit quaternions). `ANIM` — present only on skeletons with named clips — slices each skeleton's shared quaternion pool into named ranges. Extractor: `scripts/rip_skeletons.py` → `skeletons/<NAME>/skel_<id>.json`, verified against all 30 of FISH.GDW's skeletons (zero false positives, 728/729 sampled quaternions unit-length, all clip frame ranges in-bounds). Full byte-level layout in CLAUDE.md's "Skeletal Animation System" section.
 
-**Still not done:** Blender armature/animation import (mesh-only import exists in `scenes/import_fish_blender.py`, no skinning wired in). Still open: an undecoded ~tens-of-KB blob preceding `VERT` in each `SKEL` (possible morph/blendshape data, unconfirmed), and the small per-bone `TRAN` field's exact role (near-zero in every sample checked).
+**Blender import done, skinning math solved (2026-10-03).** Corrections to the 2026-07-17 decode, from `Jaws.exe` and checked numerically (frame-0 skinning reproduces every FISH skeleton's shipped `GMDL` mesh to ≤ 1.5e-6):
+- `BROT` is the **next sibling**, not a child (`CHLD` is the first child).
+- `MTOB` is the **inverse rest matrix**; `TRAN` is the **local translation**; `ROTS` holds **local rotations, transposed** (`local = [R(q)ᵀ | TRAN]`). `world = parent · local`, `skin = world · MTOB`.
+- Frame 0 is the pose baked into the `GMDL` mesh; the `VERT` mesh is the rest pose `inverse(MTOB)`.
+- The pre-`VERT` blob is per-frame root motion (plus a second running-position track and an optional morph-frame count).
+- Human bodies borrow their clips from `GlobalSkeletonAnim` (`SKEL 1770`, 75 clips).
+- Importer: `scripts/import_skeleton_blender.py` (armature, textured skinned mesh, one action per clip, root motion). Full details in `CLAUDE.md` "Skeletal Animation System".
 
 **What is known:**
 - Skeleton class names are in the CLAS reflection database

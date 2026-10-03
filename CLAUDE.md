@@ -383,6 +383,16 @@ The `mesh_res_id` in MREG matches the **first uint32 of the 12-byte GMDL sub-hea
 
 **Fully decoded (2026-07-17).** Each `SKEL` block is one complete skeleton (one per skinned character/creature mesh) — bind-pose reference mesh, per-vertex bone weights, a recursive bone hierarchy, and (if the skeleton has named clips) a shared quaternion keyframe pool sliced by an animation dictionary. **Correction:** earlier docs listed `SKEL` count as 3,030 — the real count is **30** (an accidental doubling of the true figure; it now matches the `BONE`/`WGHT` counts below, all of which describe the same 30 skeletons). `ROTS`/`MTOB`/`CHLD`/`BROT` counts below are likewise per-bone-node totals across all 30 skeletons, not top-level RSRC entries.
 
+**Skinning math solved and Blender import working (2026-10-03).** Several of the 2026-07-17 readings below were wrong; corrected from `Jaws.exe` and verified numerically: skinning each skeleton's `VERT` mesh with frame 0 reproduces its shipped `GMDL` mesh to float precision (≤ 1.5e-6) for **all 30 FISH skeletons**.
+- **`BROT` = next sibling, `CHLD` = first child** (bone loader `FUN_006F4F00`: `CHLD` → `+0x38` with this bone as parent, `BROT` → `+0x3C` with this bone's parent). The old extractor nested `BROT` as a child.
+- **`MTOB` = inverse rest matrix** (mesh → bone space); the bone's rest pose is `inverse(MTOB)`, where the `VERT` mesh lives. **`TRAN` = local translation** relative to the parent. **`ROTS` = local rotation per frame, transposed:** `local = [R(q)ᵀ | TRAN]` with `R` the standard `(x,y,z,w)` matrix.
+- `world = parent_world · local`; `skin = world · MTOB`; `v' = Σ wᵢ skinᵢ v` (pose `FUN_006F5600`, skinning `FUN_006F63F0`). **Frame 0 is the pose baked into the `GMDL` render mesh.**
+- Bone indices (WGHT) follow the engine order: root, then each bone's sibling chain before its child (`FUN_006F46D0`/`FUN_006F5140`).
+- **The pre-`VERT` blob is decoded:** `[u32 version][u32 frame_count][u32 morph_frame_count if version > 0x13130F1][frame_count × vec3 root-motion deltas][frame_count × vec3 running position if version ≥ 0x1317CBA]`. Optional `MORF` chunk = vertex-animation frames (none in FISH).
+- **Model ↔ skeleton link:** the scene node's `PROP 0x080018FF` = `['SKEL'][id]` next to its `0x08001873` mesh (FISH `GWside` → `SKEL 1766` + `GMDL 1890`).
+- **Human bodies have no clips of their own:** the 75 human animations live in `GlobalSkeletonAnim` (`SKEL 1770`, a 51-vertex placeholder); all human rigs share its 24-bone layout.
+- **Blender:** `blender -b --python scripts/import_skeleton_blender.py -- --name FISH --skel 1766 [--anim-skel 1770] [--save out.blend]` (or run in Blender's text editor with `CONFIG`). Builds armature + textured skinned mesh + one action per clip, with optional root motion; Blender's deformation matches the engine math to 3e-6 (checked over 6 shark clips). Bones are unnamed in the data (`bone_00`…).
+
 Extractor: `scripts/rip_skeletons.py` (run from project root, set `NAME` to the target GDW stem) → `skeletons/<NAME>/skel_<id>.json` (one file per skeleton: bind mesh, weights, full bone tree with per-bone rotation keyframes, named clips) + `_summary.json`. Verified clean on `FISH.GDW`: 30/30 skeletons parsed with zero false positives; spot-checked 729 quaternions across all skeletons — 728 are unit-length to within 1%, all named-clip frame ranges fall within their skeleton's shared frame-pool bounds.
 
 ### Known chunk types
@@ -394,10 +404,10 @@ Extractor: `scripts/rip_skeletons.py` (run from project root, set `NAME` to the 
 | `WGHT` | 30 | Per-vertex bone skinning weight table, one per skeleton — fully decoded, see below |
 | `VERT`/`NORM` | 30 each | Bind-pose reference mesh (positions + normals) embedded in each `SKEL`, sized to match that skeleton's `WGHT` vertex count |
 | `ANIM` | ≤30 (optional per-skeleton) | Named animation-clip dictionary — present only on skeletons with authored clips (e.g. shark: 73 clips; many prop/creature skeletons have 0) |
-| `MTOB` | 718 total (one per bone node, all skeletons) | 4×3 float32 bind-pose local transform, 48 bytes: column-major layout matching PROP `0x080017DA` (3×3 basis + translation) |
-| `TRAN` | one per bone node | 3× float32 small local offset alongside each `MTOB` — role unconfirmed, values near-zero in samples checked |
+| `MTOB` | 718 total (one per bone node, all skeletons) | **Inverse rest matrix** (mesh → bone space), 4×3 float32 column-major like PROP `0x080017DA` (corrected 2026-10-03; was read as a local transform) |
+| `TRAN` | one per bone node | **Local translation** relative to the parent bone (corrected 2026-10-03), typically `(0, length, 0)` |
 | `ROTS` | one per bone node | Per-bone stream of unit quaternions (`x,y,z,w`, 16 bytes each), one frame per shared skeleton-wide frame pool — **this is the actual keyframe animation data** |
-| `CHLD` / `BROT` | 548 / 140 total | Child bone-node containers — same grammar as `BONE`'s payload (`MTOB`+`TRAN`+`ROTS`+further children); no observed semantic difference between the two tags, both just nest another bone |
+| `CHLD` / `BROT` | 548 / 140 total | `CHLD` = first child, **`BROT` = next sibling** (shares the current bone's parent). Same payload grammar as `BONE` (corrected 2026-10-03) |
 
 ### WGHT — Vertex Skinning Weights (decoded)
 
@@ -420,11 +430,11 @@ Verified on FISH.GDW's 40-bone shark skeleton (2,384 verts): masked weights sum 
 
 ```
 BONE | CHLD | BROT  [uint32 size]        ← one bone node
-  MTOB [48]   ← bind-pose local transform: 3×3 basis (col-major) + translation
-  TRAN [12]   ← 3 floats, small local offset, unconfirmed role
+  MTOB [48]   ← inverse rest matrix: 3×3 basis (col-major) + translation
+  TRAN [12]   ← local translation relative to the parent bone
   ROTS [N×16] ← N unit quaternions (x,y,z,w), one per frame of this skeleton's
                 shared pool (every bone in a skeleton has the same N)
-  [zero or more CHLD/BROT children, same grammar, recursing]
+  [CHLD = first child, BROT = next sibling (corrected 2026-10-03), same grammar]
 ```
 Verified on the shark skeleton: 40 `MTOB` nodes total (root + 39 nested), tree depth up to 17, every `ROTS` stream exactly 1,516 frames long (matching the `ANIM` dictionary's frame-pool bounds below), all sampled quaternions unit-length.
 
@@ -447,14 +457,14 @@ Frame 0 of the pool is the shared bind/rest frame and falls outside every named 
 
 **Confirmed animation names from FISH.GDW's shark skeleton (73 total):** `Shark_GW_BodyBomb2`, `Shark_GW_BodySlam_Left/Right`, `Shark_GW_Devour01/02`, `Shark_GW_NyammogA/B/C/D` + `_nagy`/`_kicsi_*` size variants (`nyammog` = munching/biting motion in Hungarian), `Shark_GW_TailWhip_Left/Right_*`, `Shark_GW_Swallow_A/B/Begin/C/End`, `Shark_GW_Landwalk*`, `Shark_GW_DeathSpinCW_Begin/Spin`, `Shark_GW_ThrowLeftDown/Up`, `Shark_GW_ThrowRightDown/Up`, and more (full list in `skeletons/FISH/skel_01766.json`).
 
-**NPC human animations** (seen as skeleton names on smaller skeletons, not yet cross-referenced clip-by-clip): `BeingDevouredLegs_A01/02/03`, `FrightenedRun`, `GetOut`, `GrThrow`, `Harpoon`, `icRun`, `Run2x`, `Walk2x`, `FatWalk2x`, `PanicRun`, `SharkAvoid2x`, `StandCheer3x`, `StandClap4x`
+**NPC human animations** (the 75 clips of `GlobalSkeletonAnim`, `SKEL 1770`, shared by all 24-bone human rigs; corrected 2026-10-03): `BeingDevouredLegs_A01/02/03`, `FrightenedRun`, `GetOut`, `GrThrow`, `Harpoon`, `icRun`, `Run2x`, `Walk2x`, `FatWalk2x`, `PanicRun`, `SharkAvoid2x`, `StandCheer3x`, `StandClap4x`
 
 ### Still open
 
-- The undecoded blob (tens of KB, varies per skeleton) between the 12-byte `SKEL` header and the `VERT` block — not yet identified; a morph/blendshape delta table is one hypothesis (unconfirmed) given how many named clips are jaw/mouth animations, but the blob's byte count doesn't cleanly divide by the bind-mesh vertex count.
-- `TRAN`'s exact role (near-zero in every sample checked so far).
-- Cross-referencing `ANIM` clip names to the `XAnimation`/`XAnimationSet`/`XAnimationNames` CLAS classes and to skeleton *instances* placed in `BRTR` (i.e. which placed `XSkeletonModel` node plays which `SKEL` block).
-- Blender armature + animation import (mesh-only import already exists — see `scenes/import_fish_blender.py` — but it has no skinning/bone data wired in yet).
+- Bone names (none stored; the importer uses `bone_00`…).
+- How the engine binds a body to `GlobalSkeletonAnim`'s clips at runtime (the importer just takes rotations from the clip skeleton and `TRAN` from the body's), and the engine's playback rate (importer assumes 30 fps).
+- The second per-frame track's exact role, the `ANIM` header's second word, and `MORF` vertex animation (not seen in FISH).
+- Other GDWs' skeletons haven't been extracted with the corrected script yet (only FISH).
 
 ## AI / Behavior Sequence System — GMOA / GSQD
 
@@ -712,6 +722,7 @@ Paste into Blender's Scripting workspace and run. Imports each unique mesh from 
 | `gdw_textures.py` | library: `build_gtex` (new texture blocks), `clone_gmat` (new materials), `find_block` |
 | `gdw_grow.py` | library: `replace_chunk_payload` / `append_to_chunk` (resize `RSRC`/`BRTR`, fix `FSIZ`/`SKIP`/`FDIR`), `find_brtr`, `top_chunks` |
 | `patch_texture.py` | in-place texture swap (same size), matched by pixel content |
+| `import_skeleton_blender.py` | runs **in Blender** (or `blender -b --python … -- --name FISH --skel 1766`): skinned, textured, animated model with one action per clip |
 | `dump_gdcontrol.py LEVEL.GDW [REGEX]` | read-only: prints a level's `GDControl` scripting (timed start/stop/add/kill/show/hide/suspend steps and their targets) in readable form |
 
 
@@ -1057,7 +1068,7 @@ grep -rioab "search_term" GAME_GDWs/ game_binary/
 
 - **Resolved** (details live in their sections): FISH whale position (mission relocation), scene `mesh_idx` mismatch, static terrain (it's in BRTR), skeletal animation, parent-child hierarchy, `SCRT`, `SKIP`, texture–mesh linkage, Blender mirroring (handedness), BRTR false-positive tag offset; and on 2026-10-03: brand-new node insertion, `PRIM` (collision link), `STRI`/BVH layout, "GTEXT" (not a tag), custom meshes/collision/textures/transparency, Blender scene export, blank base level, in-game stage reload (mod F10), field-registration integers (props/runtime offsets), `GDControl` scripting. Also 2026-10-03: the BEACH/BEACHPST "cut objective" (not cut; stationary SeaSeeker + unfinished canyon stub, see its section).
 - **`GDControl` leftovers** (scripting decoded 2026-10-03): the node flag `0x400000` (ops `0x2000`/`0x4000`), confirming `m_nFlags 0x10`/`0x40` as collision bits, spawn modes 3 vs 4, how quest code starts controls that no other control starts, and whether the dangling `missing#` target IDs are deleted objects or runtime-created ones.
-- **Skeletal animation leftovers** — the undecoded pre-`VERT` blob, `TRAN`'s role, and Blender armature/animation import (no skinning wired in yet).
+- **Skeletal animation leftovers** — solved 2026-10-03 apart from bone names, how bodies bind to the shared human clip skeleton at runtime, playback rate, and `MORF`; see the Skeletal Animation section.
 - **In-game cutscene voice acting** — still not conclusively found, but progress 2026-07-29: `GSFX` sound-trigger blocks fully decoded (see Audio System section), proving SMPB samples are NOT unused/cut as previously claimed — all are actively triggered, just appear to be short crowd/reaction barks. A short list of unusually long (7–44s), per-level-unique `GSMP` cat2 "SFX" samples was flagged as a lead, but the top candidate turned out to be a diegetic beach-radio song, not dialogue (user-confirmed by listening) — so this lead is weaker than initially thought; remaining candidates (esp. `TOWN_id0109`–`id0112`, 4 consecutive resource IDs) are still unconfirmed. External audio middleware and a separate movie-bank file format are both ruled out. (Ruled out: `SCRT` — see below, resolved and it's not audio-related.)
 - **Unknown PROP IDs** — `0x080017DB`–`0x080017E4`, `0x08001874`–`0x0800187B`, and (new, from `SCRT`) `0x08001980`–`0x08001993` / PS2's `0x08001957`–`0x0800196A` seen on CHBR nodes; most meanings not yet determined (see PROP ID table above for partial decode).
 - **`BNCH` record mapping (PS2)** — how the ~1,272 80-byte transform records map to the 3,495 names in the string pool.
