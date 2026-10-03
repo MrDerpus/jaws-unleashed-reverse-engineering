@@ -150,4 +150,4 @@ The full list with context is in [`CLAUDE.md`'s Open Problems section](CLAUDE.md
 
 ## License
 
-Licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0). This keeps the project and any derivative tools fully open source — anyone can use, study, modify, and redistribute this code, but redistributed versions (including modified ones) must remain GPL-3.0 and stay source-available. It does not cover the game itself or any of its assets; see the disclaimer above.
+Licensed under the [GNU General Public License, version 3 or (at your option) any later version](LICENSE) (`GPL-3.0-or-later`). Copyright (C) 2026 MrDerpus and contributors. Each source file carries the standard GPL notice. This keeps the project and any derivative tools fully open source — anyone can use, study, modify, and redistribute this code, but redistributed versions (including modified ones) must remain under the GPL and stay source-available. It does not cover the game itself or any of its assets; see the disclaimer above.
