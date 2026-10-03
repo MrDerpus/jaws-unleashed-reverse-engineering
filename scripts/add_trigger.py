@@ -85,12 +85,18 @@ TARGETS = [
 EXISTING_TARGETS = []                     # node IDs already in the level
 
 # Control steps (GDControl action words, see docs/exe_analysis.md "GDControl").
-# These four together remove a target's visibility and collision (user-confirmed).
+# Each entry is (word, name) for all targets, or (word, name, [target indices])
+# to act only on those entries of TARGETS + EXISTING_TARGETS (in that order).
+# Tested one step per target (2026-10-03, user-confirmed), effect on a plain
+# model node:
+#   0x4B000400 suspend             invisible + not solid
+#   0x8F000100 hide                invisible + not solid
+#   0x4F000040 collision bits off  invisible + not solid
+#   0x0F000008 kill                invisible but STILL SOLID (don't use alone)
+# Suspend alone is the default: a complete removal, and what START's tunnel
+# boulder uses.
 STEPS = [
     (0x4B000400, 'suspend'),
-    (0x0F000008, 'kill'),
-    (0x8F000100, 'hide'),
-    (0x4F000040, 'collision bits off'),
 ]
 DELAY = -1      # ticks before the steps run. -1 = in the same instant the control is
                 # started (FUN_006B68A0 runs one pass with the counter at -1). Needed for
@@ -177,7 +183,8 @@ def place_subtree(sub, xf):
 
 
 def make_control(ctrl_id, target_ids):
-    """START's SeaSeekerQuestEventControl ACTN with a new ID and STEPS on target_ids."""
+    """START's SeaSeekerQuestEventControl ACTN with a new ID and STEPS on target_ids
+    (all of them, or the indices a step lists)."""
     s = START_GDW.read_bytes()
     sb = find_brtr(s)
     p = sb
@@ -195,9 +202,13 @@ def make_control(ctrl_id, target_ids):
         props.append([u32(actn, r + 8), bytes(actn[r + 12:r + 8 + sz])])
         r += 8 + ((sz + 3) & ~3)
     idx = {pid: i for i, (pid, _) in enumerate(props)}
+    if len(STEPS) > 8:
+        raise SystemExit('a GDControl has 8 step slots')
     for k in range(8):
         w0 = STEPS[k][0] if k < len(STEPS) else 0
-        lst = target_ids if k < len(STEPS) else []
+        lst = []
+        if k < len(STEPS):
+            lst = [target_ids[i] for i in STEPS[k][2]] if len(STEPS[k]) > 2 else target_ids
         props[idx[0x08001819 + 3 * k]][1] = struct.pack('<Iii', w0, DELAY, 0)
         props[idx[0x0800181A + 3 * k]][1] = struct.pack('<I', len(lst)) + b''.join(struct.pack('<I', i) for i in lst)
     body = b''
@@ -235,7 +246,7 @@ def main(base, out):
     xf[:9] = [v * TRIGGER['scale'] for v in xf[:9]]
 
     # ---- targets ----
-    target_blob, target_ids = b'', list(EXISTING_TARGETS)
+    target_blob, target_ids = b'', []
     for t in TARGETS:
         tid = ids.new()
         y = t['pos'][1]
@@ -247,6 +258,7 @@ def main(base, out):
             struct.pack_into('<4f', node, prop_offsets(node)[P_COLOR], *t['tint'])
         target_blob += bytes(node)
         target_ids.append(tid)
+    target_ids += list(EXISTING_TARGETS)
 
     # ---- trigger: clone, hook, control on its root ----
     off, size = tops[TRIGGER['template']]

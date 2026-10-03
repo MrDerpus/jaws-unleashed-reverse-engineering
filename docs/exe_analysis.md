@@ -199,7 +199,18 @@ Lookups that return null are skipped. IDs defined nowhere in the file (9 to 72 d
 
 **Scope and modifier bits (high 16 bits):** `0x01000000` live-action enable bit, `0x10000000` object enable bit, `0x04000000`/`0x40000000` live-action/object `0x10`–`0x40` group, `0x08000000`/`0x80000000` live-action/object render group, `0x00400000`/`0x00800000` also recurse into children (`0x10`–`0x40` group / render group), `0x00010000` restart on start, `0x00020000` spawn mode 4, `0x00200000` "at self / also suspend". `0x0F000000` with no modifiers is the default (5,856 of 6,547 steps, 89%). `0x02000000` isn't tested by the interpreter.
 
-**Flag meanings:** `m_nFlags 0x100` = not rendered, confirmed by the "norender" control and by invisible blocker plates (`Kizaro_Lap_Kozepes`, flags `0x15A`). `0x2` = enabled/active (set on almost every BRTR node). `0x10`/`0x40` are probably collision bits: barrier "killers" clear them and invisible walls have them. Unproven. `0x20000` = suspended. On a live action, flag `0x1` = killed. Suspend + kill + hide + collision-off together remove a target's visibility and collision (user-confirmed 2026-10-03); which of the four is necessary isn't isolated.
+**Flag meanings:** `m_nFlags 0x100` = not rendered, confirmed by the "norender" control and by invisible blocker plates (`Kizaro_Lap_Kozepes`, flags `0x15A`). `0x2` = enabled/active (set on almost every BRTR node). `0x20000` = suspended. On a live action, flag `0x1` = killed. `0x10`/`0x40`: barrier "killers" clear them and invisible walls have them; clearing them at runtime removes visibility as well as collision (below), so they're more like "active in the world" bits than pure collision bits.
+
+**Measured effect of single steps on a plain model node** (2026-10-03, user-confirmed, one step per target, fired by a destructible's hook):
+
+| Step | Visible after | Solid after |
+|---|---|---|
+| `0x4B000400` suspend (object `m_nFlags` `0x20000`) | no | no |
+| `0x8F000100` hide (object `m_nFlags` `0x100`) | no | no |
+| `0x4F000040` clear `0x10`/`0x40` | no | no |
+| `0x0F000008` kill (live action flag `0x1`) | no | **yes** |
+
+So suspend, hide or clearing `0x10`/`0x40` each remove an object completely, and kill alone leaves an invisible wall. Note that `0x100` set **in the BRTR file** doesn't remove collision (the `Kizaro_Lap_Kozepes` blocker plates are invisible and solid), while setting it **at runtime** did; the engine probably only re-evaluates collision when a flag changes.
 
 ### Example: START's tunnel boulder
 
@@ -246,7 +257,7 @@ Found while getting a scripted trigger to work (see `docs/brtr_editing.md` "Scri
 ## Open items
 
 - ~~Meaning of the two integers in each field registration~~: resolved 2026-10-03, see "`GDControl`… Registration integers, resolved".
-- `GDControl` leftovers: the `0x400000` flag (`0x2000`/`0x4000`), confirming `0x10`/`0x40` as collision bits, which of suspend/kill/hide/collision-off a removal really needs, spawn modes 3 vs 4, and the engine code that gives group-type nodes' actions a live instance at load.
+- `GDControl` leftovers: the `0x400000` flag (`0x2000`/`0x4000`), why kill hides but keeps collision, why file-set `0x100` keeps collision but runtime-set `0x100` doesn't, spawn modes 3 vs 4, and the engine code that gives group-type nodes' actions a live instance at load.
 - Complete the class-name resolution in `dump_class_fields.py` (132/691 named).
 - The full state-value enumeration of `SetState` (~40 states; only `7` = dead identified).
 - `0x920E24` engine object layout.

@@ -283,7 +283,7 @@ A level's scripted events (cutscene steps, effects spawning, objects being kille
 
 1. **Trigger:** a copy of a breakable subtree (default FISH's pier post `Torheto_pozna 1`, node 130: a group root with a destructible `MBRombolhato` `ACTN` and three mesh parts with bite targets), with fresh IDs for every node/action and the internal references remapped (`PROP 0x080018CB` mesh → destructible, `0x08000D05` bite target → mesh). It's placed **directly** (root transform set, every AABB mapped along); with `replace_ref` it takes an existing reference copy's spot and parks that reference 50,000 units below. Optional scale and tint (`m_ModelColor` on every mesh, which does show in-game).
 2. **Targets:** new nodes (template with a `PRIM` + mesh + collision region + position + tint, same machinery as `insert_brtr_node.py`) and/or existing node IDs.
-3. **Control:** a `GDControl` copied from START's `SeaSeekerQuestEventControl` with the steps suspend `0x4B000400`, kill `0x0F000008`, hide `0x8F000100`, collision bits off `0x4F000040` on the targets, all at delay −1. It's attached to the **trigger's root node** (after its own `ACTN`, before its children), and the destructible's hook points at it: `m_robbcontrol` (`PROP 0x08000673`, when destroyed) and/or `m_megutcontrol` (`0x0800067C`, on every hit).
+3. **Control:** a `GDControl` copied from START's `SeaSeekerQuestEventControl` with, by default, one step, **suspend** `0x4B000400`, on the targets, at delay −1. Steps can be limited to specific targets. Tested one step per target (user-confirmed): suspend, hide `0x8F000100` and clearing `0x10`/`0x40` (`0x4F000040`) each make a target invisible and non-solid; kill `0x0F000008` alone makes it invisible but leaves it solid. The first working builds used all four together. It's attached to the **trigger's root node** (after its own `ACTN`, before its children), and the destructible's hook points at it: `m_robbcontrol` (`PROP 0x08000673`, when destroyed) and/or `m_megutcontrol` (`0x0800067C`, on every hit).
 
 ### Rules (each one found by a failed test)
 
@@ -306,7 +306,7 @@ Game install `data/` folder (`~/.steam/debian-installation/steamapps/compatdata/
 
 | File | Contents |
 |---|---|
-| `TEST.GDW` | **live** (end of 2026-10-03): scripted-trigger test, `add_trigger.py` defaults on `TEST.GDW.pre_insert` + the white texture and Suzanne mesh above: pink trigger post (×1.3) at (2036, 1.5, −3971), red monkey at (2110, 12, −3960). |
+| `TEST.GDW` | **live** (end of 2026-10-03): scripted-trigger test, `add_trigger.py` defaults (one suspend step) on `TEST.GDW.pre_insert` + the white texture and Suzanne mesh above: pink trigger post (×1.3) at (2036, 1.5, −3971), red monkey at (2110, 12, −3960). |
 | `TEST.GDW.pre_trigger` | previous live build: `strip_level.py`(`TEST.GDW.pre_insert`) + the 7-object Blender test scene (2 rock cubes, Suzanne, 4 transparency planes), built with `build_scene.py` |
 | `TEST.GDW.pre_insert` | base: copy of FISH with the construction-worker face, rocks tinted magenta, sand cyan. **Use this as the input for `strip_level.py` / `build_scene.py`.** |
 | `TEST.GDW.pre_build` | earlier build: the user's `something.obj` sculpture (×15, generated collision) + wall C |
