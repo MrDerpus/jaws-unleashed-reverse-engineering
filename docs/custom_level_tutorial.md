@@ -84,6 +84,7 @@ Put everything you want in the game into the **`JAWS`** collection. Model as you
 **Easiest: the palette.** The cubes south of the play area each carry a material named `mat_<number>` (`mat_272` is the green seafloor sand, `mat_193` mossy rock, `mat_209` wooden planks, and so on). Give your object one of these materials and the game uses its own built-in version of it, so nothing extra is added to the level.
 
 - Keep the name: `mat_272` must stay `mat_272`. (Blender's copies, like `mat_272.001`, are fine.)
+- **Models from other levels** (e.g. an OBJ from `models/WRACK/`) also come with `mat_<number>` materials, but each level numbers its textures differently: WRACK's texture 205 is a ship hull, FISH's 205 a shop front. The build notices when a material's image comes from another level's texture folder and brings that image along as a new texture, so imported models keep their look. Nothing to do on your side.
 - The texture repeats along with your UVs. The seafloor repeats every 4 units.
 
 **Your own images work too.** Use any material with an **Image Texture** node, and the build turns the image into a game texture.

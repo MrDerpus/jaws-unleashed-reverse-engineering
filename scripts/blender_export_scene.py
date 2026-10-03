@@ -50,7 +50,10 @@ Per-object custom properties (Object Properties > Custom Properties):
                     the colour of build_scene.py's --show-exits marker.
 
 Materials: a material named gmat_<id> / mat_<texture id> uses that game
-material (a Blender duplicate suffix like mat_272.001 is ignored). Any other material with an Image Texture node (preferably feeding
+material (a Blender duplicate suffix like mat_272.001 is ignored). Exception:
+a mat_<n> whose image is another level's extracted texture
+(textures/<LEVEL>/..., e.g. from a models/WRACK/ OBJ) is treated as an image
+material, because texture numbers differ per level. Any other material with an Image Texture node (preferably feeding
 Principled Base Color) becomes a new game texture + material: the image is
 copied (file on disk) or saved as PNG (packed/generated) into EXPORT_DIR, and
 build_scene.py converts it. Materials without an image fall back to jaws_gmat.
@@ -71,6 +74,7 @@ EXPORT_DIR = ''   # '' = a 'blender_export' folder next to the saved .blend (els
 GAME_ORIGIN = (2160.0, -25.0, -3650.0)  # FISH/TEST: open water next to the whale
 GAME_SCALE = 15.0
 DEFAULT_GMAT = 1073                       # FISH rock-wall material
+BASE_LEVEL = 'FISH'                       # level the build's base comes from (mat_<n> numbers)
 
 
 def swap_yz(v):
@@ -123,6 +127,19 @@ def alpha_mode(mat):
     return {'BLEND': 'BLEND', 'CLIP': 'CLIP', 'HASHED': 'CLIP'}.get(method, 'OPAQUE')
 
 
+def from_other_level(img):
+    """True if the image is an extracted texture of a level other than
+    BASE_LEVEL (textures/<LEVEL>/...). Texture numbers are per level (WRACK's
+    205 is a ship hull, FISH's 205 a shop front), so a mat_<n> material
+    imported with another level's model must bring its own image along
+    instead of using the base level's texture <n>."""
+    if img is None or not img.filepath:
+        return False
+    path = bpy.path.abspath(img.filepath).replace('\\', '/')
+    m = re.search(r'/textures/([^/]+)/', path)
+    return bool(m) and m.group(1).upper() != BASE_LEVEL
+
+
 def material_tokens(objs, dest_dir, materials):
     """{blender material name: usemtl token}; fills `materials` (manifest)."""
     tokens, images = {}, {}
@@ -133,10 +150,10 @@ def material_tokens(objs, dest_dir, materials):
                 continue
             # Blender's duplicate suffix (mat_272.001) still means game material 272
             m = re.fullmatch(r'(gmat_(0x[0-9a-fA-F]+|\d+)|mat_\d+)(\.\d+)?', mat.name)
-            if m:
+            img = material_image(mat)
+            if m and not (m.group(1).startswith('mat_') and from_other_level(img)):
                 tokens[mat.name] = m.group(1)
                 continue
-            img = material_image(mat)
             if img is None:
                 tokens[mat.name] = '_default'
                 continue
