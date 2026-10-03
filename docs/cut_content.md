@@ -35,7 +35,62 @@ The `MSStageSelect` data structure contains fields `m_Stage1ID` through `m_Stage
 **ANSideMission internal numbering gap:**
 The five shipped `ANSideMission` classes map to display SC numbers as follows: class 15 → SC14, class 21 → SC20, class 22 → SC21, class 25 → SC24, class 33 → SC29. Classes 15/21/22/25 are all exactly 1 higher than their display number. Class 33 maps to SC29 (offset of 4), meaning **classes 26–32** existed internally but were removed — at least 3 cut side challenges in that range, compressing the display numbers from 25 onward. "Down the Hatch" (`MSHatchMission`) likely occupied one of those removed slots. See `docs/mission_system.md` for the full mapping table.
 
-## Cut Objective — BEACH/BEACHPST Submarine + Blocking Boulders (found 2026-07-30)
+## Cut Objective — BEACH/BEACHPST Submarine + Blocking Boulders (found 2026-07-30, resolved 2026-10-03: not a cut objective)
+
+### Resolution (2026-10-03)
+
+Re-checked with tools that didn't exist in July: `ACTN` stage-logic references, the `Jaws.exe` reflection field table (`scripts/dump_class_fields.py`), and an in-game test with the barrier removed. Result: **no cut objective.** The rocks seal off an unfinished edge of the map, and the "drone" is an ordinary stationary SeaSeeker hazard. The July write-up below is kept for history, but its `TKSub` identification is wrong.
+
+**The "drone" is a SeaSeeker, not a `TKSub`.** `Jaws.exe`'s tutorial hint describes it: *"The seaseeker on the ocean floor is making you hungry. Destroy it to stop your hunger from being drained."* It's node `ANSeekerRef 4` (BEACH 1915, BEACHPST also present) at `(-233, -17, 265)` under the bridge. All BEACH SeaSeekers are reference copies (`PROP 0x080017F0`) of the template `ss_mobile` (BEACH node 19822, class `0x010AE0AD` = `ANSeeker`). BEACH has 4, BEACHPST 2 (seekers 4 and 1).
+
+**`ANSeekerRef` fields decoded.** The class (`0x0109C09B`, reflection descriptor `?@0x8cf518`) has 74 fields, and the node has 74 PROPs: **PROP ID = `0x080002E9` + field index** in registration order. The three vector fields (`m_linkvec`, `m_linkrot`, `m_sensor_ofs`) land exactly on the 12-byte PROPs, which confirms the mapping. On reference nodes, 0 means "inherit the template value". Booleans are tri-state: 0 = inherit, 1 = off, 2 = on. Seeker 4 differs from the mobile seekers in five fields:
+
+| Field (PROP) | Seeker 4 (bridge) | Seekers 1–3 |
+|---|---|---|
+| `m_chase_shark` (`0x080002F1`) | 1 (off) | 2 (on) |
+| `m_lookdistance` (`0x08000308`) | inherit | 180.0 |
+| `m_alarmdistance` (`0x08000309`) | inherit | 40.0 |
+| `m_chasearea` (`0x08000310`) | none | `seekerarea` (1) / `seekerketrec` (2, 3), path polygons of class `0x0101B013` |
+| `m_lights` (`0x08000312`) | 1 (off) | 2 (on) |
+
+The `m_hunger_*` fields are inherited by all four, which is why seeker 4 drains hunger like the others. It was deliberately configured as a stationary hunger seeker. It isn't a broken mobile one.
+
+**START's working "destroy → boulder clears" setup**, for comparison:
+- **On the seeker:** `LastSeaSeekerRef` (2098, → template `ss_armored`) has two child mission bricks, `LastSeaSeekerMissionBrick` / `… 1` (class `0x010D20D1`, single field `PROP 0x080005BF` = 13 / 14, an objective number).
+- **On the boulder:** `TunnelBlockingDust` (2083, a plain model brick carrying the rock mesh) is referenced, together with `LastSeaSeekerRef`, by `ACTN` blocks owned by the stage-phase nodes `SecondPart` (677) and `BeforeZodiacs` (679) (class `0x010C20C1`).
+- **Effects only:** `KoVizbeEsik` and `TitokzatosKod` are particle systems (class `0x0103D03C`) under `MovieOnlyParticles`. `Szikla1 127` is not referenced by anything.
+
+**In BEACH and BEACHPST nothing is wired.** Of 1,112 (BEACH) / 836 (BEACHPST) `ACTN` blocks, none references `Level3_elzarokovek`, the `Elzaroko` rocks, the barrier plate (`Kizaro_Lap_Kozepes 7` in BEACH / `8` in BEACHPST, same position), or any SeaSeeker. No PROP references them either, and seeker 4 has no mission-brick children. `Jaws.exe` doesn't contain any of the names (`Elzaro`, `Kizaro`, `Level3`, `TunnelBlocking`), so there's no hardcoded trigger by name either.
+
+**Behind the barrier:** a short channel. `Fal_alapkeszlet` wall pieces with collision run x −222 to −462, z 354–449, with underwater `Trees` and a sand patch (`HomokKiny01`), then reach beach sand (`Beach_Homok`, y = 4) at z ≈ 430–530. There are no markers, triggers or exits. Identical in both files.
+
+**In-game test (2026-10-03, user):** both files were patched with the rocks and plate moved 50,000 units down (57 bytes each). The rocks were gone in BEACHPST, and the user confirmed the canyon is empty: the seafloor stops and the rocky walls only go in a short way. The user had already reached it before through their own out-of-bounds routes. Seeker 4 has always been killable by biting, and killing it shows no message or event. The same test in BEACH (the M10 mission) gave the same result. **In-game seeker layout matches the data (user):** BEACH has 4 findable seekers. 3 work: 2 before the electric fence (seekers 2 and 3, sharing the `seekerketrec` chase area) and 1 just past the fence in the ditch (seeker 1, `seekerarea`). The 4th is stationary. It sits under the bridge, about 135 units from the boulders (≈110 on X, 80 on Z), not right at them. BEACHPST spawns only 2: the working ditch seeker (1) and the stationary one under the bridge (4).
+
+**What's left:** only circumstantial hints. The group is explicitly named "blocking rocks", a short walled channel heads inland, and the world map art shows a stream there. At most these suggest the designers once planned to extend the area this way and dropped it early. Nothing points to a cut objective.
+
+### Boulder comparison: START vs BEACH/BEACHPST (2026-10-03)
+
+| | START `TunnelBlockingDust` (2083) | BEACH/BEACHPST `Level3_elzarokovek` (4882 / 4559) |
+|---|---|---|
+| Structure | one rock node | group node + 3 rocks `Elzaroko01–03` |
+| Mesh | GMDL 3234, 48 verts / 70 tris, ~13 × 26 × 31, Z scale 1.26 (~39 long), used only here | GMDL 2557 (PST 2506, identical geometry), 55 verts / 80 tris, ~17 per side, 3 instances, used only here |
+| Texture | dark grey cliff rock (GTEX 0xD2) | mossy green seabed rock (GTEX 0x6E) |
+| Collision | `PRIM` → MREG 3925 | `PRIM` → MREG 3044 (PST 2978) |
+| `m_nFlags` | `0x4A` (local transform) | `0x2000005A` (absolute) |
+| `m_Viewport` | `0x80002` | `0xE0003` |
+| `m_RenderSetting` | `0x280820` | `0x820` |
+| `m_ChannelSetting` | `0x1F` | `0` |
+| Effect child | `TunnelBlockingRockDust` (dust particle system, class `0x0103D03C`) | none |
+| Extra barrier | none | invisible `Kizaro_Lap_Kozepes 7`/`8` plate |
+| `ACTN` on itself | `SeaSeekerQuestEventControl`: `Ctrl1` `0x4B000400` → [self], `Ctrl2` `0x0F000008` → [self] | none |
+| `ACTN` referencing it | `CheckPointCleanUp` (on `SecondPart` 677) and `CheckPointCleanUp 1` (on `BeforeZodiacs` 679), each `m_Ctrl3` `0x0F000008` → [2083]; root `SideMissionControl` (in `m_List8`); root `NAQuestManager` (`PROP 0x08001169`, a 24-entry list) | none |
+| Linked SeaSeeker | `LastSeaSeekerRef` + 2 mission bricks (objectives 13, 14) | none (stationary seeker ~135 units away, unlinked) |
+
+**The event-control action class** (reflection descriptor `?@0x91fed0`, `ACTN` class header `0x0203B039`) has 17 fields: eight pairs `m_Ctrl1`/`m_List1` … `m_Ctrl8`/`m_List8` (PROP `0x08001819`/`0x0800181A`, then +3 per pair: `181C`/`181D`, `181F`/`1820`, … `182E`/`182F`) and `m_DeactProps` (`0x08001831`). Each `m_Ctrl` is 12 bytes (first u32 looks like an action/trigger word, the rest zero in all samples), and each `m_List` is `[u32 n] + n node IDs`. The instance name is in `PROP 0x080017C3`. The meaning of the `Ctrl` words isn't decoded. The same `0x0F000008` is applied to the boulder by the boulder's own controller and by both checkpoint clean-ups, which fits "remove/deactivate" (keeping it gone when reloading a checkpoint after the blast). Unconfirmed until the action class is read in Ghidra.
+
+**Reading:** START's boulder is a scripted object: it has its own controller and dust effect, it's on the quest manager's list, and the checkpoint clean-ups handle it. BEACH's rocks are plain scenery with a descriptive name. `0x820` is the level's most common model render setting (583 of 1,033 BEACH mesh models; rock/wall-named nodes mostly use `0x40000820`/`0x40000C20`), and 67 of 69 rock/wall nodes share the absolute-transform flag. The rocks have no effect child, no controller and no references. The invisible plate beside them is the same blocker BEACH uses along its other edges (`Kizaro_Lap_Kozepes 1–5`, z ≈ 326–405). Nothing looks like a destructible prop with its wiring stripped, which supports the "never an objective" conclusion.
+
+### Original write-up (2026-07-30 to 2026-08-13, superseded)
 
 User-reported anomaly: an underwater "drone" sits motionless under the bridge in `BEACH.GDW`/`BEACHPST.GDW` and never activates (unlike other similar drones elsewhere in the level, which move and chase the player), yet still drains player hunger on proximity. Investigation, prompted by the user recalling that `START.GDW` (M01 Tutorial) has a submarine which, when destroyed, blows up a boulder blocking the path and opens the next area:
 

@@ -130,7 +130,7 @@ This means the engine self-documents. Class names, property names, and component
 
 | Class | Purpose |
 |---|---|
-| `TKSub` | Miniature attack submersible — speed/turn/strafe (`m_faster`/`m_slower`/`m_maxyturn`/`m_turnaccel`/`m_crab`), hover bob (`m_libegamp`), damage thresholds by weapon type (`m_MaxScooter`/`m_MaxDiver`/`m_MaxTorpedo`), torpedo firing points (`m_ShotPosID`/`m_ShotPos2ID`), carries a pilot diver (`m_DiverID`/`m_DiverPosID`), destructible rudder + propeller-blows-off-on-death FX chain. Found 2026-07-30 investigating a stuck non-moving "drone" under the BEACH.GDW bridge — see CLAUDE.md's "Cut Objective — BEACH/BEACHPST Submarine + Blocking Boulders" note. |
+| `TKSub` | Miniature attack submersible — speed/turn/strafe (`m_faster`/`m_slower`/`m_maxyturn`/`m_turnaccel`/`m_crab`), hover bob (`m_libegamp`), damage thresholds by weapon type (`m_MaxScooter`/`m_MaxDiver`/`m_MaxTorpedo`), torpedo firing points (`m_ShotPosID`/`m_ShotPos2ID`), carries a pilot diver (`m_DiverID`/`m_DiverPosID`), destructible rudder + propeller-blows-off-on-death FX chain. Found 2026-07-30 investigating a stuck non-moving "drone" under the BEACH.GDW bridge. **Correction (2026-10-03):** that drone is a SeaSeeker (`ANSeekerRef`), not a `TKSub`; see `docs/cut_content.md` "Resolution (2026-10-03)". |
 | `MSScooter` | Generic vehicle-mount handler; single-ID references to `m_ScooterID` (player's seascooter), `m_SubID` (`TKSub`), `m_RomboloID` ("Rombolo" = Hungarian for Destroyer ship), and `m_TesztID` ("Teszt" = Hungarian "Test") — the literal "Test ID" field alongside the others suggests this group was a dev-time vehicle-mount test harness, not a uniformly-shipped system. |
 
 ---
@@ -156,7 +156,7 @@ This means the engine self-documents. Class names, property names, and component
 | `ANBlock` | AI blocking volume |
 | `ANPolyArea` | AI polygon area |
 | `ANPolyArena` | AI arena zone |
-| `ANUnitRef` / `ANHeliRef` / `ANSeekerRef` | AI unit references |
+| `ANUnitRef` / `ANHeliRef` / `ANSeekerRef` | AI unit references. `ANSeekerRef` (class `0x0109C09B`, 74 fields): PROP ID = `0x080002E9` + field index; 0 = inherit template value, booleans tri-state 0 inherit / 1 off / 2 on. Field table and the BEACH stationary-seeker example in `docs/cut_content.md` "Resolution (2026-10-03)". |
 | `ANPosition` | AI position marker |
 | `ANSideMission15` | SC14 Undertow — `KILL THE WATER SKIERS WHILE THEY ARE JUMPING OFF OF THE RAMPS!` |
 | `ANSideMission21` | SC20 Losing Your Head — drag banana boat to piers, knock riders off, kill them |

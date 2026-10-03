@@ -44,7 +44,7 @@ Class names come from small getter stubs next to each class's constructor: `mov 
 
 **`scripts/dump_class_fields.py <out.json>`** scans the exe for both patterns. It finds **6,457 fields across 691 class descriptors**, but only 132 descriptors get a resolved class name, because the name-getter pattern match is incomplete. Output is `{"ClassName@0xdesc": [{name, a, b, typedesc_ptr, reg}, ...]}`.
 
-**Unresolved: what the two integers mean.** One looks like an in-object offset, but the evidence is mixed:
+**Resolved 2026-10-03, see the `GDControl` section below: `a` = props-object offset of the property wrapper, `b` = runtime-object offset of its mirror, value at +4.** Earlier notes: One looks like an in-object offset, but the evidence is mixed:
 - In subclasses, the first integer starts right after the base class (`GDModel` fields start at `0xE0`), which suggests offset.
 - But for the base brick class, `mtx` registers as (`0x30`, `0x4C`). The engine's own world-matrix code reads the local matrix at **`+0x50`**, which is `0x4C + 4`. That fits the second integer being the offset of a property wrapper with a 4-byte header, not the first.
 - Most simple fields are spaced 8 bytes apart even when they're floats, consistent with each property being a `[4-byte header][value]` wrapper.
@@ -146,9 +146,81 @@ The mod's `F7`/`F9` scanners searched `0x845000`–`0xE70000`. That's exactly `.
 
 ---
 
+## `GDControl`: level scripting timelines (decoded 2026-10-03)
+
+Most level scripting (cutscene sequencing, spawning effects, killing or hiding objects, checkpoint clean-up, barrier removal) is done by `GDControl` actions: `ACTN` blocks with class header `0x0203B039`. Dump any level's controls in readable form with **`scripts/dump_gdcontrol.py GAME_GDWs/<NAME>.GDW [REGEX]`**. Across the 19 levels with a scene graph there are 3,261 controls and 82 distinct action words.
+
+### Where it lives
+
+| What | Address |
+|---|---|
+| Class name getter (`"GDControl"`, `0x8B9CB0`) | `0x6B6180`, vtable slot 0 of `0x7F5780` |
+| Reflection descriptor | `0x91FED0` (returned by `0x6B6280`), 17 fields: `m_Ctrl1`/`m_List1` … `m_Ctrl8`/`m_List8`, `m_DeactProps` |
+| Props constructor / runtime constructor | `0x6B6030` (0xC4 bytes) / `0x6B66F0` (0x130 bytes) |
+| Property type `GDPropControl` (`0x8B9CA0`) | vtable `0x7F5768`, 16 bytes = vtable + `[w0, w1, w2]`; copy `0x6B5FB0`, serialize `0x6B5FD0` (3 × `0x6BC570`) |
+| Start (schedule the steps) | `0x6B68A0` |
+| Per-tick executor | `0x6B6C00` |
+| Step interpreter | `0x6B6DB0` (`thiscall`: control, `&Ctrl`, list) |
+| Deactivate when finished | `0x68EB10` |
+
+### BRTR layout
+
+`ACTN [size] [u32 class 0x0203B039] [u32 action ID] PRPS…`. **Every `ACTN` block has its own ID** (the boulder's control in START is 2084, its node is 2083), and list entries may be node IDs or action IDs. Props: `m_CtrlN` = `PROP 0x08001819 + 3(N−1)` (12 bytes `[w0, w1, w2]`), `m_ListN` = `PROP 0x0800181A + 3(N−1)` (`[u32 n] + n IDs`), `m_DeactProps` = `PROP 0x08001831`, instance name = `PROP 0x080017C3` (shared by all action classes).
+
+### Timing
+
+At start, step *i* gets a fire tick `w1 + rand(0 … w2 − w1)`, or exactly `w1` when `w2 ≤ w1` (`w1` is signed). The total length is the latest step. The counter starts at −1 and the executor runs once right away, so **t = −1 fires the moment the control starts** and t = 0 one tick later. A step whose `w0 & 0xFFFF` is 0 does nothing. After the last tick the control deactivates itself (`0x68EB10`). Delay values in the data are mostly 0, then 1, 15, 30, 20, 60, 120, and "300 to 400 random".
+
+### Targets
+
+Each list ID is looked up twice through the ID registry (`0x6B8A00`):
+
+- **Brick** (`0x6C3010`): the scene object. Flags at `+0x0C` are `m_nFlags` (BRTR `PROP 0x080017D9`); children at `+0x1C`, next sibling `+0x10`, parent `+0x14`. For an action ID, its owner's brick.
+- **Node record** (`0x6C2F90`): the BRTR tree object. Its own flags at `+0x18`; children at `+0x28`, next sibling `+0x20`. For a brick ID, the brick's `+0x18`.
+
+Lookups that return null are skipped. IDs defined nowhere in the file (9 to 72 distinct IDs per level, e.g. START's `SzetfroccsenoDarabokController3` still adds blood-splash pieces 639–642, which don't exist) are dangling references, probably objects deleted during development. Some could be created at runtime; not checked.
+
+### Action word `w0`
+
+**Operations (low 16 bits)**, applied to every target in the list:
+
+| Bit | Effect in `0x6B6DB0` | Name in dump | Example instances |
+|---|---|---|---|
+| `0x0001` | brick `m_nFlags` \|= `0x2` (if scope `0x01000000`), node flags \|= `0x2` (if `0x10000000`); with `0x10000` also (re)start the target's action (`0x694C70`/`0x68EA80`) | start | `IntroStarter` → `IntroMovie` (1,936 uses) |
+| `0x0002` | clear those `0x2` bits (only when `0x1` isn't set) | stop | `PostStateControl` |
+| `0x0004` | add the target to the world (`0x6C2EB0` → `0x698720`) | add | `ArbocDestroyController` → debris + dust |
+| `0x1000` | same path as `0x4`, and the executor passes the list as stored in the file instead of the runtime copy | add(stored-list) | `MovieStarter_601` → `Lvl6_Movie601` |
+| `0x0008` | brick `m_nFlags` \|= `0x1`; with `0x200000` also node flags \|= `0x20000` | kill | `PortalKinyiro` ("portal killer"), `…Killer` |
+| `0x0200` | instantiate a copy from the node (`0x697BB0`, mode 3, or 4 with `0x20000`); with `0x200000` create it as a child of the controller's brick at its world position | spawn-copy | `FoamControl`, rocket/grenade explosions |
+| `0x0010` / `0x0020` / `0x0040` | `0x10`: set `0x40`, clear `0x10`. `0x20`: set `0x10`, clear `0x40`. `0x40`: clear both. On brick `m_nFlags` (scope `0x04000000`) and/or node flags (scope `0x40000000`) | flags… | `PalyavegiKizaroKiller` ("level-end barrier killer") → `KijaratKizaro`: `0x40` |
+| `0x0080` / `0x0100` | clear / set `0x100` = **don't render** (brick scope `0x08000000`, node scope `0x80000000`) | show / hide | `real_shark_norender` → `GWside`; `Harpoon Deact` |
+| `0x0400` / `0x0800` | node flags set / clear `0x20000` (`0x6B71C0`, scope `0x40000000`) | suspend / resume | `FecsegesSzunetel` / `FecsegesUjra` ("chatter pauses / again") on a sound area; `…MapitemKiller` |
+| `0x2000` / `0x4000` | node flags set / clear `0x400000` (meaning unknown) | node±0x400000 | DEEPSEA `bummcontroll` (exploding tanks/pipes) |
+
+**Scope and modifier bits (high 16 bits):** `0x01000000` brick enable bit, `0x10000000` node enable bit, `0x04000000`/`0x40000000` brick/node `0x10`–`0x40` group, `0x08000000`/`0x80000000` brick/node render group, `0x00400000`/`0x00800000` also recurse into children (`0x10`–`0x40` group / render group), `0x00010000` restart on start, `0x00020000` spawn mode 4, `0x00200000` "at self / also suspend". `0x0F000000` with no modifiers is the default (5,856 of 6,547 steps, 89%). `0x02000000` isn't tested by the interpreter.
+
+**Flag meanings:** `m_nFlags 0x100` = not rendered, confirmed by the "norender" control and by invisible blocker plates (`Kizaro_Lap_Kozepes`, flags `0x15A`). `0x2` = enabled/active (set on almost every BRTR node). `0x1` = killed (runtime only, never set in BRTR). `0x10`/`0x40` are probably collision bits: barrier "killers" clear them and invisible walls have them. Unproven. Node flag `0x20000` = suspended.
+
+### Example: START's tunnel boulder
+
+```
+[node 2083 "TunnelBlockingDust"] SeaSeekerQuestEventControl  (act 2084)
+  1: t=0  0x4b000400 suspend  -> TunnelBlockingDust
+  2: t=0  0x0f000008 kill     -> TunnelBlockingDust
+[node 677 "SecondPart"] CheckPointCleanUp
+  3: t=0  0x0f000008 kill     -> TunnelBlockingDust
+```
+
+No other `GDControl` starts `SeaSeekerQuestEventControl`, so the seeker quest code presumably starts it directly.
+
+### Registration integers, resolved
+
+`GDControl` settles the "two integers" question from the reflection section above. **The first integer (`a`) is the offset of the property wrapper in the props object; the second (`b`) is the offset of a mirrored copy in the runtime object (0 = none). The value sits 4 bytes in, after the wrapper's vtable.** `m_Ctrl1` (`a` = `0x48`): the executor reads the props at `+0x48`/`+0x4C`. `m_DeactProps` (`a` = `0x128`) is read at `+0x12C`. `m_List1` (`b` = `0x3C`): the executor uses runtime `+0x3C` unless bit `0x1000` is set. This also fits the base brick's `mtx` (`0x30`, `0x4C`), which the brick reads at `+0x50`.
+
 ## Open items
 
-- Meaning of the two integers in each field registration (offset vs. property-header offset). See above.
+- ~~Meaning of the two integers in each field registration~~: resolved 2026-10-03, see "`GDControl`… Registration integers, resolved".
+- `GDControl` leftovers: the `0x400000` node flag (`0x2000`/`0x4000`), confirming `0x10`/`0x40` as collision bits, spawn modes 3 vs 4, and what starts controls that no other control starts (quest code).
 - Complete the class-name resolution in `dump_class_fields.py` (132/691 named).
 - The full state-value enumeration of `SetState` (~40 states; only `7` = dead identified).
 - `0x920E24` engine object layout.

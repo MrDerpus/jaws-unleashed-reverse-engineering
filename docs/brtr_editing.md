@@ -268,6 +268,15 @@ Survey of FISH's 1,074 top-level nodes by class: apart from those two scenery cl
 - `SCENERY_GROUPS` / `SCENERY_TEMPLATES` / `KEEP_NAMES` are FISH names; other levels will need their own lists (the class-based rule and the reference protection are generic).
 - The ocean floor is gone, so the shark can swim down to wherever the engine limits depth. Build a floor in Blender if needed.
 
+## Level scripting (`GDControl`), decoded 2026-10-03, not yet used for editing
+
+A level's scripted events (cutscene steps, effects spawning, objects being killed, hidden or shown, barriers opening, checkpoint clean-up) are `GDControl` actions: `ACTN` blocks attached to nodes, each a timeline of up to 8 steps that act on lists of node or action IDs. Format, opcode and scope tables: `docs/exe_analysis.md` "`GDControl`". Read any level's scripting with `python3 scripts/dump_gdcontrol.py GAME_GDWs/<NAME>.GDW [REGEX]`.
+
+What matters for editing:
+- **Hiding without moving:** `m_nFlags` (`PROP 0x080017D9`) bit `0x100` = not rendered (that's how the invisible `Kizaro_Lap_Kozepes` blockers work). Setting it in BRTR should hide a node while keeping its collision. Untested as an edit; the "move 50,000 down" method is what's been verified.
+- **Removing a node that scripts point at** is safe: the interpreter skips IDs that don't resolve, and shipped levels already contain 9 to 72 such dangling IDs each.
+- **Custom triggers** (e.g. "kill this rock when that object dies") would mean adding an `ACTN` with class `0x0203B039`, a fresh action ID, and `m_Ctrl`/`m_List` PROPs to a node, then getting something to start it (another control's `0x1` step, or quest code). Not attempted yet.
+
 ## Current live state (end of 2026-10-03 session)
 
 Game install `data/` folder (`~/.steam/debian-installation/steamapps/compatdata/2342933845/pfx/drive_c/Program Files (x86)/Jaws Unleashed/data/`):
@@ -280,6 +289,7 @@ Game install `data/` folder (`~/.steam/debian-installation/steamapps/compatdata/
 | `OPEN_S.GDW` (+ `.orig`) | Fisherman's Isle transition renamed `FISH` → `TEST` (so entering Fisherman's Isle loads `TEST.GDW`) |
 | `FISH.GDW` (+ `.orig`), `DOCKS.GDW` (+ `.orig`) | construction-worker face texture swap only |
 | `../d3d8.dll` (+ `.pre_reload`) | mod with F10 stage reload |
+| `BEACH.GDW`, `BEACHPST.GDW` (+ `.orig`) | **restored to stock** (2026-10-03) after the boulder-removal test; the `.orig` backups are identical copies. The patched no-boulder versions are kept in the project root as `*.open_barrier.GDW`. |
 
 Test assets (Blender test `.blend`, PIL-generated images, export folder) lived in the session scratchpad and aren't kept. They're easy to recreate; the user's own `something.obj` is in the repo root.
 
