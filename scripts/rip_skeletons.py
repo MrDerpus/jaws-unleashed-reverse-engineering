@@ -73,7 +73,7 @@ parent, inv_bind, tran, rotations), 'positions'/'normals'/'weights',
 PROP 0x080018FF, with their GMDL mesh id), plus _summary.json.
 
 Run from project root:
-    python3 scripts/rip_skeletons.py
+    python3 scripts/rip_skeletons.py [NAME]      (default FISH)
 """
 
 import json
@@ -81,14 +81,15 @@ import struct
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# __file__ is missing when run through the exec() loop in CLAUDE.md
+sys.path.insert(0, str(Path(globals().get('__file__', 'scripts/rip_skeletons.py')).resolve().parent))
 import brtr_scene_graph
 
 # ============================
 # CONFIG
 # ============================
 
-NAME       = 'FISH'
+NAME       = sys.argv[1] if len(sys.argv) > 1 and __name__ == '__main__' and sys.argv[1].isupper() else 'FISH'
 INPUT_FILE = f'GAME_GDWs/{NAME}.GDW'
 OUTPUT_DIR = Path('skeletons') / NAME
 
@@ -260,10 +261,15 @@ def parse_skel(data, pos):
     morph_frames = 0
     if version > 0x13130F1:
         morph_frames = u32(payload, p); p += 4
+    tracks = 2 if version >= 0x1317CBA else 1
+    # A real SKEL's per-frame tracks end exactly where VERT starts; this also
+    # rejects coincidental 'SKEL' byte matches elsewhere in RSRC.
+    if p + 12 * frame_count * tracks != vert_pos:
+        return None
     root_motion = [list(struct.unpack_from('<3f', payload, p + 12 * i)) for i in range(frame_count)]
     p += 12 * frame_count
     track_b = []
-    if version >= 0x1317CBA:
+    if tracks == 2:
         track_b = [list(struct.unpack_from('<3f', payload, p + 12 * i)) for i in range(frame_count)]
 
     _, vert_payload, _ = read_chunk(payload, vert_pos)

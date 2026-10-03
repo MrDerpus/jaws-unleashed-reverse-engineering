@@ -173,10 +173,10 @@ At start, step *i* gets a fire tick `w1 + rand(0 … w2 − w1)`, or exactly `w1
 
 ### Targets
 
-Each list ID is looked up twice through the ID registry (`0x6B8A00`):
+Each list ID is looked up twice through the ID registry (`0x6B8A00`, a hash map at `engine+0x50`, see "Object registry" below). **Corrected 2026-10-03 from live memory dumps (mod F12); the first version of this section had the two roles swapped:**
 
-- **Brick** (`0x6C3010`): the scene object. Flags at `+0x0C` are `m_nFlags` (BRTR `PROP 0x080017D9`); children at `+0x1C`, next sibling `+0x10`, parent `+0x14`. For an action ID, its owner's brick.
-- **Node record** (`0x6C2F90`): the BRTR tree object. Its own flags at `+0x18`; children at `+0x28`, next sibling `+0x20`. For a brick ID, the brick's `+0x18`.
+- **`0x6C3010` → the live action instance.** It calls the registered object's slot `+0x04` (always 1) and then `+0x24`, which jumps to slot `+0x20` = `0x401640`, `mov eax,[ecx+0x24]`: it returns **registered object `+0x24`**, the object's live (running) action. For an action ID that's the action's own runtime instance; for a node ID, the node's action. **Null if the action has no live instance**, and then the step skips that target. Action instance flags at `+0x0C` (`0x2` active, `0x8000000` started, `0x1` killed); children `+0x1C`, next `+0x10`.
+- **`0x6C2F90` → the registered object itself** (for a node, the node; for an action, its owner node). Its `m_nFlags` (BRTR `PROP 0x080017D9`) are at **`+0x18`** (e.g. a node with BRTR flags `0x2000005A` shows `0x2000005A` there); children `+0x28`, next sibling `+0x20`.
 
 Lookups that return null are skipped. IDs defined nowhere in the file (9 to 72 distinct IDs per level, e.g. START's `SzetfroccsenoDarabokController3` still adds blood-splash pieces 639–642, which don't exist) are dangling references, probably objects deleted during development. Some could be created at runtime; not checked.
 
@@ -186,20 +186,20 @@ Lookups that return null are skipped. IDs defined nowhere in the file (9 to 72 d
 
 | Bit | Effect in `0x6B6DB0` | Name in dump | Example instances |
 |---|---|---|---|
-| `0x0001` | brick `m_nFlags` \|= `0x2` (if scope `0x01000000`), node flags \|= `0x2` (if `0x10000000`); with `0x10000` also (re)start the target's action (`0x694C70`/`0x68EA80`) | start | `IntroStarter` → `IntroMovie` (1,936 uses) |
+| `0x0001` | live action flags \|= `0x2` (if scope `0x01000000`), object `m_nFlags` \|= `0x2` (if `0x10000000`); with `0x10000` also (re)start the target's action (`0x694C70`/`0x68EA80`) | start | `IntroStarter` → `IntroMovie` (1,936 uses) |
 | `0x0002` | clear those `0x2` bits (only when `0x1` isn't set) | stop | `PostStateControl` |
 | `0x0004` | add the target to the world (`0x6C2EB0` → `0x698720`) | add | `ArbocDestroyController` → debris + dust |
 | `0x1000` | same path as `0x4`, and the executor passes the list as stored in the file instead of the runtime copy | add(stored-list) | `MovieStarter_601` → `Lvl6_Movie601` |
-| `0x0008` | brick `m_nFlags` \|= `0x1`; with `0x200000` also node flags \|= `0x20000` | kill | `PortalKinyiro` ("portal killer"), `…Killer` |
-| `0x0200` | instantiate a copy from the node (`0x697BB0`, mode 3, or 4 with `0x20000`); with `0x200000` create it as a child of the controller's brick at its world position | spawn-copy | `FoamControl`, rocket/grenade explosions |
-| `0x0010` / `0x0020` / `0x0040` | `0x10`: set `0x40`, clear `0x10`. `0x20`: set `0x10`, clear `0x40`. `0x40`: clear both. On brick `m_nFlags` (scope `0x04000000`) and/or node flags (scope `0x40000000`) | flags… | `PalyavegiKizaroKiller` ("level-end barrier killer") → `KijaratKizaro`: `0x40` |
-| `0x0080` / `0x0100` | clear / set `0x100` = **don't render** (brick scope `0x08000000`, node scope `0x80000000`) | show / hide | `real_shark_norender` → `GWside`; `Harpoon Deact` |
-| `0x0400` / `0x0800` | node flags set / clear `0x20000` (`0x6B71C0`, scope `0x40000000`) | suspend / resume | `FecsegesSzunetel` / `FecsegesUjra` ("chatter pauses / again") on a sound area; `…MapitemKiller` |
-| `0x2000` / `0x4000` | node flags set / clear `0x400000` (meaning unknown) | node±0x400000 | DEEPSEA `bummcontroll` (exploding tanks/pipes) |
+| `0x0008` | live action flags \|= `0x1` (the action ends and takes its object with it); with `0x200000` also object `m_nFlags` \|= `0x20000` | kill | `PortalKinyiro` ("portal killer"), `…Killer` |
+| `0x0200` | instantiate a copy of the object (`0x697BB0`, mode 3, or 4 with `0x20000`); with `0x200000` create it as a child of the controller's owner at its world position | spawn-copy | `FoamControl`, rocket/grenade explosions |
+| `0x0010` / `0x0020` / `0x0040` | `0x10`: set `0x40`, clear `0x10`. `0x20`: set `0x10`, clear `0x40`. `0x40`: clear both. On the live action's flags (scope `0x04000000`) and/or object `m_nFlags` (scope `0x40000000`) | flags… | `PalyavegiKizaroKiller` ("level-end barrier killer") → `KijaratKizaro`: `0x40` |
+| `0x0080` / `0x0100` | clear / set `0x100` = **don't render** (live action: scope `0x08000000`; object `m_nFlags`: scope `0x80000000`) | show / hide | `real_shark_norender` → `GWside`; `Harpoon Deact` |
+| `0x0400` / `0x0800` | object `m_nFlags` set / clear `0x20000` (`0x6B71C0`, scope `0x40000000`) | suspend / resume | `FecsegesSzunetel` / `FecsegesUjra` ("chatter pauses / again") on a sound area; `…MapitemKiller` |
+| `0x2000` / `0x4000` | object `m_nFlags` set / clear `0x400000` (meaning unknown) | node±0x400000 | DEEPSEA `bummcontroll` (exploding tanks/pipes) |
 
-**Scope and modifier bits (high 16 bits):** `0x01000000` brick enable bit, `0x10000000` node enable bit, `0x04000000`/`0x40000000` brick/node `0x10`–`0x40` group, `0x08000000`/`0x80000000` brick/node render group, `0x00400000`/`0x00800000` also recurse into children (`0x10`–`0x40` group / render group), `0x00010000` restart on start, `0x00020000` spawn mode 4, `0x00200000` "at self / also suspend". `0x0F000000` with no modifiers is the default (5,856 of 6,547 steps, 89%). `0x02000000` isn't tested by the interpreter.
+**Scope and modifier bits (high 16 bits):** `0x01000000` live-action enable bit, `0x10000000` object enable bit, `0x04000000`/`0x40000000` live-action/object `0x10`–`0x40` group, `0x08000000`/`0x80000000` live-action/object render group, `0x00400000`/`0x00800000` also recurse into children (`0x10`–`0x40` group / render group), `0x00010000` restart on start, `0x00020000` spawn mode 4, `0x00200000` "at self / also suspend". `0x0F000000` with no modifiers is the default (5,856 of 6,547 steps, 89%). `0x02000000` isn't tested by the interpreter.
 
-**Flag meanings:** `m_nFlags 0x100` = not rendered, confirmed by the "norender" control and by invisible blocker plates (`Kizaro_Lap_Kozepes`, flags `0x15A`). `0x2` = enabled/active (set on almost every BRTR node). `0x1` = killed (runtime only, never set in BRTR). `0x10`/`0x40` are probably collision bits: barrier "killers" clear them and invisible walls have them. Unproven. Node flag `0x20000` = suspended.
+**Flag meanings:** `m_nFlags 0x100` = not rendered, confirmed by the "norender" control and by invisible blocker plates (`Kizaro_Lap_Kozepes`, flags `0x15A`). `0x2` = enabled/active (set on almost every BRTR node). `0x10`/`0x40` are probably collision bits: barrier "killers" clear them and invisible walls have them. Unproven. `0x20000` = suspended. On a live action, flag `0x1` = killed. Suspend + kill + hide + collision-off together remove a target's visibility and collision (user-confirmed 2026-10-03); which of the four is necessary isn't isolated.
 
 ### Example: START's tunnel boulder
 
@@ -217,10 +217,36 @@ No other `GDControl` starts `SeaSeekerQuestEventControl`, so the seeker quest co
 
 `GDControl` settles the "two integers" question from the reflection section above. **The first integer (`a`) is the offset of the property wrapper in the props object; the second (`b`) is the offset of a mirrored copy in the runtime object (0 = none). The value sits 4 bytes in, after the wrapper's vtable.** `m_Ctrl1` (`a` = `0x48`): the executor reads the props at `+0x48`/`+0x4C`. `m_DeactProps` (`a` = `0x128`) is read at `+0x12C`. `m_List1` (`b` = `0x3C`): the executor uses runtime `+0x3C` unless bit `0x1000` is set. This also fits the base brick's `mtx` (`0x30`, `0x4C`), which the brick reads at `+0x50`.
 
+## Object registry, live actions and destructibles (2026-10-03)
+
+Found while getting a scripted trigger to work (see `docs/brtr_editing.md` "Scripted triggers"); confirmed with the mod's **F12 registry dump** (`mod/src/iddump.cpp`), which reads these structures from the running game.
+
+### Object registry
+
+- Hash map at **`engine + 0x50`** (`engine = [0x920E24]`): `+4` bucket count (16,381 in FISH), `+8` bucket array; entry `[0] id, [1] ?, [2] object, [3] next`. `0x6B8A00` looks up, `0x6B8450` inserts (fails if the key exists), `0x6B8600` inserts or overwrites. Any 32-bit ID works structurally.
+- **Registration** (`0x692C10`, run for every loaded node and action): with the loader's "keep file IDs" flag set, an object is registered under its file ID if free; otherwise (or without the flag) it gets **`++engine+0x14`**, the runtime counter, and the old ID is mapped to the new one.
+- **The runtime counter starts at about `0x100000`** (`0x100324` after loading FISH, `0x1008B2` a few seconds later). Objects the engine creates itself (reference copies, spawned effects) are numbered from there. **File IDs at or above `0x100000` collide with those and the objects vanish** (tested: a rock at `0x10000A` never appeared; IDs up to `0xFFF00` work). New content should use unused IDs below `0x100000`.
+- **Registered objects are definitions with their properties inline at the reflection `a` offsets** (e.g. a `GDControl`'s `m_Ctrl1` value at `+0x4C`, `a` = `0x48`, `+4`). Common layout: `+0x04` own ID, `+0x08` runtime class ID (file class with remapped low bits), `+0x18` `m_nFlags`, `+0x1C` owner (actions), `+0x24` live instance / live action.
+- **Nodes** (e.g. vtable `0x7F68F0` for a plain model): `+0x18` `m_nFlags`, `+0x20` next sibling, `+0x24` live action, `+0x28` first child, `+0x2C` action definition (the node's `ACTN`).
+
+### Live action instances
+
+- An action **definition** (one per `ACTN`) only does something through a **live instance** stored at its `+0x24`. `0x698700` creates it (`if !def->vt20(): def[9] = def->vt48()`); the instance's destructor (`0x68E770`) clears it again. `GDControl`: definition vtable `0x7F5804` (0x130 bytes, `0x6B66F0`), instance vtable `0x7F5798` (0xC4 bytes, `0x6B6030`).
+- **Who gets an instance at load:** actions on **group-type nodes** (classes `0x010B10AA`, `0x010AA0A4`) do; actions on **plain model nodes** (`0x0107402F`) don't (live dumps: the pink post root had one, the monkey and FISH's `LoadingPredatorEffect` didn't). All 132 shipped destructible-hook targets sit on group-type nodes, all with `m_nFlags` = 0. `GDControl` step `0x4` ("add", `0x698720`) also instantiates. The engine code that instantiates at load wasn't traced; the rule is empirical.
+- **Starting** an instance is `0x68EA80`: sets `0x2` (active), calls slot `+0x50`, sets `0x8000000` (started), then follows the instance's `+0x20` chain (`m_OnActivate`). It does nothing if the instance is already active and started. `0x68EB10` deactivates.
+- **Start-pass timing:** `GDControl` start (`0x6B68A0`) schedules the steps and immediately runs one executor pass with the counter at −1, so **steps with delay −1 run in the same instant the control starts**; delay 0 runs on the next tick. This matters when starting the control deletes its owner (see `MBRombolhato.m_killparent`).
+
+### `MBRombolhato`, the destructible (breakable objects)
+
+- `ACTN` class `0x02169168`; definition vtable `0x7D9998` (0x228 bytes, `0x4A4430`, name getter `0x4A3990`), runtime vtable `0x7D99F8` (0xF8 bytes, `0x4A4C60`). **PROP ID = `0x08000661` + field index** (55 fields): `m_type`, `m_darabokid` (pieces node), `m_maxhitpoint` (`0x663`), …, `m_robbcontrol` (`0x673`, "explosion control", run when destroyed), `m_felulrolcolli`, `m_toclone`, `m_maradclone` (remains), `m_szetroppen`, `m_killparent` (`0x679`), `m_megutclone`, `m_megutclonevegen`, **`m_megutcontrol`** (`0x67C`, run on every non-fatal hit), …, `m_killotherrombolhato` (`0x692`), `m_pusztulomessage`, `m_colliremains`, `m_tarsaivalpusztul`, `m_reborn`, `m_addpoint`. Full table via `scripts/dump_class_fields.py`.
+- Runtime fields: `+0x48` mirror of `m_robbcontrol`, `+0x50` of `m_megutcontrol`, `+0xE8` hit points.
+- **Hit/destroy handler `0x4A5080`** (mode 0/1/2): if hit points ≤ 0 → sounds/messages, kill listed destructibles, spawn remains, **start `m_robbcontrol`** (`0x6C3010` → `0x68EA80`), … ; otherwise **start `m_megutcontrol`**. The collision handler `0x4A5F10` subtracts damage and calls it in mode 2; `0x4A5E00` handles losing supports.
+- Shipped use: 111 destructibles use `m_robbcontrol`, 21 `m_megutcontrol` (e.g. AQUARIUM's `ParavanTorik` screens open a portal and advance the quest; DEEPSEA's tanks start explosion chains; DEEPSEA2's lamps kill their light cones). FISH's pier posts have both hooks empty.
+
 ## Open items
 
 - ~~Meaning of the two integers in each field registration~~: resolved 2026-10-03, see "`GDControl`… Registration integers, resolved".
-- `GDControl` leftovers: the `0x400000` node flag (`0x2000`/`0x4000`), confirming `0x10`/`0x40` as collision bits, spawn modes 3 vs 4, and what starts controls that no other control starts (quest code).
+- `GDControl` leftovers: the `0x400000` flag (`0x2000`/`0x4000`), confirming `0x10`/`0x40` as collision bits, which of suspend/kill/hide/collision-off a removal really needs, spawn modes 3 vs 4, and the engine code that gives group-type nodes' actions a live instance at load.
 - Complete the class-name resolution in `dump_class_fields.py` (132/691 named).
 - The full state-value enumeration of `SetState` (~40 states; only `7` = dead identified).
 - `0x920E24` engine object layout.

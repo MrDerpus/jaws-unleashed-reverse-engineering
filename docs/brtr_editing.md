@@ -268,14 +268,37 @@ Survey of FISH's 1,074 top-level nodes by class: apart from those two scenery cl
 - `SCENERY_GROUPS` / `SCENERY_TEMPLATES` / `KEEP_NAMES` are FISH names; other levels will need their own lists (the class-based rule and the reference protection are generic).
 - The ocean floor is gone, so the shark can swim down to wherever the engine limits depth. Build a floor in Blender if needed.
 
-## Level scripting (`GDControl`), decoded 2026-10-03, not yet used for editing
+## Level scripting (`GDControl`)
 
 A level's scripted events (cutscene steps, effects spawning, objects being killed, hidden or shown, barriers opening, checkpoint clean-up) are `GDControl` actions: `ACTN` blocks attached to nodes, each a timeline of up to 8 steps that act on lists of node or action IDs. Format, opcode and scope tables: `docs/exe_analysis.md` "`GDControl`". Read any level's scripting with `python3 scripts/dump_gdcontrol.py GAME_GDWs/<NAME>.GDW [REGEX]`.
 
-What matters for editing:
-- **Hiding without moving:** `m_nFlags` (`PROP 0x080017D9`) bit `0x100` = not rendered (that's how the invisible `Kizaro_Lap_Kozepes` blockers work). Setting it in BRTR should hide a node while keeping its collision. Untested as an edit; the "move 50,000 down" method is what's been verified.
+- **Hiding without moving:** `m_nFlags` (`PROP 0x080017D9`) bit `0x100` = not rendered (that's how the invisible `Kizaro_Lap_Kozepes` blockers work). Untested as a static BRTR edit; the "move 50,000 down" method is what's been verified.
 - **Removing a node that scripts point at** is safe: the interpreter skips IDs that don't resolve, and shipped levels already contain 9 to 72 such dangling IDs each.
-- **Custom triggers** (e.g. "kill this rock when that object dies") would mean adding an `ACTN` with class `0x0203B039`, a fresh action ID, and `m_Ctrl`/`m_List` PROPs to a node, then getting something to start it (another control's `0x1` step, or quest code). Not attempted yet.
+
+## Scripted triggers — working (2026-10-03, user-confirmed)
+
+**Breaking a chosen object makes other objects disappear (visibility and collision).** Tool: **`scripts/add_trigger.py BASE.GDW OUT.GDW`**, configured in its `CONFIG` block. Verified in-game: biting the pink trigger post leaves the target alone; breaking it removes the target and its collision.
+
+### What it builds
+
+1. **Trigger:** a copy of a breakable subtree (default FISH's pier post `Torheto_pozna 1`, node 130: a group root with a destructible `MBRombolhato` `ACTN` and three mesh parts with bite targets), with fresh IDs for every node/action and the internal references remapped (`PROP 0x080018CB` mesh → destructible, `0x08000D05` bite target → mesh). It's placed **directly** (root transform set, every AABB mapped along); with `replace_ref` it takes an existing reference copy's spot and parks that reference 50,000 units below. Optional scale and tint (`m_ModelColor` on every mesh, which does show in-game).
+2. **Targets:** new nodes (template with a `PRIM` + mesh + collision region + position + tint, same machinery as `insert_brtr_node.py`) and/or existing node IDs.
+3. **Control:** a `GDControl` copied from START's `SeaSeekerQuestEventControl` with the steps suspend `0x4B000400`, kill `0x0F000008`, hide `0x8F000100`, collision bits off `0x4F000040` on the targets, all at delay −1. It's attached to the **trigger's root node** (after its own `ACTN`, before its children), and the destructible's hook points at it: `m_robbcontrol` (`PROP 0x08000673`, when destroyed) and/or `m_megutcontrol` (`0x0800067C`, on every hit).
+
+### Rules (each one found by a failed test)
+
+- **The control must live on a group-type node** (classes `0x010B10AA` / `0x010AA0A4`). A destructible's hook doesn't start the control definition; the lookup (`0x6C3010`) returns the control's *live instance* (registered object `+0x24`). Plain model nodes (`0x0107402F`, e.g. a rock or our monkey) never get one, so a control placed there is never started (verified by the F12 dump). All 132 shipped hook targets live on group-type nodes.
+- **New IDs must be unused and below `0x100000`.** The engine's runtime counter starts there, and file IDs at or above it collide with runtime objects (the object vanishes). The tool allocates from `0xF000`. (`max file ID + 1` also failed at first, but that build had the control on a plain model node, so the low IDs weren't proven bad.)
+- **Steps at delay −1 when the trigger deletes itself.** Posts have `m_killparent` = 1: breaking one deletes its root, and the control on it, in the same frame. A control runs delay −1 steps in its start pass and delay 0 on the next tick, which never comes.
+- **Hit vs destroyed:** `m_megutcontrol` fires on the first bite; `m_robbcontrol` fires when the post breaks (its durability is `m_maxhitpoint`, 15 for posts; bites break posts in a few hits).
+
+### Target mesh used in the test
+
+The red monkey is Blender's Suzanne: exported as OBJ (triangulated, smart-UV), `obj_to_gmdl.py BASE OUT suzanne.obj --gmat 0xB12 --scale 10 --collision` (→ `GMDL 0xB13`, `MREG 0xB14`), with a plain white texture added first as `GTEX 0xB11` + `GMAT 0xB12` (`gdw_textures.build_gtex` + `clone_gmat(d, 1073, 0xB12, 0xB11)`, appended to `RSRC`), tinted red per node. Any mesh with collision works; set `TARGETS` accordingly.
+
+### How it was debugged (for the record)
+
+About 15 in-game iterations. Visual probes (hide + collision-off steps, delays, an ID test row of differently coloured monkeys) separated "control never starts" from "steps don't work", and **the mod's F12 dump** (`mod/README.md`) settled it by showing the registry: the control was registered with correct data but had no live instance (`+0x24` = 0), while the destructible's runtime held the right hook value. Wrong turns worth not repeating: the "max file ID + 1" collision theory (partly right, not the cause), IDs at `0x100000` (break objects), `m_nFlags` = 2 as "auto-start" (it isn't), and pointing a hook at a shipped plain-node control (`LoadingEffectControl`), which has no live instance either.
 
 ## Current live state (end of 2026-10-03 session)
 
@@ -283,12 +306,13 @@ Game install `data/` folder (`~/.steam/debian-installation/steamapps/compatdata/
 
 | File | Contents |
 |---|---|
-| `TEST.GDW` | **live**: `strip_level.py`(`TEST.GDW.pre_insert`) + the 7-object Blender test scene: 2 rock-textured cubes (solid, one tilted 30°/60°), Suzanne (non-solid, rainbow texture), 4 numbered transparency planes (1 Blend, 2 Clip, 3 Blend+Culling, 4 Clip+Culling) south of them. Built with `build_scene.py`. |
+| `TEST.GDW` | **live** (end of 2026-10-03): scripted-trigger test, `add_trigger.py` defaults on `TEST.GDW.pre_insert` + the white texture and Suzanne mesh above: pink trigger post (×1.3) at (2036, 1.5, −3971), red monkey at (2110, 12, −3960). |
+| `TEST.GDW.pre_trigger` | previous live build: `strip_level.py`(`TEST.GDW.pre_insert`) + the 7-object Blender test scene (2 rock cubes, Suzanne, 4 transparency planes), built with `build_scene.py` |
 | `TEST.GDW.pre_insert` | base: copy of FISH with the construction-worker face, rocks tinted magenta, sand cyan. **Use this as the input for `strip_level.py` / `build_scene.py`.** |
 | `TEST.GDW.pre_build` | earlier build: the user's `something.obj` sculpture (×15, generated collision) + wall C |
 | `OPEN_S.GDW` (+ `.orig`) | Fisherman's Isle transition renamed `FISH` → `TEST` (so entering Fisherman's Isle loads `TEST.GDW`) |
 | `FISH.GDW` (+ `.orig`), `DOCKS.GDW` (+ `.orig`) | construction-worker face texture swap only |
-| `../d3d8.dll` (+ `.pre_reload`) | mod with F10 stage reload |
+| `../d3d8.dll` (+ `.pre_reload`, `.pre_iddump`) | mod with F10 stage reload and the F12 ID-registry dump |
 | `BEACH.GDW`, `BEACHPST.GDW` (+ `.orig`) | **restored to stock** (2026-10-03) after the boulder-removal test; the `.orig` backups are identical copies. The patched no-boulder versions are kept in the project root as `*.open_barrier.GDW`. |
 
 Test assets (Blender test `.blend`, PIL-generated images, export folder) lived in the session scratchpad and aren't kept. They're easy to recreate; the user's own `something.obj` is in the repo root.

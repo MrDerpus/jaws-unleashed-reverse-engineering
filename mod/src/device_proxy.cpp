@@ -23,6 +23,7 @@
 #include "input_block.h"
 #include "bookmarks.h"
 #include "stage.h"
+#include "iddump.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -45,6 +46,7 @@ static inline bool key_down(int vk)
 #define VK_F9  0x78
 #define VK_F10 0x79
 #define VK_F11 0x7A
+#define VK_F12 0x7B
 #define VK_W   0x57
 #define VK_A   0x41
 #define VK_S   0x53
@@ -609,6 +611,24 @@ HRESULT __stdcall DeviceProxy::EndScene()
             log_msg(buf);
         }
         f10_prev = f10_now;
+    }
+
+    /* F12 — dump the engine's object-ID registry for the IDs in C:\jaws_ids.txt
+     * to C:\jaws_iddump.txt (read-only debug aid, see iddump.h). */
+    {
+        static bool  f12_prev = false;
+        static DWORD last_dump = 0;
+        bool f12_now = key_down(VK_F12);
+        if (f12_now && !f12_prev && !tp_active_ && GetTickCount() - last_dump > 1000) {
+            char msg[128];
+            DumpIdRegistry(msg, sizeof(msg));
+            last_dump = GetTickCount();
+            SetTpMsg("%s", msg);
+            char buf[160];
+            snprintf(buf, sizeof(buf), "[jaws_mod] F12: %s", msg);
+            log_msg(buf);
+        }
+        f12_prev = f12_now;
     }
 
     /* F8 — teleport text box. Game keyboard input is swallowed while open. */

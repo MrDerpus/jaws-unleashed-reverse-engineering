@@ -34,7 +34,7 @@ scripting: a timeline of up to 8 steps, m_Ctrl1..8 (PROP 0x08001819 + 3k) with
 target lists m_List1..8 (PROP 0x0800181A + 3k). Each m_Ctrl is [w0, w1, w2]:
 w0 = action bits (low 16) + scope bits (high 16), and the step fires
 w1 + random(0 .. w2 - w1) ticks after the control starts (exactly w1 when
-w2 <= w1). w1 is signed: the counter starts at -1, so t=-1 fires the moment
+w2 <= w1 or w1 < 0). w1 is signed: the counter starts at -1, so t=-1 fires the moment
 the control starts, one tick before t=0. Engine code: start 0x6B68A0, per-tick executor 0x6B6C00,
 interpreter 0x6B6DB0. Full tables in docs/exe_analysis.md ("GDControl").
 
@@ -150,7 +150,7 @@ def main(path, pattern=None):
         head = (f'[node {owner} "{nm(owner)}"] {name}' if owner is not None else f'[root] {name}') + f'  (act {aid})'
         print(head + (f'  (started by: {", ".join(sorted(set(sb)))})' if sb else ''))
         for slot, w0, w1, w2, ids in steps:
-            t = f'{w1}..{w2}' if w2 > w1 else f'{w1}'
+            t = f'{w1}..{w2}' if w2 > w1 and w1 >= 0 else f'{w1}'   # engine randomises only when w1 >= 0
             tgt = ', '.join(nm(i) for i in ids) or '(none)'
             print(f'  {slot}: t={t:<8} {w0:#010x} {describe(w0):<24} -> {tgt}')
         if deact:
