@@ -48,6 +48,11 @@ Per-object custom properties (Object Properties > Custom Properties):
                     (any depth). Written to the manifest as 'exits'. Its
                     material's colour (Base Color, or Viewport Display) is
                     the colour of build_scene.py's --show-exits marker.
+    jaws_spawn      1 = not geometry but the shark's start point: its origin
+                    is where the shark appears, facing the object's -Y
+                    (like the kit's REF shark cone). One at most; written to
+                    the manifest as 'spawn'. Without one, the base's spawn
+                    stays (blank base: right above Blender's origin).
 
 Materials: a material named gmat_<id> / mat_<texture id> uses that game
 material (a Blender duplicate suffix like mat_272.001 is ignored). Exception:
@@ -68,10 +73,14 @@ import re
 import shutil
 
 import bpy
+from mathutils import Vector
 
 COLLECTION = 'JAWS'
 EXPORT_DIR = ''   # '' = a 'blender_export' folder next to the saved .blend (else ~/blender_export)
-GAME_ORIGIN = (2160.0, -25.0, -3650.0)  # FISH/TEST: open water next to the whale
+# Blender's origin in game space. The blank base (strip_level.py --blank) is
+# centred on the world origin with the shark spawning at (0, -6.5, 0); until
+# 2026-10-04 this was FISH's (2160, -25, -3650), next to the whale.
+GAME_ORIGIN = (0.0, -25.0, 0.0)
 GAME_SCALE = 15.0
 DEFAULT_GMAT = 1073                       # FISH rock-wall material
 BASE_LEVEL = 'FISH'                       # level the build's base comes from (mat_<n> numbers)
@@ -239,6 +248,15 @@ def exit_zone(obj):
     return zone
 
 
+def spawn_point(obj):
+    """Spawn object -> {'name', 'pos' (game space), 'forward' (game x, z)}."""
+    mw = obj.matrix_world
+    t = swap_yz(mw.translation)
+    fwd = swap_yz(mw.to_3x3() @ Vector((0.0, -1.0, 0.0)))
+    return {'name': obj.name, 'pos': [GAME_ORIGIN[i] + GAME_SCALE * t[i] for i in range(3)],
+            'forward': [fwd[0], fwd[2]]}
+
+
 def marker_colour(obj):
     """sRGB 0-255 RGBA of an exit object's first material (for build_scene's
     --show-exits markers): Principled Base Color + Alpha when not driven by a
@@ -275,7 +293,10 @@ def main():
     coll = bpy.data.collections.get(COLLECTION)
     every = list(coll.all_objects if coll else bpy.context.selected_objects)
     exits = [exit_zone(o) for o in every if o.get('jaws_exit') and o.type in ('MESH', 'EMPTY')]
-    objs = [o for o in every if o.type == 'MESH' and not o.get('jaws_exit')]
+    spawns = [o for o in every if o.get('jaws_spawn')]
+    if len(spawns) > 1:
+        raise SystemExit(f"more than one jaws_spawn object: {[o.name for o in spawns]}")
+    objs = [o for o in every if o.type == 'MESH' and not o.get('jaws_exit') and not o.get('jaws_spawn')]
     if not objs:
         raise SystemExit(f'nothing to export: make a collection named {COLLECTION!r} or select mesh objects')
     os.makedirs(EXPORT_DIR, exist_ok=True)
@@ -304,10 +325,12 @@ def main():
         })
     manifest = {'game_origin': GAME_ORIGIN, 'game_scale': GAME_SCALE, 'meshes': meshes,
                 'materials': materials, 'objects': objects, 'exits': exits}
+    if spawns:
+        manifest['spawn'] = spawn_point(spawns[0])
     with open(os.path.join(EXPORT_DIR, 'manifest.json'), 'w') as f:
         json.dump(manifest, f, indent=1)
     print(f'exported {len(objects)} objects, {len(meshes)} meshes, {len(materials)} textured materials, '
-          f'{len(exits)} exit zones to {EXPORT_DIR}')
+          f'{len(exits)} exit zones' + (f', spawn {spawns[0].name!r}' if spawns else '') + f' to {EXPORT_DIR}')
 
 
 main()

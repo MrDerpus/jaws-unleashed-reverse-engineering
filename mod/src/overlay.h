@@ -32,6 +32,9 @@ struct OverlayInfo {
     const char* tp_text;     /* text typed so far */
     const char* tp_msg;      /* transient result/error line, or nullptr */
     const char* tp_slots[9]; /* bookmark slot lines, shown while the box is open */
+    bool  picker_open;       /* F9 custom level picker open */
+    int   picker_count, picker_sel;
+    const char* picker_names[16];
 };
 
 /*

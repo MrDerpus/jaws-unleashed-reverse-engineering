@@ -266,11 +266,26 @@ Survey of FISH's 1,074 top-level nodes by class: apart from those two scenery cl
 
 - **`NEW_SKY_OPEN`** (sky dome, a plain model): kept by name.
 - **`Sun` (3569, a plain model):** `NAWater2004 Hiwave`'s property **`0x08001376` points at it**. With it removed, the water surface stopped rendering above and below (the shark could still swim and breach). Found by bisection: keeping all plain models brought the water back, then the render-settings survey showed `Sun` as the odd one out (`m_RenderSetting` `0x82842`, flags `0x12`). The strip tool now protects anything a kept node points at through `ID_PROPS` (`0x080017F0` reference, `0x08000AE5`/`AE6` whale/shark mission links, `0x080004A1` collectible template, `0x080003C7` child list, `0x08001376` water sun) and keeps such nodes unchanged.
-- **8 nodes named inside top-level `ACTN` blocks** (stage/quest logic): `Kotelszakito_szikla_vf16` (rope-breaking rock), `szikla elem52`, `Plane01 1`, `fishbone 1` (whale skull/spine/ribs), `szikla elem41 1`, `szikla elem64 1`, `Box185 2`, `Box216 2`. Deleting them could leave dangling IDs, so they're **kept but moved 50,000 units down** (translation of the top node and any absolute-flag descendants, AABB of every node). Confirmed gone from view in-game.
+- ~~**8 nodes named inside top-level `ACTN` blocks**~~ **(corrected 2026-10-04: false positives).** `Kotelszakito_szikla_vf16` (72), `szikla elem52` (84), `Plane01 1` (128), `fishbone 1`, `szikla elem41 1` (272), `szikla elem64 1` (288), `Box185 2` (500), `Box216 2` (516) were kept and moved 50,000 units down because their IDs appeared in top-level `ACTN` blocks (`Stage0Quest`, `StreamPlay 1`, `MBMovieJelzo 1`). The scan read every uint32 of the block, and those IDs are the blocks' own chunk/PROP **size fields** (e.g. `Stage0Quest`'s `ACTN` size is 516, a PROP size 84). `strip_level.py` now only looks at PROP values, and they're removed.
 
 ### Minimal mode (2026-10-04, untested in-game at time of writing)
 
 `strip_level.py --minimal` also removes the visible gameplay layer: NPCs (`0x01085081`), waypoints (`0x010C80C7`), the bird flock (`0x01096095`), fish schools (`0x01078077`), the SC17 mission root and sharks (`0x01104103`, `0x01094092`), the collectible `07 - Treasure Chest` (`0x0112B12A`), the beach sound area (`0x0101B019`), and by name `WhaleCarcass MorePrim`, `CrowdAllo`, `CollectableObjects`, `CollectibleAddOn`. **Ambient wildlife comes from creature generators**, not the creature templates: `ACTN` class `0x02129128` (`SeaOtterGenAct`, `BarracudaGenAct`, `MarlinGenAct`, `SwordfishGen`, `MantarayGen`), each on a group node `Parent<X>Gen` (FISH 1795–1803). `PROP 0x08000A78` = creature template node (e.g. `Marlin Root` 22836), `0x08000A79` = count, `0x08000A82` = 6 floats (area box). The first minimal build kept them and marlins and rays still spawned (user, 2026-10-04); `--minimal` now removes any top-level node carrying that action. FISH: 842 top-level nodes removed (1,400 incl. children), 232 left. Kept: water, sun, sky, cameras, fog, lights, HUD, effects, sound definitions, weapons, creature templates, `GameState`/`Stage Completed Save`, the `OPEN_S` exit.
+
+### Blank mode, recentred, no exit (2026-10-04, user-confirmed)
+
+`strip_level.py --blank` (implies `--minimal`) is the kit's base (`levels/custom_fish/FISH_blank_base.GDW`, from `make_level_kit.py`):
+- **Removes the leftovers:** the 8 rocks/planes above, `tores`, `horgaszszek` (fishing chair), `Floater1_Brown`/`Floater2_Brown` (the floating wood seen at FISH's origin), the buoy template `BolyaDefOpen`, the exit's 72-buoy ring, and ~30 ship/boat effect nodes (any name containing `ship`, plus `hajo_csavar_bubu`, `ANXploGen 1_dc`, `boat_crash`, `cuttergun_shot`). A leftover stays if a kept node or action has a PROP value equal to an ID in its subtree, ignoring IDs below 1000 (sizes and counts collide with them): `SplashEffectDown_ship`, `Debris_metal_ships`, `ship_hit_blood` stay (used by `Grenade 4_cut`). FISH: 885 top-level nodes removed (1,523 incl. children), 189 left.
+- **Recentres on the world origin:** `SHARRRK` (the shark, spawn) moves to x = z = 0, y −6.5, and `SharkPosReal`, `NEW_SKY_OPEN`, `Sun` (water's sun), `Sun(Y)`, `OceanMap1` (minimap anchor) move by the same (−1998.3, 0, +3628.0). Water, cameras, fog and lights sit at the origin and follow the shark.
+- **Disables the stock exit:** the leave-type trigger's action list moves to enter, radius 0, parked at x = z = 100,000. Teleporting anywhere gives no prompt (user-tested). `build_scene.py` finds an area trigger with either list set and reuses its actions for Blender exit zones.
+- **Spawn from Blender:** `jaws_spawn` = 1 on an object → manifest `spawn` → `build_scene.set_spawn` rewrites `SHARRRK`'s and `SharkPosReal`'s transforms (yaw only; the shark faces its local +Z, basis X = (fz, 0, −fx)) and shifts their subtrees' AABBs and absolute-flag descendants. User-tested: spawn at (75, −10, 75) facing +X.
+- The exporter's `GAME_ORIGIN` is now **(0, −25, 0)** (was FISH's (2160, −25, −3650)); existing `.blend`s keep their layout.
+
+**Unused resources (`prune_level.py`, `build_scene.py --prune`, used by `build.sh`):** keeps every `RSRC` block reachable from typed references (`['GMDL'][id]`, `['GTEX'][id]`, `['GSFX'][id]`, …) in the primary `BRTR`/`SCRT`, then transitively inside kept blocks (mesh → `MATS` → `GMAT` → `TEXP` → `GTEX`, `GSFX` → `GSMP`, …), drops the rest, and checks every reference still resolves. `RSRC`'s 12-byte header is a constant stamp (`0x0131F508, 1, 0` in every level), no count. Blank base 127.4 → 105.6 MB; the user's level 130.8 → 109.9 MB; both user-tested. What's left is mostly needed: level music `SndMusic` 41 MB, pause menu artwork 18.5 MB, fonts/HUD ~5 MB, civilian rig 4 MB, shark 4 MB. The 14 MB loading-screen sub-archive (`FISH00`) is separate and untouched.
+
+### Class IDs name their class (2026-10-04)
+
+A node or action class ID's **low 12 bits index the level's `CLAS` name lists**: `CLAS` holds sections `BRCM` (brick classes: 311 names in FISH, `[uint32 count]` then `[uint32 len][name, 4-aligned]`) and `ACCM` (action classes, next section). Nodes (`0x01…`) index `BRCM`, actions (`0x02…`) index `ACCM`. Checked: `0x0107402F` → `GDModel`, `0x0106F06E` → `NAGarden` (flora), `0x01134132` → `ANSphereCheck` (area trigger), `0x0203B039` → `GDControl`, `0x02038036` → `GDLoad`, `0x0217B17A` → `MBLoadChecker`, `0x02129128` → `MSHHSharkGen` (creature generator), `0x02092091` → `Stage0Quest`, `0x02173172` → `StreamPlay`, `0x0218F18E` → `MBMovieJelzo`.
 
 ### False lead
 
@@ -336,19 +351,22 @@ About 15 in-game iterations. Visual probes (hide + collision-off steps, delays, 
 
 ## Current live state (2026-10-04)
 
-The custom level is now a reproducible kit (`levels/custom_fish/`, `scripts/make_level_kit.py`, user tutorial `docs/custom_level_tutorial.md`); `TEST.GDW` is whatever `levels/custom_fish/build.sh` last installed.
+The custom level is now a reproducible kit (`levels/custom_fish/`, `scripts/make_level_kit.py`, user tutorial `docs/custom_level_tutorial.md`); since 2026-10-04 afternoon `build.sh` installs it as `custom_levels/CUSTOM_FISH.GDW` next to `Jaws.exe`, loaded by the mod's F9 picker (file-open redirect, `mod/src/levels.{h,cpp}`; user-confirmed). No stock file is edited for it any more.
 
 Game install `data/` folder (`~/.steam/debian-installation/steamapps/compatdata/2342933845/pfx/drive_c/Program Files (x86)/Jaws Unleashed/data/`):
 
 | File | Contents |
 |---|---|
-| `TEST.GDW` | **live:** the user's custom level, built by `levels/custom_fish/build.sh` from `custom_fish.blend` on `FISH_minimal_base.GDW` (`strip_level.py --minimal` of stock FISH) |
+| `../custom_levels/CUSTOM_FISH.GDW` (+ `.pre_blank`) | **live:** the user's custom level (F9 in-game), built on `FISH_blank_base.GDW` and pruned; `.pre_blank` = the earlier build on the minimal base |
+| `../custom_levels/MUSIC_TONES.GDW`, `MUSIC_NONE.GDW`, `MUSIC_FISH.GDW` | 2026-10-04 music tests: user's level with the four test tones (all four tracks user-confirmed; suspense/action needed loud harsh tones to be heard over the calm layer) / silence; stock FISH with the test tones (to try suspense/action) |
+| `../custom_levels/BLANK.GDW`, `BLANK_PRUNED.GDW`, `SPAWN_TEST.GDW` | 2026-10-04 tests: blank base, blank base pruned, user's level with a `jaws_spawn` at (75, −10, 75) facing +X (all user-confirmed) |
+| `TEST.GDW` | before 2026-10-04 afternoon: the user's custom level (no entrance points at it any more), built by `levels/custom_fish/build.sh` from `custom_fish.blend` on `FISH_minimal_base.GDW` (`strip_level.py --minimal` of stock FISH) |
 | `TEST.GDW.trigger_test` | end of 2026-10-03: scripted-trigger test, `add_trigger.py` defaults on `TEST.GDW.pre_insert` + white texture and Suzanne: pink trigger post (×1.3) at (2036, 1.5, −3971), red monkey at (2110, 12, −3960) |
 | `TEST.GDW.pre_trigger` | `strip_level.py`(`TEST.GDW.pre_insert`) + the 7-object Blender test scene (2 rock cubes, Suzanne, 4 transparency planes) |
 | `TEST.GDW.pre_insert` | copy of FISH with the construction-worker face, rocks tinted magenta, sand cyan (don't use as a base for real levels: its textures are tinted) |
 | `TEST.GDW.pre_build` | earlier build: the user's `something.obj` sculpture (×15, generated collision) + wall C |
-| `OPEN_S.GDW` (+ `.orig`) | Fisherman's Isle entrance loads `TEST` (`GDLoad` name `FISH` → `TEST`; `scripts/redirect_stage.py` reproduces it byte for byte) |
+| `OPEN_S.GDW` (+ `.orig`, `.test_redirect`) | **stock** again (2026-10-04); the old redirected copy (Fisherman's Isle entrance → `TEST`) is `.test_redirect` |
 | `FISH.GDW` (+ `.orig`), `DOCKS.GDW` (+ `.orig`) | construction-worker face texture swap only |
-| `../d3d8.dll` (+ `.pre_messages`, `.pre_reload`, `.pre_iddump`) | mod with F10 reload, F12 ID dump and message overrides |
-| `../../../jaws_messages.txt` (= `C:\jaws_messages.txt`) | message overrides: `TEST 598` exit prompt (copy kept in `levels/custom_fish/`) |
+| `../d3d8.dll` (+ `.pre_levels`, `.pre_messages`, `.pre_reload`, `.pre_iddump`) | mod with F9 custom level loader, F10 reload, F12 ID dump and message overrides |
+| `../../../jaws_messages.txt` (= `C:\jaws_messages.txt`) | message overrides: `CUSTOM_FISH 598` exit prompt (copy kept in `levels/custom_fish/`) |
 | `BEACH.GDW`, `BEACHPST.GDW` (+ `.orig`) | stock (restored 2026-10-03); no-boulder versions kept in the project root as `*.open_barrier.GDW` |

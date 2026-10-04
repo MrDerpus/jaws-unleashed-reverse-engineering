@@ -25,17 +25,21 @@
 Needs GAME_GDWs/FISH.GDW and FISH's extracted textures in textures/FISH/
 (scripts/rip_textures.py + scripts/rip_gtex.py), and Blender on the PATH.
 Writes, skipping files that already exist unless --force:
-  levels/custom_fish/FISH_minimal_base.GDW   stock FISH stripped with
-                     strip_level.py --minimal: only water, sky, sun, shark,
-                     HUD and the exit are left (the build's base level)
+  levels/custom_fish/FISH_blank_base.GDW   stock FISH stripped with
+                     strip_level.py --blank: only water, sky, sun, shark,
+                     HUD and engine plumbing are left, centred on the world
+                     origin, stock exit disabled (the build's base level)
   levels/custom_fish/custom_fish.blend       starter scene: a 100x100-unit
                      seafloor in collection JAWS, plus non-exported helpers
-                     (water plane, shark-sized cone at the spawn point,
-                     origin) and a palette of FISH materials (mat_<id>)
+                     (water plane, origin) and a palette of FISH materials
+                     (mat_<id>); in JAWS also a shark-sized cone with
+                     jaws_spawn = 1: move/turn it to set the spawn
+  levels/custom_fish/music/<track>.wav      test tones for MUSIC=custom in
+                     build.sh (calm_above, calm_under: soft hums; suspense:
+                     buzzing drone; action: siren), only if music/ is empty
 --force rebuilds both, overwriting custom_fish.blend: keep a copy of your
-work first. The game-side redirect (OPEN_S's
-Fisherman's Isle entrance -> TEST.GDW) is a separate step:
-scripts/redirect_stage.py.
+work first. In the game the level is loaded by the mod (F9, custom_levels/);
+no game file is edited.
 
 Run by Blender itself (blender -b --python make_level_kit.py -- OUT.blend),
 the same file builds the .blend.
@@ -50,11 +54,11 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJ = os.path.dirname(HERE)
 KIT = os.path.join(PROJ, 'levels', 'custom_fish')
-ORIGIN = (2160.0, -25.0, -3650.0)   # = blender_export_scene.GAME_ORIGIN
+ORIGIN = (0.0, -25.0, 0.0)          # = blender_export_scene.GAME_ORIGIN
 SCALE = 15.0                        # = blender_export_scene.GAME_SCALE
 FLOOR_GAME_Y = -70.0
 SIZE = 100.0                        # Blender units (1500 game units)
-SPAWN = (1998.35, -6.5, -3627.39)   # FISH 'GWside', where the shark appears
+SPAWN = (0.0, -6.5, 0.0)            # blank base's shark spawn (strip_level.py --blank)
 PALETTE = [  # FISH texture id, label
     (272, 'seafloor_sand_green'), (501, 'seafloor_moss'), (153, 'seafloor_dark_moss'),
     (236, 'dry_sand'), (276, 'mussel_bed'), (193, 'rock_mossy'), (238, 'rock_murky'),
@@ -139,10 +143,11 @@ def build_blend(out):
     # shark: ~17 x 8.6 x 5.5 game units, facing game -Z
     bpy.ops.mesh.primitive_cone_add(vertices=8, radius1=0.29, depth=1.13, location=game_to_blender(*SPAWN),
                                     rotation=(math.radians(90), 0, 0))
-    shark = move_to(bpy.context.object, ref)
-    shark.name = 'REF_Shark_size_and_spawn (nose = -Y)'
+    shark = move_to(bpy.context.object, jaws)
+    shark.name = 'SPAWN_Shark (nose = -Y)'
     shark.scale = (1.0, 0.64, 1.0)
-    origin = bpy.data.objects.new('REF_Origin = game (2160, -25, -3650)', None)
+    shark['jaws_spawn'] = 1
+    origin = bpy.data.objects.new('REF_Origin = game (0, -25, 0)', None)
     origin.empty_display_type = 'ARROWS'
     origin.empty_display_size = 2.0
     ref.objects.link(origin)
@@ -175,14 +180,52 @@ def build_blend(out):
     print(f'saved {out}')
 
 
+def write_test_tones(folder):
+    """Four 16 s stereo 22050 Hz test tones, one per music layer. Calm layers
+    are soft so the harsh suspense/action layers stand out (they're mixed in
+    on top, see docs/custom_level_tutorial.md Part 5)."""
+    import struct
+    import wave
+    rate, secs = 22050, 16
+
+    def sq(x):
+        return 1.0 if x % 1.0 < 0.5 else -1.0
+
+    def saw(x):
+        return 2.0 * (x % 1.0) - 1.0
+
+    def calm(f, pulse):
+        return lambda t: (3000 * (0.5 + 0.5 * math.cos(2 * math.pi * pulse * t)) * math.sin(2 * math.pi * f * t),) * 2
+
+    def suspense(t):
+        env = 0.6 + 0.4 * sq(2 * t)
+        return 28000 * env * saw(110 * t), 28000 * env * saw(111 * t)
+
+    def action(t):
+        v = 30000 * sq(600 * t + 600 * (t - math.floor(t * 2) / 2) ** 2 * 2)
+        return v, v
+
+    os.makedirs(folder, exist_ok=True)
+    for name, gen in (('calm_above', calm(220, 0.5)), ('calm_under', calm(330, 1)),
+                      ('suspense', suspense), ('action', action)):
+        frames = bytearray()
+        for i in range(rate * secs):
+            frames += struct.pack('<hh', *(max(-32767, min(32767, int(v))) for v in gen(i / rate)))
+        with wave.open(os.path.join(folder, name + '.wav'), 'wb') as w:
+            w.setnchannels(2)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes(bytes(frames))
+
+
 def main(force, kit):
     os.makedirs(kit, exist_ok=True)
-    base = os.path.join(kit, 'FISH_minimal_base.GDW')
+    base = os.path.join(kit, 'FISH_blank_base.GDW')
     blend = os.path.join(kit, 'custom_fish.blend')
     if force or not os.path.exists(base):
         sys.path.insert(0, HERE)
         from strip_level import main as strip
-        strip(os.path.join(PROJ, 'GAME_GDWs', 'FISH.GDW'), base, minimal=True)
+        strip(os.path.join(PROJ, 'GAME_GDWs', 'FISH.GDW'), base, blank=True)
         print(f'wrote {base}')
     else:
         print(f'kept existing {base}')
@@ -197,6 +240,12 @@ def main(force, kit):
         print(f'wrote {blend}')
     else:
         print(f'kept existing {blend} (your work)')
+    music = os.path.join(kit, 'music')
+    if not glob.glob(os.path.join(music, '*')):
+        write_test_tones(music)
+        print(f'wrote test tones to {music}')
+    else:
+        print(f'kept existing {music} (your music)')
 
 
 if __name__ == '__main__':

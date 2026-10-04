@@ -5,4 +5,4 @@
 # Slot numbers: run scripts/dump_messages.py (writes docs/game_messages.txt).
 # 598 = exit prompt ("enter this area"). The game shows the destination name
 #   first (e.g. OPEN OCEAN - SOUTH), so start the text with \n.
-TEST 598 \nLEAVE THE CUSTOM LEVEL?\n\nPRESS ^OK^ TO SWIM BACK TO THE OPEN OCEAN OR ^CANCEL^ TO STAY.
+CUSTOM_FISH 598 \nLEAVE THE CUSTOM LEVEL?\n\nPRESS ^OK^ TO SWIM BACK TO THE OPEN OCEAN OR ^CANCEL^ TO STAY.

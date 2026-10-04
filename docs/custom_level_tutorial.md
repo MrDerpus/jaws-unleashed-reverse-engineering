@@ -2,7 +2,7 @@
 
 Build your own underwater level for *Jaws Unleashed* in Blender, and swim around in it in the real game.
 
-Your level replaces **Fisherman's Isle**: when you swim into Fisherman's Isle from Open Ocean South, the game loads your level instead. Everything from the original level is gone except the ocean itself (water, sky and sun), the shark, and the HUD. What's left is your own seabed, your objects and your exits.
+Your level is a stage of its own: the mod loads it from a `custom_levels` folder next to `Jaws.exe` when you pick it with **F9** in-game. No game file is edited, and every original level (Fisherman's Isle included) stays as it was. Your level starts from a blank base made from Fisherman's Isle: everything from the original level is gone except the ocean itself (water, sky and sun), the shark, and the HUD, it's centred on the world origin, and it has no exit of its own. What's left is your own seabed, your objects, your spawn point and your exits. Textures, models and sounds your level doesn't use are left out of the finished file.
 
 ---
 
@@ -17,7 +17,8 @@ Your level replaces **Fisherman's Isle**: when you swim into Fisherman's Isle fr
 | `custom_fish.blend` | **Your level.** Open this in Blender. |
 | `build.sh` | Turns the `.blend` into a game level and installs it. |
 | `jaws_messages.txt` | A copy of your level's custom on-screen text (see Part 4). |
-| `FISH_minimal_base.GDW` | The empty base level the build starts from. Don't edit it. |
+| `FISH_blank_base.GDW` | The blank base level the build starts from. Don't edit it. |
+| `music/` | Your level's music files, used when `MUSIC=custom` (Part 5). Starts with four test tones. |
 | `README.txt` | A short version of this tutorial. |
 
 Only `build.sh`, `README.txt` and `jaws_messages.txt` come with the project. The other two contain game data, so you create them yourself from your own copy of the game (Part 0). If they're already in the folder, skip to Part 1.
@@ -39,23 +40,18 @@ You need your own game files in the project folder: the 20 `.GDW` files in `GAME
    ```bash
    python3 scripts/make_level_kit.py
    ```
-   It never overwrites an existing `custom_fish.blend` unless you add `--force`.
-3. **Point Fisherman's Isle at your level.** The game's Open Ocean South level has an entrance to Fisherman's Isle; this makes it load `TEST.GDW` (your level) instead. In the game's `data` folder, keep a backup first:
-   ```bash
-   cp OPEN_S.GDW OPEN_S.GDW.orig
-   python3 <project>/scripts/redirect_stage.py OPEN_S.GDW.orig OPEN_S.GDW FISH TEST
-   ```
-4. **Install the mod** (`mod/d3d8.dll` into the game folder; see `mod/README.md`). It gives you F10 reload, F8 teleport and the custom text.
-5. **Tell the build where the game is.** `scripts/build_scene.py` installs into the folder named by `LIVE_DATA` near its top (the game's `data` folder inside its Wine/Proton prefix). Change it if your game lives elsewhere.
+   It never overwrites an existing `custom_fish.blend` unless you add `--force`. It also puts test tones in `music/` if that folder is empty (see Part 5).
+3. **Install the mod** (`mod/d3d8.dll` into the game folder; see `mod/README.md`). It loads custom levels (F9) and gives you F10 reload, F8 teleport and the custom text.
+4. **Tell the build where the game is.** `scripts/build_scene.py` finds the game through `LIVE_DATA` near its top (the game's `data` folder inside its Wine/Proton prefix) and installs your level into the `custom_levels` folder next to it. Change it if your game lives elsewhere.
+5. **Name your level** (optional): `LEVEL_NAME` at the top of `build.sh`, `CUSTOM_FISH` by default. Letters, digits and `_` only, and not the name of an original level.
 
 ## Part 1 — The Blender file
 
 Open `custom_fish.blend`. There are two collections:
 
-- **`JAWS`**: everything in here goes into the game. It starts with a sandy **Seafloor**.
+- **`JAWS`**: everything in here goes into the game. It starts with a sandy **Seafloor** and the **spawn** (`SPAWN_Shark`): a cone the size of the shark. Move and turn it to choose where the shark appears and which way it faces (its nose, −Y, is the front). It never shows up in the game.
 - **`REFERENCE (not exported)`**: helpers that never go into the game:
   - **Water surface**: a wireframe plane showing where the sea surface is.
-  - **Shark**: a cone the size of the shark, placed where it appears when the level loads (its nose points at −Y).
   - **Palette**: a row of textured cubes south of the play area, one per ready-made material (see Part 2).
 
 ### Size and position
@@ -70,8 +66,12 @@ Open `custom_fish.blend`. There are two collections:
 | Play area | 100 × 100 units around the origin |
 
 To find a Blender spot in the game (for the F8 teleport):
-**game X = 2160 + 15·x  game Y = −25 + 15·z  game Z = −3650 + 15·y**
-(x, y, z are the Blender coordinates). Example: Blender (10, 0, −2) → game `2310 -55 -3650`.
+**game X = 15·x  game Y = −25 + 15·z  game Z = 15·y**
+(x, y, z are the Blender coordinates). Example: Blender (10, 0, −2) → game `150 -55 0`.
+
+### The spawn point
+
+Any object in `JAWS` with the custom property **`jaws_spawn`** = `1` is the spawn point (see "Mark it as an exit" below for how to add a custom property). The shark appears at the object's origin, facing the object's −Y. Only one is allowed. Starter files made before 2026-10-04 have no spawn object: add one (an Empty or a small cone works); without it the shark appears just above Blender's origin, at Blender (0, 0, 1.2).
 
 ---
 
@@ -120,7 +120,7 @@ An exit zone is a circle: when the shark swims into it, the game asks whether to
 
 **Colour of the test column:** with `--show-exits`, each exit shows as a see-through column in its **material's colour**. Give the exit object a material and set its **Base Color** (or the material's *Viewport Display* colour if its Base Color comes from a texture). Without a material, the column is bright pink. The column is always see-through: lowering the material's **Alpha** makes it more transparent. This is only for testing; the colour does nothing in a normal build.
 
-> **Add at least one exit.** If your level has none, the game falls back to the original Fisherman's Isle exit: an invisible circle with a radius of about 53 Blender units, centred near Blender (−10, −24). Swimming out of it takes you out of the level.
+> **Add at least one exit.** The blank base has none of its own: without an exit zone, the only ways out are F9 (another custom level) or quitting from the pause menu.
 
 ---
 
@@ -132,10 +132,10 @@ An exit zone is a circle: when the shark swims into it, the game asks whether to
    cd ~/Projects/JAWS/levels/custom_fish
    ./build.sh
    ```
-   It prints each object it built, then `deployed to …`. Takes about a minute.
+   It prints each object it built, then `deployed to …` (the game's `custom_levels/<LEVEL_NAME>.GDW`). Takes about a minute.
 3. In the game:
    - **Already in your level?** Press **F10** to reload it.
-   - Otherwise, swim into **Fisherman's Isle** from Open Ocean South.
+   - Otherwise, from any level press **F9**, pick your level with the arrow keys and press Enter. Exits in your level take you to Open Ocean South.
 
 **Options:**
 
@@ -151,6 +151,7 @@ If something goes wrong, the script stops and shows the end of `build.log` (in t
 
 | Key | Does |
 |---|---|
+| **F9** | Level picker: lists the levels in `custom_levels`; arrows to choose, Enter to load, Esc to close. |
 | **F10** | Reload the level from disk (after a build). |
 | **F8** | Teleport: type `X Y Z` (game coordinates, see Part 1) and press Enter. |
 | **F11** | Invincible and never hungry. |
@@ -177,12 +178,12 @@ Changes apply as soon as the file is saved, even while the game is running.
 ### How a line works
 
 ```
-TEST 598 \nLEAVE THE CUSTOM LEVEL?\n\nPRESS ^OK^ TO SWIM BACK TO THE OPEN OCEAN OR ^CANCEL^ TO STAY.
+CUSTOM_FISH 598 \nLEAVE THE CUSTOM LEVEL?\n\nPRESS ^OK^ TO SWIM BACK TO THE OPEN OCEAN OR ^CANCEL^ TO STAY.
 ```
 
 | Part | Meaning |
 |---|---|
-| `TEST` | The level it applies to (`TEST` = your level; `*` = every level). |
+| `CUSTOM_FISH` | The level it applies to (your `LEVEL_NAME`; `*` = every level). |
 | `598` | Which message to replace. **598 is the exit question.** To see all 1,000 messages and their numbers, run `python3 scripts/dump_messages.py` from the project folder (needs `game_binary/Jaws.exe`); it writes `docs/game_messages.txt`. |
 | the rest | Your text. |
 
@@ -193,6 +194,29 @@ Rules for the text:
 - **Don't use `[` or `]`**: the game draws them as the Esc and Enter key icons.
 - For the exit question, **start with `\n`**: the game puts the destination's name (OPEN OCEAN - SOUTH) in front of your text.
 - Lines starting with `#` are notes and are ignored.
+
+---
+
+## Part 5 — Music
+
+Set `MUSIC=` near the top of `build.sh`:
+
+| Setting | Music in your level |
+|---|---|
+| `keep` (default) | Fisherman's Isle's music. |
+| `none` | No music (sound effects still play). The level file gets about 41 MB smaller. |
+| `custom` | Your own files from `levels/custom_fish/music/`. |
+
+The game plays four music tracks and switches between them by itself. For `custom`, name your files after them; any audio format works (MP3, OGG, WAV, FLAC…):
+
+| File name | When it plays |
+|---|---|
+| `calm_above` | Swimming calmly at the surface. |
+| `calm_under` | Swimming calmly underwater. |
+| `suspense` | Tense moments. |
+| `action` | Fights. |
+
+Any you leave out use `calm_above`, so **one file named `calm_above` is enough** for a single song everywhere. Each track loops over its whole length; it's converted to the game's music quality (22,050 Hz stereo), about 5 MB per minute per track. The game plays all four **at the same time as layers** and fades their volumes: calm above/under follows whether the shark is underwater, suspense and action fade in when things get tense. So the four tracks should be versions of one piece of music of the same length (like the original), or at least sound fine together. A blank level has nothing to fight, so only the calm tracks are heard there. The folder starts with test tones: soft hums for the calm tracks, a loud buzzing drone for suspense and a siren for action, so you can hear which one plays. Switching back to `keep` brings the original music back on the next build.
 
 ---
 
@@ -211,15 +235,15 @@ Rules for the text:
 | Object has the wrong texture | Its material was renamed (it must start with `mat_<number>`), or it has no image. |
 | Swim through a wall | `jaws_collision` is set to `0` on it. |
 | Can't leave the level | No object with `jaws_exit` = `1`, or it's somewhere you can't reach. Use `--show-exits` to see it. |
-| Text change doesn't show | The live file wasn't updated (Part 4), or the line's level name isn't `TEST`. |
+| Text change doesn't show | The live file wasn't updated (Part 4), or the line's level name isn't your `LEVEL_NAME`. |
 | Build stops with an error | Read the last lines it prints (or `build.log`). |
 
 ---
 
 ## Going back to the original game
 
-- Copy `OPEN_S.GDW.orig` (your backup from Part 0) over `OPEN_S.GDW` in the game's `data` folder to make Fisherman's Isle normal again.
-- Your level only lives in `TEST.GDW`, which the original game never uses.
+- Nothing to undo: your level only lives in `custom_levels/`, which the original game never looks at. Delete the file there to remove it from the F9 list.
+- If you followed an older version of this tutorial that edited `OPEN_S.GDW`, copy `OPEN_S.GDW.orig` back over it.
 
 To turn off the custom text, empty (or delete) `C:\jaws_messages.txt`.
 

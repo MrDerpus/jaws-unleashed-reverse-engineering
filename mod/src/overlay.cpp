@@ -174,7 +174,22 @@ void Overlay::UpdateTexture(const OverlayInfo& info)
 
     /* Teleport box (F8): prompt with blinking cursor while open, otherwise
      * the last result/error, otherwise just the key hint. */
-    if (info.tp_active) {
+    if (info.picker_open) {
+        SetTextColor(memDC, RGB(0, 255, 255));
+        const char* title = "Custom levels  Up/Down  Enter=load  Esc=close";
+        TextOutA(memDC, 6, 162, title, (int)strlen(title));
+        if (info.picker_count == 0) {
+            SetTextColor(memDC, RGB(150,150,150));
+            const char* none = "none: put .GDW files in custom_levels\\ next to Jaws.exe";
+            TextOutA(memDC, 6, 178, none, (int)strlen(none));
+        }
+        for (int i = 0; i < info.picker_count && i < 16; ++i) {
+            bool sel = i == info.picker_sel;
+            SetTextColor(memDC, sel ? RGB(255, 255, 0) : RGB(200, 200, 200));
+            snprintf(buf, sizeof(buf), "%s %s", sel ? ">" : " ", info.picker_names[i]);
+            TextOutA(memDC, 6 + (i / 8) * 250, 178 + (i % 8) * 16, buf, (int)strlen(buf));
+        }
+    } else if (info.tp_active) {
         SetTextColor(memDC, RGB(0, 255, 255));
         bool cursor = (GetTickCount() / 400) & 1;
         snprintf(buf, sizeof(buf), "TP> %s%s", info.tp_text, cursor ? "_" : " ");
@@ -194,7 +209,7 @@ void Overlay::UpdateTexture(const OverlayInfo& info)
         TextOutA(memDC, 6, 162, info.tp_msg, (int)strlen(info.tp_msg));
     } else {
         SetTextColor(memDC, RGB(150,150,150));
-        TextOutA(memDC, 6, 162, "[F8] Teleport", 13);
+        TextOutA(memDC, 6, 162, "[F8] Teleport  [F9] Levels", 26);
     }
 
     SelectObject(memDC, hOldFont);

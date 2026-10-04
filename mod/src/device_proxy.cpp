@@ -25,6 +25,7 @@
 #include "stage.h"
 #include "messages.h"
 #include "iddump.h"
+#include "levels.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -37,6 +38,12 @@ static int   g_tp_hold_frames = 0;
 static int   g_tp_scan_frames = 0;
 static float g_tp_hold_target[3];
 static float g_tp_old[3];
+
+/* F9 level picker state: process-wide for the same reason. */
+static bool g_picker_open  = false;
+static int  g_picker_sel   = 0;
+static int  g_picker_count = 0;
+static int  ScanCount() { return g_picker_count; }
 
 static inline bool key_down(int vk)
 {
@@ -411,111 +418,46 @@ HRESULT __stdcall DeviceProxy::EndScene()
     }
     f7_prev_ = f7_now;
 
-    /* F9 — three-pass player-position memory scanner. Sidesteps the D3D
-     * camera transform ambiguity entirely (see mod dev log: the game
-     * interleaves several camera identities per frame across off-screen
-     * render targets, none of which map cleanly to "the real player
-     * camera") by reading the game's actual position state directly, the
-     * same way the god-mode health addresses were originally found.
-     *
-     * A 2-pass "did it move" version was tried first and found a false
-     * positive: some oscillating/animation value (swim-cycle bob, most
-     * likely) that happened to be a different value between the two
-     * snapshots, without actually being a moving world position. Fixed by
-     * requiring a THIRD snapshot and checking that the two displacement
-     * vectors point in a consistent direction (cosine similarity > 0.5) --
-     * real position moving in a straight line satisfies this; a value
-     * that's merely "different by chance" twice in a row generally won't.
-     *
-     * Pass 1 (press while stationary): records every 4-byte-aligned XYZ
-     * float triplet in a plausible coordinate range across the same address
-     * range the F7 health scan already reads safely.
-     * Pass 2 (press after swimming a distance in a straight line): keeps
-     * triplets that moved a meaningful amount.
-     * Pass 3 (press after continuing to swim in the SAME direction): keeps
-     * survivors whose second displacement direction roughly matches the
-     * first, and logs them. */
-    bool f9_now = key_down(VK_F9);
-    if (f9_now && !f9_prev_) {
-        static int   pscan_phase = 0;
-        static DWORD pscan_addr[4000];
-        static float pscan_x0[4000], pscan_y0[4000], pscan_z0[4000];
-        static float pscan_x1[4000], pscan_y1[4000], pscan_z1[4000];
-        static int   pscan_n = 0;
-        char buf[192];
-
-        auto plausible = [](float v) {
-            float a = fabsf(v);
-            return a > 0.5f && a < 6000.0f;
+    /* F9 — custom level picker (see levels.h). Up/Down select, Enter loads,
+     * Esc/F9 closes. Game keyboard input is swallowed while it's open. */
+    {
+        static bool f9_prev = false;
+        static bool key_prev[256];
+        auto pressed = [](int vk) {
+            bool now = key_down(vk), was = key_prev[vk];
+            key_prev[vk] = now;
+            return now && !was;
         };
-
-        if (pscan_phase == 0) {
-            pscan_n = 0;
-            for (DWORD va = 0x845000u; va < 0xE70000u - 8 && pscan_n < 4000; va += 4) {
-                float x = *reinterpret_cast<const float*>(va);
-                float y = *reinterpret_cast<const float*>(va + 4);
-                float z = *reinterpret_cast<const float*>(va + 8);
-                if (plausible(x) && plausible(y) && plausible(z)) {
-                    pscan_addr[pscan_n] = va;
-                    pscan_x0[pscan_n] = x; pscan_y0[pscan_n] = y; pscan_z0[pscan_n] = z;
-                    ++pscan_n;
-                }
+        bool f9_now = key_down(VK_F9);
+        if (g_picker_open) {
+            int n = ScanCount();
+            if (pressed(VK_UP)   && n) g_picker_sel = (g_picker_sel + n - 1) % n;
+            if (pressed(VK_DOWN) && n) g_picker_sel = (g_picker_sel + 1) % n;
+            if (pressed(VK_ESCAPE) || (f9_now && !f9_prev)) {
+                g_picker_open = false;
+            } else if (pressed(VK_RETURN) && n) {
+                g_picker_open = false;
+                char msg[96];
+                const char* name = CustomLevelName(g_picker_sel);
+                RequestStageLoad(name, msg, sizeof(msg));
+                SetTpMsg("%s", msg);
+                char buf[160];
+                snprintf(buf, sizeof(buf), "[jaws_mod] F9: %s", msg);
+                log_msg(buf);
             }
-            snprintf(buf, sizeof(buf),
-                "[jaws_mod] F9 scan1: %d plausible XYZ triplets (0x845000-0xE70000) — swim a good distance in a straight line, then F9",
-                pscan_n);
+        } else if (f9_now && !f9_prev && !tp_active_) {
+            int n = ScanCustomLevels();
+            g_picker_count = n;
+            if (g_picker_sel >= n) g_picker_sel = 0;
+            g_picker_open = true;
+            g_block_game_input = true;
+            for (int vk = 0; vk < 256; ++vk) key_prev[vk] = key_down(vk);
+            char buf[96];
+            snprintf(buf, sizeof(buf), "[jaws_mod] F9: %d custom level(s)", n);
             log_msg(buf);
-            pscan_phase = 1;
-
-        } else if (pscan_phase == 1) {
-            int kept = 0;
-            for (int i = 0; i < pscan_n; ++i) {
-                float x = *reinterpret_cast<const float*>(pscan_addr[i]);
-                float y = *reinterpret_cast<const float*>(pscan_addr[i] + 4);
-                float z = *reinterpret_cast<const float*>(pscan_addr[i] + 8);
-                if (!plausible(x) || !plausible(y) || !plausible(z)) continue;
-                float dx = x - pscan_x0[i], dy = y - pscan_y0[i], dz = z - pscan_z0[i];
-                if (sqrtf(dx*dx + dy*dy + dz*dz) > 3.0f) {
-                    pscan_addr[kept] = pscan_addr[i];
-                    pscan_x0[kept] = pscan_x0[i]; pscan_y0[kept] = pscan_y0[i]; pscan_z0[kept] = pscan_z0[i];
-                    pscan_x1[kept] = x; pscan_y1[kept] = y; pscan_z1[kept] = z;
-                    ++kept;
-                }
-            }
-            pscan_n = kept;
-            snprintf(buf, sizeof(buf),
-                "[jaws_mod] F9 scan2: %d survivors — keep swimming the SAME direction, then F9 again", pscan_n);
-            log_msg(buf);
-            pscan_phase = 2;
-
-        } else {
-            int hits = 0;
-            for (int i = 0; i < pscan_n; ++i) {
-                float x = *reinterpret_cast<const float*>(pscan_addr[i]);
-                float y = *reinterpret_cast<const float*>(pscan_addr[i] + 4);
-                float z = *reinterpret_cast<const float*>(pscan_addr[i] + 8);
-                if (!plausible(x) || !plausible(y) || !plausible(z)) continue;
-                float d1x = pscan_x1[i]-pscan_x0[i], d1y = pscan_y1[i]-pscan_y0[i], d1z = pscan_z1[i]-pscan_z0[i];
-                float d2x = x-pscan_x1[i],           d2y = y-pscan_y1[i],           d2z = z-pscan_z1[i];
-                float m1 = sqrtf(d1x*d1x + d1y*d1y + d1z*d1z);
-                float m2 = sqrtf(d2x*d2x + d2y*d2y + d2z*d2z);
-                if (m1 < 3.0f || m2 < 3.0f) continue;
-                float cos_sim = (d1x*d2x + d1y*d2y + d1z*d2z) / (m1 * m2);
-                if (cos_sim > 0.5f) {
-                    snprintf(buf, sizeof(buf),
-                        "[jaws_mod] F9 hit 0x%08lX  (%.2f,%.2f,%.2f) -> (%.2f,%.2f,%.2f) -> (%.2f,%.2f,%.2f)  cos=%.2f",
-                        pscan_addr[i], pscan_x0[i], pscan_y0[i], pscan_z0[i],
-                        pscan_x1[i], pscan_y1[i], pscan_z1[i], x, y, z, cos_sim);
-                    log_msg(buf);
-                    if (++hits >= 40) { log_msg("[jaws_mod] F9 hits (capped)"); break; }
-                }
-            }
-            snprintf(buf, sizeof(buf), "[jaws_mod] F9 scan3: %d direction-consistent hits", hits);
-            log_msg(buf);
-            pscan_phase = 0;
         }
+        f9_prev = f9_now;
     }
-    f9_prev_ = f9_now;
 
     /* Screenshot (F3 — rising edge, captures the current front buffer) */
     bool f3_now = key_down(VK_F3);
@@ -648,7 +590,7 @@ HRESULT __stdcall DeviceProxy::EndScene()
     bool f8_now = key_down(VK_F8);
     if (tp_active_) {
         HandleTeleportInput();
-    } else if (f8_now && !f8_prev_) {
+    } else if (f8_now && !f8_prev_ && !g_picker_open) {
         tp_active_ = true;
         tp_len_ = 0; tp_buf_[0] = 0;
         BookmarkReloadIfChanged();   /* pick up hand edits to the file */
@@ -660,7 +602,7 @@ HRESULT __stdcall DeviceProxy::EndScene()
     f8_prev_ = f8_now;
     /* Keep blocking until Enter/Esc are released, so the game never sees
      * a lone key-up/down from closing the box. */
-    if (!tp_active_ && g_block_game_input && !key_down(VK_RETURN) && !key_down(VK_ESCAPE))
+    if (!tp_active_ && !g_picker_open && g_block_game_input && !key_down(VK_RETURN) && !key_down(VK_ESCAPE))
         g_block_game_input = false;
 
     /* Teleport hold: keep re-writing the target for a few frames so every
@@ -749,6 +691,11 @@ HRESULT __stdcall DeviceProxy::EndScene()
             info.tp_slots[i] = slot_text[i];
         }
     }
+    info.picker_open  = g_picker_open;
+    info.picker_count = g_picker_count;
+    info.picker_sel   = g_picker_sel;
+    for (int i = 0; i < g_picker_count && i < MAX_CUSTOM_LEVELS; ++i)
+        info.picker_names[i] = CustomLevelName(i);
     info.tp_msg    = (tp_msg_[0] && GetTickCount() < tp_msg_until_) ? tp_msg_ : nullptr;
     overlay_.Draw(real_, info);
 

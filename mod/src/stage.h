@@ -41,3 +41,7 @@
  * if there's no engine/stage yet or the exe doesn't match; on success
  * `msg` holds the stage name. */
 bool RequestStageReload(char* msg, size_t msg_sz);
+
+/* Queues loading the stage `name` (a .GDW file name without extension) the
+ * same way. Returns false (reason in `msg`) if there's no engine yet. */
+bool RequestStageLoad(const char* name, char* msg, size_t msg_sz);

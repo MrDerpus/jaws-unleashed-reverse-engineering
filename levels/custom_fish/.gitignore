@@ -6,3 +6,5 @@
 *.mtl
 blender_export/
 build.log
+# Your own music (and the generated test tones)
+music/

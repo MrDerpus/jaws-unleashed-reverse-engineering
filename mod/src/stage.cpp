@@ -37,18 +37,27 @@ static bool rd(DWORD addr, void* out, SIZE_T n)
     return ReadProcessMemory(GetCurrentProcess(), (LPCVOID)addr, out, n, nullptr) != 0;
 }
 
-bool RequestStageReload(char* msg, size_t msg_sz)
+/* Checks the engine and its vtable; returns the RequestStage function or null. */
+static RequestStageFn GetRequestStage(DWORD& engine, const char* what, char* msg, size_t msg_sz)
 {
-    DWORD engine = 0, vtable = 0, fn = 0;
+    DWORD vtable = 0, fn = 0;
     if (!rd(ENGINE_GLOBAL, &engine, 4) || !engine) {
-        snprintf(msg, msg_sz, "Reload: no engine yet");
-        return false;
+        snprintf(msg, msg_sz, "%s: no engine yet", what);
+        return nullptr;
     }
     /* Only call through the vtable if it holds the function we decompiled. */
     if (!rd(engine, &vtable, 4) || !rd(vtable + VT_REQUEST_STAGE, &fn, 4) || fn != REQUEST_STAGE_FUNC) {
-        snprintf(msg, msg_sz, "Reload: unexpected engine vtable (exe differs?)");
-        return false;
+        snprintf(msg, msg_sz, "%s: unexpected engine vtable (exe differs?)", what);
+        return nullptr;
     }
+    return (RequestStageFn)fn;
+}
+
+bool RequestStageReload(char* msg, size_t msg_sz)
+{
+    DWORD engine = 0;
+    RequestStageFn fn = GetRequestStage(engine, "Reload", msg, msg_sz);
+    if (!fn) return false;
     char name[256] = {};
     if (!rd(engine + ENGINE_STAGE_NAME, name, sizeof(name) - 1) || !name[0]) {
         snprintf(msg, msg_sz, "Reload: no stage loaded");
@@ -59,7 +68,17 @@ bool RequestStageReload(char* msg, size_t msg_sz)
             snprintf(msg, msg_sz, "Reload: stage name unreadable");
             return false;
         }
-    ((RequestStageFn)fn)((void*)engine, STAGE_FLAG_LOAD, name);
+    fn((void*)engine, STAGE_FLAG_LOAD, name);
     snprintf(msg, msg_sz, "Reloading %s ...", name);
+    return true;
+}
+
+bool RequestStageLoad(const char* name, char* msg, size_t msg_sz)
+{
+    DWORD engine = 0;
+    RequestStageFn fn = GetRequestStage(engine, "Load", msg, msg_sz);
+    if (!fn) return false;
+    fn((void*)engine, STAGE_FLAG_LOAD, name);
+    snprintf(msg, msg_sz, "Loading %s ...", name);
     return true;
 }

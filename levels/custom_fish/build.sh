@@ -17,19 +17,25 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Build this level from custom_fish.blend and put it in the game as TEST.GDW.
+# Build this level from custom_fish.blend and install it in the game's
+# custom_levels/ folder (next to Jaws.exe) as LEVEL_NAME.GDW.
 #
 #   ./build.sh                  export from Blender, build, install
 #   ./build.sh --show-exits     same, with pink columns marking exit zones
 #   ./build.sh --no-deploy      build only (custom_fish.GDW here), don't install
 #
 # Save the .blend in Blender first: this reads the saved file.
-# In the game: enter Fisherman's Isle from Open Ocean South, or press F10 if
-# you're already in the level.
+# In the game: press F9 and pick the level (needs the mod), or press F10 if
+# you're already in it.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SCRIPTS="$HERE/../../scripts"
-DEPLOY=(--deploy TEST)
+LEVEL_NAME=CUSTOM_FISH   # letters, digits and _ only; not a stock level's name
+# Level music: keep (Fisherman's Isle's), none (silent, ~41 MB smaller), or
+# custom (the files in music/: calm_above, calm_under, suspense, action; any
+# audio format; missing ones fall back to calm_above).
+MUSIC=keep
+DEPLOY=(--deploy "$LEVEL_NAME")
 EXTRA=()
 for arg in "$@"; do
     case "$arg" in
@@ -38,6 +44,12 @@ for arg in "$@"; do
         *) echo "unknown option: $arg" >&2; exit 1 ;;
     esac
 done
+
+case "$MUSIC" in
+    keep|none) MUSIC_ARG="$MUSIC" ;;
+    custom)    MUSIC_ARG="$HERE/music" ;;
+    *) echo "MUSIC must be keep, none or custom" >&2; exit 1 ;;
+esac
 
 LOG="$HERE/build.log"
 echo "== Exporting from custom_fish.blend"
@@ -50,10 +62,10 @@ grep -E "^exported" "$LOG"
 
 echo "== Building the level"
 cd "$SCRIPTS"
-if ! python3 build_scene.py "$HERE/FISH_minimal_base.GDW" "$HERE/custom_fish.GDW" \
-        "$HERE/blender_export" "${DEPLOY[@]}" "${EXTRA[@]}" >> "$LOG" 2>&1; then
+if ! python3 build_scene.py "$HERE/FISH_blank_base.GDW" "$HERE/custom_fish.GDW" \
+        "$HERE/blender_export" --prune --music "$MUSIC_ARG" "${DEPLOY[@]}" "${EXTRA[@]}" >> "$LOG" 2>&1; then
     echo "Build failed. Last lines of build.log:" >&2; tail -15 "$LOG" >&2; exit 1
 fi
-grep -E "^(node|exit zone|texture |material |wrote|deployed)|large mesh|warning" "$LOG" || true
+grep -E "^(node|exit zone|spawn|music|pruned|texture |material |wrote|deployed)|large mesh|warning" "$LOG" || true
 [ ${#DEPLOY[@]} -eq 0 ] && echo "built $HERE/custom_fish.GDW (not installed)"
 exit 0

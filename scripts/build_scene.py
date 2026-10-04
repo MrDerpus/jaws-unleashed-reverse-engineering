@@ -55,20 +55,43 @@ further zones are copies of its PRPS pointing at the same action.
 material colour, or bright pink without one. Opaque colours are made
 see-through; a material Alpha below 1 is kept.
 
---deploy NAME copies OUT.GDW to the live game's data/NAME.GDW (a first-time
-backup NAME.GDW.pre_build is kept). Then press F10 in-game to reload.
+Spawn: the manifest's 'spawn' (a Blender object with jaws_spawn = 1) moves
+the shark's start nodes SPAWN_NODES (FISH: 'SHARRRK', the shark, and its
+marker 'SharkPosReal') there, facing the object's -Y. Their subtrees' AABBs
+and absolute-transform descendants move with them. Without one, the base's
+spawn stays (blank base: game (0, -6.5, 0), right above Blender's origin).
+
+The base's exit trigger (an area trigger with a non-empty leave or enter
+list) is reused for exit zones; strip_level.py --blank leaves it disabled.
+
+--music keep|none|DIR replaces the level music (gdw_music.py): keep FISH's,
+'none' = silence (~41 MB smaller), or a folder with calm_above / calm_under /
+suspense / action audio files (any format ffmpeg reads; missing ones fall
+back to calm_above).
+
+--prune (build.sh uses it) drops the resources the finished level doesn't
+use (prune_level.py), after everything else.
+
+--deploy NAME copies OUT.GDW to the live game's custom_levels/NAME.GDW, next
+to Jaws.exe (the mod loads it from there; F9 in-game opens the level picker,
+F10 reloads the current level). NAME must not be a stock level's name and may
+only use letters, digits and _ (max 31). A first-time backup
+NAME.GDW.pre_build is kept.
 Run from scripts/ (imports the sibling tools).
 """
 import argparse
 import json
 import math
 import os
+import re
 import shutil
 import struct
 import tempfile
 
 from gdw_grow import append_to_chunk, find_brtr, replace_chunk_payload, top_chunks, u32
 from gdw_materials import build_gmat_index
+from gdw_music import replace_music
+from prune_level import prune
 from insert_brtr_node import build_node, max_node_id, prop_offsets, replace_prop, top_level_nodes
 from gdw_textures import build_gtex, clone_gmat
 from obj_to_gmdl import build_gmdl, build_mreg, load_parts, next_free_id
@@ -93,6 +116,8 @@ P_VIEWPORT, VIEWPORT_ALL = 0x080017DD, 0x20003
 AREA_TRIGGER = 0x01134132
 P_AT_RADIUS, P_AT_ENTER, P_AT_LEAVE = 0x0800028F, 0x08000290, 0x08000291
 P_TRANSFORM, P_AABB = 0x080017DA, 0x080017DF
+P_NAME, P_FLAGS, FLAG_ABSOLUTE = 0x080017D8, 0x080017D9, 0x20000000
+SPAWN_NODES = ('SHARRRK', 'SharkPosReal')
 EXIT_PINK = (255, 20, 200, 150)   # --show-exits default marker colour (RGBA)
 TILE = 200.0         # max tile size, game units
 SPLIT_OVER = 300.0   # only meshes wider than this on some axis get cut
@@ -138,12 +163,15 @@ def exit_nodes(d, brtr, exits, first_new_id):
     BRTR payload."""
     nodes, end = top_level_nodes(d, brtr)
     old = [n for n, (p, s) in nodes.items() if u32(d, p + 8) == AREA_TRIGGER
-           and len(d[p:p + 8 + s]) and _prop(d[p:p + 8 + s], P_AT_LEAVE)[:4] != bytes(4)]
+           and (_prop(d[p:p + 8 + s], P_AT_LEAVE)[:4] != bytes(4)
+                or _prop(d[p:p + 8 + s], P_AT_ENTER)[:4] != bytes(4))]
     if len(old) != 1:
-        raise SystemExit(f'expected one leave-type exit trigger in the base, found {old}')
+        raise SystemExit(f'expected one exit trigger in the base, found {old}')
     p, s = nodes[old[0]]
     src = bytes(d[p:p + 8 + s])
     acts = _prop(src, P_AT_LEAVE)
+    if acts[:4] == bytes(4):
+        acts = _prop(src, P_AT_ENTER)     # blank base: disabled, actions already on enter
     # header + PRPS + the node's own ACTNs; no CHBR children (the buoy ring)
     head, q, own = src[:16], 16, b''
     prps = b''
@@ -172,6 +200,62 @@ def exit_nodes(d, brtr, exits, first_new_id):
               + (' (base exit, buoys removed)' if k == 0 else ''))
     payload = d[brtr + 8:p] + b''.join(out) + d[(p + 8 + s + 3) & ~3:end]
     return bytes(payload)
+
+
+def node_props(d, c):
+    """{prop id: payload offset} of the CHBR at c, in place."""
+    q = c + 16
+    while d[q:q + 4] != b'PRPS':
+        q = (q + 8 + u32(d, q + 4) + 3) & ~3
+    out, r, rend = {}, q + 8, q + 8 + u32(d, q + 4)
+    while r < rend:
+        out[u32(d, r + 8)] = r + 12
+        r += 8 + ((u32(d, r + 4) + 3) & ~3)
+    return out
+
+
+def set_spawn(d, brtr, spawn):
+    """Move the shark's start nodes (SPAWN_NODES) to spawn['pos'], facing
+    spawn['forward'] (game x, z), in place: no sizes change."""
+    fx, fz = spawn['forward']
+    n = math.hypot(fx, fz) or 1.0
+    fx, fz = fx / n, fz / n
+    # the shark faces its local +Z; X = Y x Z keeps FISH's handedness
+    basis = (fz, 0.0, -fx, 0.0, 1.0, 0.0, fx, 0.0, fz)
+    nodes, _ = top_level_nodes(d, brtr)
+    done = []
+    for nid, (c, sz) in nodes.items():
+        pr = node_props(d, c)
+        name = d[pr[P_NAME] + 4:pr[P_NAME] + 4 + u32(d, pr[P_NAME])].split(b'\0')[0].decode('latin1') \
+            if P_NAME in pr else ''
+        if name not in SPAWN_NODES:
+            continue
+        t = pr[P_TRANSFORM]
+        delta = [spawn['pos'][i] - struct.unpack_from('<f', d, t + 36 + 4 * i)[0] for i in range(3)]
+        struct.pack_into('<12f', d, t, *basis, *spawn['pos'])
+
+        def walk(c, top):
+            pr = node_props(d, c)
+            flags = struct.unpack_from('<I', d, pr[P_FLAGS])[0] if P_FLAGS in pr else 0
+            if not top and flags & FLAG_ABSOLUTE and P_TRANSFORM in pr:
+                for i in range(3):
+                    o = pr[P_TRANSFORM] + 36 + 4 * i
+                    struct.pack_into('<f', d, o, struct.unpack_from('<f', d, o)[0] + delta[i])
+            if P_AABB in pr:
+                for i in range(6):
+                    o = pr[P_AABB] + 4 * i
+                    struct.pack_into('<f', d, o, struct.unpack_from('<f', d, o)[0] + delta[i % 3])
+            q, end = c + 16, c + 8 + u32(d, c + 4)
+            while q < end:
+                if d[q:q + 4] == b'CHBR':
+                    walk(q, False)
+                q = (q + 8 + u32(d, q + 4) + 3) & ~3
+        walk(c, True)
+        done.append(name)
+    if not done:
+        raise SystemExit(f'spawn: none of {SPAWN_NODES} found in the base')
+    x, y, z = spawn['pos']
+    print(f"spawn: {', '.join(done)} at ({x:.1f}, {y:.1f}, {z:.1f}), facing ({fx:.2f}, {fz:.2f})")
 
 
 def _prop(node, prop_id):
@@ -245,6 +329,10 @@ def main():
                     help=f'cut meshes wider than {SPLIT_OVER:g} units into tiles of this size (0 = off)')
     ap.add_argument('--show-exits', action='store_true',
                     help='testing: pink see-through column at each exit zone')
+    ap.add_argument('--music', default='keep', metavar='keep|none|DIR',
+                    help="level music: keep the base's, none (silence), or a folder of audio files")
+    ap.add_argument('--prune', action='store_true',
+                    help='drop resources the finished level does not use (prune_level.py)')
     ap.add_argument('--templates', default=TEMPLATES_GDW,
                     help='GDW to copy template nodes 77/79 from (default: stock FISH)')
     a = ap.parse_args()
@@ -333,21 +421,39 @@ def main():
     if man.get('exits'):
         brtr = find_brtr(d)
         replace_chunk_payload(d, brtr, exit_nodes(d, brtr, man['exits'], node_id))
+    if man.get('spawn'):
+        set_spawn(d, find_brtr(d), man['spawn'])
 
     check(d)
+    if a.music != 'keep':
+        if a.music != 'none' and not os.path.isdir(a.music):
+            raise SystemExit(f'--music: {a.music!r} is not keep, none or a folder')
+        d = replace_music(bytes(d), a.music)
+        check(d)
+    if a.prune:
+        size = len(d)
+        d, kept, removed = prune(bytes(d))
+        check(d)
+        print(f'pruned unused resources: {size / 1e6:.1f} MB -> {len(d) / 1e6:.1f} MB')
     if tmp:
         shutil.rmtree(tmp)
     open(a.out, 'wb').write(d)
     print(f'wrote {a.out} ({len(man["objects"])} objects, {len(man["meshes"])} meshes, {nodes} nodes), checks passed')
 
     if a.deploy:
-        live = os.path.join(LIVE_DATA, a.deploy + '.GDW')
+        if not re.fullmatch(r'[A-Za-z0-9_]{1,31}', a.deploy):
+            raise SystemExit(f'--deploy {a.deploy!r}: use letters, digits and _ only (max 31)')
+        if os.path.exists(os.path.join(LIVE_DATA, a.deploy.upper() + '.GDW')):
+            raise SystemExit(f'--deploy {a.deploy!r}: a stock level has that name')
+        live_dir = os.path.join(os.path.dirname(LIVE_DATA.rstrip('/')), 'custom_levels')
+        os.makedirs(live_dir, exist_ok=True)
+        live = os.path.join(live_dir, a.deploy.upper() + '.GDW')
         backup = live + '.pre_build'
         if os.path.exists(live) and not os.path.exists(backup):
             shutil.copy2(live, backup)
         shutil.copyfile(a.out, live)
         assert open(live, 'rb').read() == bytes(d)
-        print(f'deployed to {live} -- press F10 in-game')
+        print(f'deployed to {live} -- F9 in-game to load it, F10 if already in it')
 
 
 if __name__ == '__main__':
