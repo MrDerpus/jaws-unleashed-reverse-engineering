@@ -256,6 +256,99 @@ Found while getting a scripted trigger to work (see `docs/brtr_editing.md` "Scri
 - **Hit/destroy handler `0x4A5080`** (mode 0/1/2): if hit points ≤ 0 → sounds/messages, kill listed destructibles, spawn remains, **start `m_robbcontrol`** (`0x6C3010` → `0x68EA80`), … ; otherwise **start `m_megutcontrol`**. The collision handler `0x4A5F10` subtracts damage and calls it in mode 2; `0x4A5E00` handles losing supports.
 - Shipped use: 111 destructibles use `m_robbcontrol`, 21 `m_megutcontrol` (e.g. AQUARIUM's `ParavanTorik` screens open a portal and advance the quest; DEEPSEA's tanks start explosion chains; DEEPSEA2's lamps kill their light cones). FISH's pier posts have both hooks empty.
 
+## Cut story mission "Hot Pursuit": `StagePursuitQuest` / `StagePursuitQuest2` (decoded 2026-10-10)
+
+**The mission logic is fully compiled into the shipped PC exe, not stubbed.** Two versions exist side by side: `StagePursuitQuest` (an earlier, kill-driven draft with no win or lose condition) and `StagePursuitQuest2` (a complete mission: gate sequence, lose-by-distance, boss fight, completion). Both have an event class (`StagePursuitQuestEvent`, `StagePursuitQuest2Event`) that is a plain `NAQuestEvent` subclass with no fields of its own, the same base the shipped `StageDocksQuest`, `StageDeepSeaQuest` and `NAQuestEventKatatama` events use. Decompiled output came from `CreateDecomp.java` over the vtable entries; code range `0x5FB300`–`0x5FD000`.
+
+| | `StagePursuitQuest` | `StagePursuitQuest2` |
+|---|---|---|
+| Class descriptor | `0x8FE120` | `0x8FE418` |
+| Object vtable | `0x7EDFE8` | `0x7EE180` |
+| Tick (`vtbl+0x48`) | `0x5FBA00` | `0x5FC800` |
+| Activate (`+0x50`) / deactivate (`+0x54`) | `0x5FB960` / `0x5FB9F0` | `0x5FC730` / `0x5FC7F0` |
+| Message handler (`+0x68`) | `0x5FBB80` | `0x5FCD10` |
+| Advance to step N (`+0x6C`) | `0x5FBBF0` | `0x5FCDF0` |
+| Object size | `0x1AC` | `0x24C` |
+
+On activation each quest stores itself in the global **`0x8FE494`** ("current pursuit quest", cleared on deactivate). Pursuit quest events send their message number to whatever object that global points at.
+
+**Fields** (registration `b` → runtime offset; for ID lists `b` is the wrapper, count at `b+4`, array pointer at `b+8`; for single values the value is at `b+4`):
+
+| Field | Quest | Quest2 | Used as |
+|---|---|---|---|
+| `m_JetSkiIDList` | `0x174` | `0x174` | the jet skis being chased |
+| `m_GateIDList` | `0x180` | – | gate-opening actions (Quest) |
+| `m_GateOpenPosIDList` | – | `0x180` | marker nodes: open gate *i* when a jet ski gets near marker *i* |
+| `m_GateClosePosIDList` | – | `0x18C` | marker nodes: a jet ski counts as "through gate *i*" within 100 units of marker *i* |
+| `m_GateOpenerIDList` | – | `0x198` | actions started to open each gate |
+| `m_GateCloserIDList` | `0x18C` | `0x1A4` | actions started to close each gate |
+| `m_JetSkiBossIDList` | – | `0x1B0` | extra jet skis that only matter in the boss phase |
+| `m_OnAccomplished` | – | `0x1BC` | action started on success |
+| `m_OnBossFight` | – | `0x1C4` | action started when the boss phase begins |
+| `m_PursuitLostDist` | – | `0x1CC` (float) | lose distance |
+
+Inherited from the shared quest base (descriptor `0x8FE1D0`): `m_checkpoints`, `m_checkpointactions`, `m_events` (one action per mission state; `+0x6C` "advance to step N" starts `m_events[N]` when the current state is N−1), `m_missionbricks`. Quest state is at `+0x6C`. A jet ski counts as dead when its AI state (`ai+0xC28 + ai[+0xC24]*8`, `ai` = registered object `+0x20`) is `5`.
+
+### `StagePursuitQuest2`: how the mission plays
+
+State `+0x6C`: **0** = chase running, **8** = boss fight, **5** = accomplished, **6** = failed, **7** = inactive.
+
+**State 0, every tick** (`0x5FC800`). The shark's position comes from the brick at `[0x90BC08]` (`+0xA8`). Two 1-based counters start at 1: next gate to open `g` (`+0x1DC`) and next gate to close `c` (`+0x1E0`), plus a per-jet-ski "passed gate" counter at `+0x1EC + 4i`.
+- **Lose:** if the *nearest* live jet ski is farther from the shark than `m_PursuitLostDist`, the game shows *"The jet skiers have escaped! Mission failed!"* and the state goes to 6.
+- **Gates open ahead of the jet skis:** when any live jet ski comes within **150** units of `m_GateOpenPosIDList[g−1]`, start `m_GateOpenerIDList[g−1]`, `g++`.
+- **Gates close behind them:** a jet ski within **100** units of `m_GateClosePosIDList[c−1]` is marked as through gate `c`. Once `c < g` and every marked jet ski is more than **150** units past that marker, start `m_GateCloserIDList[c−1]`, `c++`.
+
+So the jet skis race through a chain of gates that open in front of them and shut again behind them. The shark has to stay within `m_PursuitLostDist` of them, and if it doesn't make it through before a gate shuts, it's cut off and loses them. This matches the canal (lock/sluice gates) reading of `MINEMSHA.GDW`.
+
+**Message 5 → boss fight** (`0x5FCD10`): only if the state isn't already 8 *and* every gate has been closed (`c > count(m_GateCloserIDList)`). Shows *"Destroy all the jet skis! Press ^CONT^ to continue."*, starts `m_OnBossFight`, state 8. Something in the level (presumably an area trigger at the end of the canal, through a `StagePursuitQuest2Event`) was meant to send message 5 once the jet skis arrive.
+
+**State 8, every tick:** counts live, active (`flags & 2`) jet skis in both `m_JetSkiIDList` and `m_JetSkiBossIDList`. At zero it starts `m_OnAccomplished`, state 5.
+
+**State 6 (failed):** resets something in `[0x920E24]+0x88`, calls `0x69AC70(0x8000)`, then `RequestStage(2, "")` (engine vtable `+0x80` with flag 2 and an empty name; flag 2 isn't decoded, probably "restart current stage").
+
+**Messages** (`+0x68`): 0 or 4 → state 0 (start or resume chase), 1 → 5 (accomplished), 2 → 6 (fail), 3 → 7 (stop), 5 → boss fight (above), 10000–10063 → increment counter slot `+0x70 + 4(n−10000)` (generic quest counters).
+
+**The on-screen texts** go through `0x4928D0(text, 4, 0x98967F)` and only show when the global `[0x8DA1EC]` is non-zero. That global has 134 references across the exe, so it's a general mission-HUD flag, not a debug switch.
+
+**`"NNNNNNZZZZZ"`:** set at `+0x1E8` (with mask `0x2000` at `+0x1E4`) on activation but never read by Quest2's code. A leftover from the first version (below).
+
+### `StagePursuitQuest` (first version): kill-driven gates
+
+No lose condition, no boss phase, no completion action. The tick (`0x5FBA00`) counts live jet skis. Each time one dies, it starts the next action in `m_GateIDList` (opens the next gate) and sets a new **waypoint-group mask** on every jet ski: `mask = 1 << (pattern[k] − 'A')`, with pattern **`"OOOOOOZZZZZ"`** and `k` = gates opened so far. The mask starts at `0x2000` = `'N'`, so the sequence is N, then O after kills 1–5, then Z. The mask goes to jet-ski AI `+0x318`. The code also ORs together the group bits of each live jet ski's current waypoint (`ai+0xA80` → registered object `+0x108`), and once every jet ski is on an allowed waypoint it starts the next `m_GateCloserIDList` action. **So `OOOOOOZZZZZ` / `NNNNNNZZZZZ` are waypoint-group letter sequences** (A–Z = bits 0–25, which fits the `m_waypointgroups` field seen elsewhere), not cheat codes. Killing a jet skier diverted the rest onto a different route group. Messages: 0 → 0, 1 → 5, 2 → 6, 10045 (`0x273D`) → 7, 10062 (`0x274E`) → 0, else counters.
+
+### Running it in-game (proof of concept, 2026-10-10, user-tested)
+
+`scripts/build_pursuit_test.py` builds `edited_levels/PURSUIT.GDW` from stock MINEMSHA (the canal) and installs it as the custom level `PURSUIT` (mod F9). **Confirmed in-game: the gate opens, the lose condition fires ("The jet skiers have escaped!", then the stage restarts), the end-zone event starts the boss phase ("Destroy all the jet skis!"), and killing the jet ski fires `m_OnAccomplished`.** Five test builds; what each one taught:
+
+- **Quest instance:** a root-level `ACTN` (class `0x0208D08C`, right after the root `PRPS` like MINEMSHA's `Stage0Quest`), base fields `0x08001161`–`64` as empty lists, `0x080017C4` = 2. That runs from load. The same quest on a group node with `0x080017C4` = 0, started by an area trigger, never ran (but that test also had the holder bug below, so it isn't conclusive).
+- **Jet skis are listed by their `ANPosition` marker** (`jetski 1`, node 2670), as the shipped quests do with their boats. `ANPosition`'s vtable (`0x7D0AEC`) slot `+0x24` is `0x69A210`: look up the object ID at `+0xF4` (the spawned copy, a runtime ID such as `0x1001EF`) with `0x6C2FD0`, which returns that object's live brick. So `0x6C3010(marker)` gives the moving jet ski.
+- **`0x6C3010` on a node** returns the registered object's `+0x24` (vtable `+0x24` → `0x401650` → `+0x20` → `0x401640` `mov eax,[ecx+0x24]`), i.e. its live brick, or null if it has none. **A node only gets a live brick when its `m_nFlags` has `0x10` ("in world")**: the empty group node copied from MINEMSHA's `NorthBrick` (flags `0x2`) got none. As a position marker the quest then compares against nothing (the gate never opened); as the holder of the `GDControl`s and the quest event, none of its actions got a live instance, so neither the quest nor the area triggers could start them. Flags `0x12` (like `SHARRRK`) fixed both.
+- **Area triggers copied from FISH's exit (`PRPS` only) fire in MINEMSHA**, with `m_target` set to the level's shark node and `m_enter_act` listing action IDs on an in-world group node.
+- **The shark position `[0x90BC08]`:** set to the shark's brick when the shark controller activates (`0x664EA9`); before that it points at a placeholder brick made at `0x55AB90`, and the controller's teardown clears it (`0x6711BE`). The root quest ran from load without hitting the placeholder.
+- **`RequestStage` flag 2** (the fail path) restarts the current stage.
+- **The jet ski doesn't drive its route here.** MINEMSHA's `jetski 1` only loiters near its start (repointing its route, `PROP 0x080001F0`, changed nothing; it has a second route field `0x080001FC` = `JetskiChase`), probably because SC15's `UpACreekMission` drives the canal traffic. So it can never pass a close marker and get 150 units past it, the gate never closes, and with closers the boss phase stays locked. The last build lists **no closers**: "all gates closed" (closer count < next-to-close index) is then true from the start. `m_GateClosePosIDList` must stay non-empty because the chase tick reads entry `[c−1]` every frame.
+- **Boss-phase quirk:** state 8 counts jet skis whose brick and AI are flagged active (`+0xC & 2`). Swimming far away despawns or deactivates the range-spawned copy, which counts as destroyed and completes the mission. The lose check only runs in state 0, so it doesn't catch this.
+
+### Getting the jet ski to race (v6–v10, 2026-10-11, user-tested)
+
+**Result: the full sequence works through the real gate logic, with the jet ski driving the route on its own (v10).** In v9 a jet ski drives up MINEMSHA's main canal through two gates. Each gate opens as it approaches and shuts behind it, and only once both have shut does the end zone start the boss phase ("Destroy all the jet skis!"). Killing the jet ski fires `m_OnAccomplished`. What it took:
+
+- **Boat markers (`ANPosition`, class descriptor `0x8CBB10`, 98 fields): PROP = `0x080001EE` + field index.** Fields 1 and 2 (`0x080001EF`, `0x080001F0`) hold the route (`GDPath` node ID). The canal's sail boats, which drive the full canal, set both and have no chase mode. Field 13/14 are `m_chase_proc` / `m_chase_area` (`0x080001FB` / `0x080001FC`, a `GDPath` used as an area). Others: `m_lookdistance` `0x080001F4`, `m_speed` `0x08000212`, `m_crew` `0x08000213`, `m_customcrew` `0x08000214` (rider reference list), `m_runaway` `0x0800022D`, `m_alarmer` `0x08000228`, `m_targeting` `0x0800023B`. Tri-state 0 = inherit, 1 = off, 2 = on. (The dump's names for these fields are shifted by drift, so only names checked against values are listed here.)
+- **Boats do follow their routes.** The F12 boat probe (below) showed `jetski 1` and its copies in state 2, sub-state 3 ("path mode") with their path found. Both stock jet-ski routes (`jetskipath`, `JetskiChase`) are small loops inside the starting cove, which looks like loitering. A copy set up like the ocean boats (`m_runaway` 2, `m_alarmer` 1) fled from the shark instead (sub-states 6/2).
+- **`ANShip` activation (`FUN_00410DA0`):** path ID at AI `+0xE20` → `0x692630` (registry lookup); with a path it pushes state 2/3 plus 0/3 and picks the nearest path point (`+0x2B4`); without one, state 2/1 plus the "no path" byte `+0xA78`; a flag at `+0xD8C` gives state 2/7. It also sets the waypoint-group mask `+0x318` = `0x2000` ('N'), the mask `StagePursuitQuest` (the first draft) changes.
+- **A spawned boat is removed when it leaves its marker's bounding box (`PROP 0x080017DF`).** `jetski 1`'s box covers only the cove (x −1662…−845, z −1195…−377), and the copy kept vanishing about 500 units up the canal and respawning. Giving the marker a box around the whole route (+100) fixed it. SC15's other crew markers have similar ±300 boxes. The top-level sail boats have tiny boxes and still drive the whole canal, so the rule may only apply to some setups; not checked further.
+- **The route:** a reversed copy of the sail boats' `vitorlas_a1_a2 path` (node 2658, open, 24 points, ~1,230 units, so every point is water), placed at the source path's world transform since its points are local to it.
+- **The loiterer removed:** `scripts/build_pursuit_test.py` cuts `jetski 1` and its rider out of `BRTR` (`remove_nodes`, which fixes every ancestor's size) after copying them; nothing else references them.
+- **Speed (v10):** with `jetski 1`'s `m_speed` 250 and `m_turnd`/`m_stopd` 0 (inherit), the copy drove north but rammed the canal's bends (the route was made for slow sail boats), got stuck or wrecked itself, and only kept going while the shark chased it. **`m_speed` 120, `m_turnd` 40, `m_stopd` 20 (the ocean boats' values) fixed it: the jet ski drives the canal route by itself** (user-tested 2026-10-11).
+- **Still open:** the route is open and ends in the canal's north-west corner (the sail boats' start), so after the last point the jet ski drives straight into the bank near the end zone and gets stuck. Close the route or end it in open water. Also not done yet: several jet skis plus `m_JetSkiBossIDList`, solid gates, on-screen goal text.
+
+**Mod F12 boat probe (2026-10-11):** for an `ANPosition` marker, F12 follows marker → spawned copy (`+0xF4`) → live object → `ANShip` AI (`+0x20`) and prints position, state stack, path ID and object, and flags. Runtime-spawned copies are registered *as* the live object (vtable `+4` = "not a definition"), while file nodes resolve through `+0x24`. The probe emulates `0x6C2FD0` by reading the shared `mov eax,1` / `xor eax,eax` stubs. Code: `mod/src/iddump.cpp`.
+
+### Open
+- Which level data was meant to instantiate the quest: **none survives**. No GDW contains a `StagePursuitQuest*` instance (searched by class ID, 2026-10-10).
+- `0x69AC70(0x8000)` in the fail path (`RequestStage` flag 2 restarts the stage, seen in-game).
+- The jet-ski AI is `ANShip` (definition object `0x1264` bytes; only ANShip code, `0x410000`–`0x41D000`, writes the state stack at `+0xC24`/`+0xC28`, state 5 at `0x41691A`). Route following works (see above; speed 120 with turn/stop distances 40/20 on the canal); `+0xA80` (current waypoint) used by the first draft is still unexplored.
+
 ## Open items
 
 - ~~Meaning of the two integers in each field registration~~: resolved 2026-10-03, see "`GDControl`… Registration integers, resolved".

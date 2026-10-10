@@ -76,6 +76,71 @@ static void dump_object(FILE* out, DWORD obj)
     }
 }
 
+
+/* ANPosition (boat marker) -> its spawned copy -> live brick -> ANShip AI, the
+ * chain StagePursuitQuest2 follows (docs/exe_analysis.md "Running it in-game"):
+ * marker vtable 0x7D0AEC, copy ID at +0xF4, live brick at registered +0x24, AI at
+ * brick +0x20. ANShip fields from its activation FUN_00410DA0: +0xC24 state-stack
+ * depth, +0xC28 + 8k (state, sub), +0xE20 path ID, +0x2A4 path object, +0xA78 "no
+ * path" byte, +0xD8C flag (state 2/7 path), +0xA84 "skip" byte, +0x318 waypoint
+ * group mask. */
+static const DWORD VT_ANPOSITION = 0x7D0AEC;
+
+/* What a vtable slot's function returns, if it is one of the tiny shared stubs:
+ * 1 for "mov eax,1; ret" (0x401630), 0 for "xor eax,eax; ret", -1 otherwise. */
+static int stub_value(DWORD fn)
+{
+    BYTE b[6] = {};
+    if (!rd(fn, b, sizeof(b))) return -1;
+    if (b[0] == 0xB8 && b[1] == 1 && !b[2] && !b[3] && !b[4] && b[5] == 0xC3) return 1;
+    if (b[0] == 0x33 && b[1] == 0xC0 && b[2] == 0xC3) return 0;
+    return -1;
+}
+
+/* Emulates 0x6C2FD0 on a registered object: if vtable+4 says "definition", the
+ * live object is vtable+0x20's result (0x401640 = [obj+0x24]); otherwise the
+ * registered object is the live one. */
+static DWORD live_of(FILE* out, DWORD obj)
+{
+    DWORD vt = 0, f4 = 0, f20 = 0, live = 0;
+    rd(obj, &vt, 4); rd(vt + 4, &f4, 4); rd(vt + 0x20, &f20, 4);
+    int is_def = stub_value(f4);
+    if (is_def == 0) return obj;
+    if (is_def == 1 && f20 == 0x401640) { rd(obj + 0x24, &live, 4); return live; }
+    fprintf(out, "   (vtable %08lX: +4 = %08lX, +0x20 = %08lX not understood)\n",
+            (unsigned long)vt, (unsigned long)f4, (unsigned long)f20);
+    return 0;
+}
+
+static void dump_boat(FILE* out, DWORD copy_obj)
+{
+    DWORD brick = 0, ai = 0, aivt = 0, cvt = 0;
+    float pos[3] = {};
+    rd(copy_obj, &cvt, 4);
+    fprintf(out, "   copy object %08lX vtable %08lX:\n", (unsigned long)copy_obj, (unsigned long)cvt);
+    dump_object(out, copy_obj);
+    brick = live_of(out, copy_obj);
+    if (brick) rd(brick + 0xA8, pos, sizeof(pos));
+    if (brick) rd(brick + 0x20, &ai, 4);
+    fprintf(out, "   boat: copy object %08lX brick %08lX pos (%.1f, %.1f, %.1f) ai %08lX",
+            (unsigned long)copy_obj, (unsigned long)brick, pos[0], pos[1], pos[2], (unsigned long)ai);
+    if (!ai || !rd(ai, &aivt, 4)) { fprintf(out, "\n"); return; }
+    DWORD depth = 0, path_id = 0, path = 0, flag_d8c = 0, mask = 0, aiflags = 0;
+    BYTE nopath = 0, skip = 0;
+    rd(ai + 0x0C, &aiflags, 4); rd(ai + 0xC24, &depth, 4); rd(ai + 0xE20, &path_id, 4);
+    rd(ai + 0x2A4, &path, 4); rd(ai + 0xA78, &nopath, 1); rd(ai + 0xD8C, &flag_d8c, 4);
+    rd(ai + 0xA84, &skip, 1); rd(ai + 0x318, &mask, 4);
+    fprintf(out, " vtable %08lX flags %08lX\n    path id %lu path obj %08lX no-path %u +D8C %08lX skip %u group mask %08lX\n    states:",
+            (unsigned long)aivt, (unsigned long)aiflags, (unsigned long)path_id, (unsigned long)path,
+            nopath, (unsigned long)flag_d8c, skip, (unsigned long)mask);
+    for (DWORD k = 0; k <= depth && k < 32; ++k) {
+        DWORD st[2] = {};
+        rd(ai + 0xC28 + 8 * k, st, sizeof(st));
+        fprintf(out, " [%lu/%lu]", (unsigned long)st[0], (unsigned long)st[1]);
+    }
+    fprintf(out, "  (depth %lu)\n", (unsigned long)depth);
+}
+
 bool DumpIdRegistry(char* msg, size_t msg_sz)
 {
     DWORD engine = 0, nbuckets = 0, buckets = 0, counter = 0;
@@ -141,6 +206,15 @@ bool DumpIdRegistry(char* msg, size_t msg_sz)
                     fprintf(out, "   -> +%02lX points at %08lX (vtable %08lX):\n", (unsigned long)off, (unsigned long)p, (unsigned long)pvt);
                     dump_object(out, p);
                 }
+            }
+            if (vt == VT_ANPOSITION) {
+                DWORD copy_id = 0;
+                rd(en.obj + 0xF4, &copy_id, 4);
+                bool hit = false;
+                for (const Entry& c : all)
+                    if (c.key == copy_id) { dump_boat(out, c.obj); hit = true; break; }
+                if (!hit)
+                    fprintf(out, "   boat: copy id 0x%lX not in registry\n", (unsigned long)copy_id);
             }
             any = true;
         }

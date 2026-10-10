@@ -37,6 +37,39 @@ Known level files:
 
 ---
 
+## Engine lineage: Game World Builder, shared with *Ecco the Dolphin: Defender of the Future* (confirmed 2026-10-11)
+
+**Credit where it's due:** the user said from the start that *Jaws Unleashed* was made with the same editor as Appaloosa's *Ecco the Dolphin: Defender of the Future*. Claude was hesitant at first and called the claim unverified, since nothing in the Jaws files names the tool. The user then supplied the evidence below, and the comparison proved them right.
+
+**The tool:** Appaloosa's own PS2 press information kit (September 2001; copy in [`docs/sources/Appaloosa_PS2_press_information_2001-09.pdf`](sources/Appaloosa_PS2_press_information_2001-09.pdf), from [Sega Retro](https://segaretro.org/images/8/86/PS2PressInformation_2001-09_Ecco_Appaloosa_info.pdf); this PDF was exported from Word in January 2020, author field "Csaba Soltesz") describes the **Game World Builder™ ("GWB") 3D tool suite**, in development since early 1999 for *Ecco the Dolphin* on Dreamcast and ported, with all of Ecco's levels, to PS2 in under three months. *Defender of the Future*'s credits name GWB; *Jaws Unleashed*'s credits don't. The press kit's description of GWB matches the Jaws format closely:
+
+| Press kit (2001) | *Jaws Unleashed* data |
+|---|---|
+| "built around standard **bricks** (objects)" | `BRTR` (brick tree), `CHBR` (child brick), `GDBrick` / `GDStdBrick` |
+| "**actions** (procedures)" | `ACTN` blocks (`GDControl`, quests, …) |
+| "**resources** (meshes, textures, sfx, collision data)" | `RSRC`: `GMDL`, `GTEX`, `GSMP`, `MREG` |
+| "type classes" with a `GD` prefix (GDReal, GDVect, GDMatrix, GDAngle) | engine-wide `GD` classes (`GDModel`, `GDControl`, `GDPath`, …) |
+| exporters convert textures to console formats and meshes into triangle strips | PS2 `.GDE`: native GS textures, `STRP` triangle strips |
+
+The literal strings "GWB" / "Game World Builder" and those four type names don't occur in the Jaws files (a few "GWB" byte matches are random bytes inside pixel data), so the identification rests on the format below, not on a name.
+
+**The proof: Defender's PS2 level files are the same format.** The *Defender of the Future* PS2 disc stores its levels as `.GDE` files too (e.g. `DATA/110L_BAY.GDE`, 20 MB). Checked read-only:
+
+| | Defender PS2 `110L_BAY.GDE` | Jaws PS2 `FISH.GDE` |
+|---|---|---|
+| Preamble | `GDED BINARY FORMAT, VERSION 2.1.12.1` | `GDED BINARY FORMAT, VERSION 2.6.3.16` |
+| Top-level chunks | `LDSC` `GNRL` `WDIM` `RSPR` `CLAS` `RSRC` `BRTR` `SCRT` | `FSIZ` `VERS` `EXBY` `GNRL` `WDIM` `RSPR` `CLAS` `RSRC` `BNCH` `BRTR` `SCRT` `SKIP` `FDIR` `ENDF` |
+| Class tables | `CLAS` with `BRCM` + `ACCM` | same |
+| Scene tree | `CHBR` ×2,896, `PRPS` ×4,033, `PROP` ×54,821 | same structure |
+| Actions / resources | `ACTN` ×811, `GMDL` ×1,611, `GTEX` ×1,216, `MREG` ×412, `STRP` ×513 | same tags |
+| Engine classes | `GDModel`, `GDControl`, `GDBrick`, `GDStdBrick`, `GDPath`, `GDLight` | same names |
+
+The differences fit an older version of the same tool. Defender's chunks are packed (no 4-byte padding; its first chunk starts at `0x29`, straight after the preamble's line breaks). It opens with `LDSC` where Jaws has `FSIZ`/`VERS`/`EXBY`. It has no `SKIP`/`FDIR`/`ENDF` footer (the part Jaws uses for embedded loading-screen archives) and no `GSMP` audio in that file. **Conclusion: *Jaws Unleashed* was built with Game World Builder, the same tool suite as *Defender of the Future*, about five years and several versions later (2.1.12.1 → 2.6.3.16).**
+
+**Lead (noted 2026-10-11, high interest):** [Hidden Palace](https://hiddenpalace.org/Ecco_the_Dolphin:_Defender_of_the_Future_(Feb_17,_2000_prototype)) hosts a *Defender of the Future* **Dreamcast prototype dated 17 February 2000**, from the GWB era (GWB development began in early 1999 for exactly this game). Its level files could carry an even older `GDED` version and maybe tool or debug leftovers. Comparing it with Defender PS2 (2.1.12.1) and Jaws (2.6.3.16) would trace how the format evolved, and might show what GWB itself put into the files. Also worth reading: Sega Retro's [Defender page](https://segaretro.org/Ecco_the_Dolphin_Defender_of_the_Future). A 2000 GameSpot preview of Defender couldn't be fetched (403), so it hasn't been checked.
+
+---
+
 ## Archive Structure
 
 **Engine version:** All 20 GDW files share the identical header `GDED BINARY FORMAT, VERSION 2.6.3.16` with an internal date of `20030626` (June 26, 2003) — three years before the 2006 release. The engine was frozen well before ship.

@@ -324,7 +324,13 @@ A level's scripted events (cutscene steps, effects spawning, objects being kille
 - **Hiding without moving:** `m_nFlags` (`PROP 0x080017D9`) bit `0x100` = not rendered (that's how the invisible `Kizaro_Lap_Kozepes` blockers work). Untested as a static BRTR edit; the "move 50,000 down" method is what's been verified.
 - **Removing a node that scripts point at** is safe: the interpreter skips IDs that don't resolve, and shipped levels already contain 9 to 72 such dangling IDs each.
 
+## Boat markers (`ANPosition`) and routes (2026-10-11)
+
+Found while getting Hot Pursuit's jet ski to race. An `ANPosition` node places a boat (copy of the template in `PROP 0x080017F0`) that drives a `GDPath` route. Its fields are PROP `0x080001EE` + field index (class descriptor `0x8CBB10`, 98 fields): route = fields 1–2 (`0x080001EF`/`0x080001F0`; the canal sail boats set both), `m_chase_proc`/`m_chase_area` `0x080001FB`/`0x080001FC` (keep a boat roaming inside an area; 0 for a long route), `m_speed` `0x08000212`, `m_turnd`/`m_stopd` `0x08000218`/`0x08000219`, `m_customcrew` `0x08000214` (rider reference list). **The spawned boat is removed once it leaves the marker's AABB (`0x080017DF`)**, so a boat on a long route needs an AABB covering the route. A `GDPath`'s points (`PROP 0x080018BC`, `[n][xyz…]`) are local to its node; `0x080018BD` = closed loop. A boat at the end of an open route keeps going straight. Working example: `scripts/build_pursuit_test.py`.
+
 ## Scripted triggers — working (2026-10-03, user-confirmed)
+
+**Rule found 2026-10-10 (Hot Pursuit proof of concept, `scripts/build_pursuit_test.py`): a new group node that holds actions, or serves as a position marker, needs `m_nFlags` `0x10` ("in world"); use `0x12` like `SHARRRK`.** Without it the node gets no live brick: `0x6C3010` returns null for it, its actions get no live instance (so nothing can start them), and it has no position. A copy of MINEMSHA's `NorthBrick` (flags `0x2`) failed all three ways. Details: `docs/exe_analysis.md` "Running it in-game".
 
 **Breaking a chosen object makes other objects disappear (visibility and collision).** Tool: **`scripts/add_trigger.py BASE.GDW OUT.GDW`**, configured in its `CONFIG` block. Verified in-game: biting the pink trigger post leaves the target alone; breaking it removes the target and its collision.
 
@@ -349,24 +355,20 @@ The red monkey is Blender's Suzanne: exported as OBJ (triangulated, smart-UV), `
 
 About 15 in-game iterations. Visual probes (hide + collision-off steps, delays, an ID test row of differently coloured monkeys) separated "control never starts" from "steps don't work", and **the mod's F12 dump** (`mod/README.md`) settled it by showing the registry: the control was registered with correct data but had no live instance (`+0x24` = 0), while the destructible's runtime held the right hook value. Wrong turns worth not repeating: the "max file ID + 1" collision theory (partly right, not the cause), IDs at `0x100000` (break objects), `m_nFlags` = 2 as "auto-start" (it isn't), and pointing a hook at a shipped plain-node control (`LoadingEffectControl`), which has no live instance either.
 
-## Current live state (2026-10-04)
+## Current live state (2026-10-04, after the install cleanup)
 
-The custom level is now a reproducible kit (`levels/custom_fish/`, `scripts/make_level_kit.py`, user tutorial `docs/custom_level_tutorial.md`); since 2026-10-04 afternoon `build.sh` installs it as `custom_levels/CUSTOM_FISH.GDW` next to `Jaws.exe`, loaded by the mod's F9 picker (file-open redirect, `mod/src/levels.{h,cpp}`; user-confirmed). No stock file is edited for it any more.
+The custom level is a reproducible kit (`levels/custom_fish/`, `scripts/make_level_kit.py`, user tutorial `docs/custom_level_tutorial.md`); `build.sh` installs it as `custom_levels/CUSTOM_FISH.GDW` next to `Jaws.exe`, loaded by the mod's F9 picker. **No stock file is edited.**
 
-Game install `data/` folder (`~/.steam/debian-installation/steamapps/compatdata/2342933845/pfx/drive_c/Program Files (x86)/Jaws Unleashed/data/`):
+Game install (`~/.steam/debian-installation/steamapps/compatdata/2342933845/pfx/drive_c/Program Files (x86)/Jaws Unleashed/`), cleaned up 2026-10-04 (user-approved):
 
 | File | Contents |
 |---|---|
-| `../custom_levels/CUSTOM_FISH.GDW` (+ `.pre_blank`) | **live:** the user's custom level (F9 in-game), built on `FISH_blank_base.GDW` and pruned; `.pre_blank` = the earlier build on the minimal base |
-| `../custom_levels/MUSIC_TONES.GDW`, `MUSIC_NONE.GDW`, `MUSIC_FISH.GDW` | 2026-10-04 music tests: user's level with the four test tones (all four tracks user-confirmed; suspense/action needed loud harsh tones to be heard over the calm layer) / silence; stock FISH with the test tones (to try suspense/action) |
-| `../custom_levels/BLANK.GDW`, `BLANK_PRUNED.GDW`, `SPAWN_TEST.GDW` | 2026-10-04 tests: blank base, blank base pruned, user's level with a `jaws_spawn` at (75, −10, 75) facing +X (all user-confirmed) |
-| `TEST.GDW` | before 2026-10-04 afternoon: the user's custom level (no entrance points at it any more), built by `levels/custom_fish/build.sh` from `custom_fish.blend` on `FISH_minimal_base.GDW` (`strip_level.py --minimal` of stock FISH) |
-| `TEST.GDW.trigger_test` | end of 2026-10-03: scripted-trigger test, `add_trigger.py` defaults on `TEST.GDW.pre_insert` + white texture and Suzanne: pink trigger post (×1.3) at (2036, 1.5, −3971), red monkey at (2110, 12, −3960) |
-| `TEST.GDW.pre_trigger` | `strip_level.py`(`TEST.GDW.pre_insert`) + the 7-object Blender test scene (2 rock cubes, Suzanne, 4 transparency planes) |
-| `TEST.GDW.pre_insert` | copy of FISH with the construction-worker face, rocks tinted magenta, sand cyan (don't use as a base for real levels: its textures are tinted) |
-| `TEST.GDW.pre_build` | earlier build: the user's `something.obj` sculpture (×15, generated collision) + wall C |
-| `OPEN_S.GDW` (+ `.orig`, `.test_redirect`) | **stock** again (2026-10-04); the old redirected copy (Fisherman's Isle entrance → `TEST`) is `.test_redirect` |
-| `FISH.GDW` (+ `.orig`), `DOCKS.GDW` (+ `.orig`) | construction-worker face texture swap only |
-| `../d3d8.dll` (+ `.pre_levels`, `.pre_messages`, `.pre_reload`, `.pre_iddump`) | mod with F9 custom level loader, F10 reload, F12 ID dump and message overrides |
-| `../../../jaws_messages.txt` (= `C:\jaws_messages.txt`) | message overrides: `CUSTOM_FISH 598` exit prompt (copy kept in `levels/custom_fish/`) |
-| `BEACH.GDW`, `BEACHPST.GDW` (+ `.orig`) | stock (restored 2026-10-03); no-boulder versions kept in the project root as `*.open_barrier.GDW` |
+| `data/*.GDW` | the 20 **stock** levels, byte-identical to `GAME_GDWs/` (no backups needed there any more) |
+| `custom_levels/CUSTOM_FISH.GDW` | **live:** the user's custom level, built on `FISH_blank_base.GDW` and pruned |
+| `d3d8.dll` | the mod (F9 custom level loader, F10 reload, F12 ID dump, message overrides); old builds archived |
+| `../../../jaws_messages.txt`, `jaws_bookmarks.txt`, `jaws_mod.log` (= `C:\`) | mod files: `CUSTOM_FISH 598` exit prompt override (copy in `levels/custom_fish/`), teleport bookmarks, log |
+
+Moved into the project:
+- **`edited_levels/`** (see its `README.txt`): `FISH_face_swap.GDW` / `DOCKS_face_swap.GDW` (construction-worker face), `TEST_trigger_test.GDW` (scripted-trigger demo: pink post at (2036, 1.5, −3971) removes the red monkey at (2110, 12, −3960)), `FISH_edited_2026-10-01.GDW` / `WRACK_edited_2026-10-01.GDW` (unlabelled early edit tests), `CUSTOM_FISH_pre_blank.GDW` (the user's level on the old minimal base).
+- **`install_archive_2026-10-04/`** (see its `README.txt`, safe to delete): the stock `.orig` duplicates, `OPEN_S.GDW.test_redirect`, the old `TEST.GDW*` experiments (`pre_insert` = FISH with tinted rocks/sand, `pre_trigger` = 7-object Blender test scene, `pre_build` = `something.obj` sculpture), today's test levels (`BLANK`, `BLANK_PRUNED`, `SPAWN_TEST`, `MUSIC_TONES`, `MUSIC_NONE`, `MUSIC_FISH` (stock FISH with test tones), `MUSIC_NE` (stock OPEN_NE with test tones)), 14 old `d3d8.dll` builds, screenshots and old ID dumps.
+- No-boulder BEACH/BEACHPST stay in the project root as `*.open_barrier.GDW`.
