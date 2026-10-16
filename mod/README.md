@@ -1,7 +1,7 @@
 # Jaws Unleashed — d3d8 Proxy Mod
 
 A reverse-engineering / exploration mod for *Jaws Unleashed* (PC, 2006, Appaloosa Interactive).  
-Runs under Proton 10.0 on Linux. Targets DirectX 8 (`d3d8.dll`).
+Runs under **GE-Proton11-9** on Linux (since 2026-10-16; earlier testing used Valve's Proton 10.0, see "Proton version" under Deploy). Targets DirectX 8 (`d3d8.dll`).
 
 ---
 
@@ -13,13 +13,15 @@ Runs under Proton 10.0 on Linux. Targets DirectX 8 (`d3d8.dll`).
 | `F2` | Toggle freecam on / off *(moved off F1 2026-08-12 so F1 stays free for the map; god-mode removed the same pass)* |
 | `F3` | Screenshot — saves `C:\jaws_screenshot_NNNN.bmp` |
 | `F4` | Toggle fog on / off |
+| `Shift+F4` | **Far view** (2026-10-17, not yet tested in-game): longer draw distance in every level, no level files edited. Above water: camera far plane 3000 (stock 600) and above-water fog 1000–2900; underwater: fog 100–400 (stock about 30–170). Underwater the game sets the camera far plane to the fog end every frame, so that's also the underwater draw distance; past ~400 objects flicker or vanish, and 2500 crashed (OPEN_S test levels, user-tested). Writes the live `NAWaterYCamera` action (found by vtable `0x7F0120` in the ID registry), the current camera (`0x5519A0(3)` `+0x11C`) and the above-water fog (`0x6C3010(id)` `+0x12C`/`+0x134`); turning it off restores the level's values. Values are constants at the top of `src/farview.cpp`. Details: `docs/exe_analysis.md` "Draw distance and fog". |
 | `F5` | Toggle sim pause — slows physics, AI, and cutscene playback to ~25% speed |
 | `F6` | Toggle foliage hide — makes alpha-tested geometry (seaweed, kelp, plants) invisible |
-| `F7` | Dev tool: two-pass health-address memory scanner (legacy; only scans static `.data`, which is why it never found the real heap-allocated shark. Health is now read via the decompiled pointer chain) |
+| `F7` | **No-clip** (2026-10-12, user-confirmed): swim through terrain, rocks and walls; the shark stays limited to the water, and F8 teleports into geometry now stay put. Holds the shark controller's own collision-off flag `ctrl+0x810` = 1, which makes the per-frame collision step (`0x65BFC0`) skip its push-out and its "SafePoint Teleport"; no code patch. Moving objects (boats, debris) still push back, since their contact handler (`0x671AB0`) ignores the flag. Turning it off clears the flag only if the mod set it. `Shift+F7` = debug write-watch trace: CPU hardware write breakpoints (main thread only) on the shark's position fields; press again or wait 30 s and every writing instruction plus its callers is logged (`HW trace` lines). Wine reports `Dr6` = 0, so the log can't say which of the 4 breakpoints fired (`DR-1`). `src/hwtrace.{h,cpp}`. (Replaced the legacy health scanner.) |
 | `F8` | Teleport text box: type `X Y Z` (or `X Z` to keep current depth), or a lone slot number `1`–`9` to jump to that bookmark; `Enter` to go, `Esc` to cancel. While open: `Ctrl+1`…`Ctrl+9` saves the current position to that bookmark slot, and saved slots are listed. Bookmarks persist in `C:\jaws_bookmarks.txt` (Linux: `<prefix>/drive_c/jaws_bookmarks.txt`), meant to be hand-edited: one `<slot> <X> <Y> <Z> [name]` line per slot, `#` comment lines ignored, re-read automatically when the file changes (even mid-game, checked each time F8 opens). Named slots show their name in the list. Plain world coords — not tied to a level. Game keyboard input is blocked while the box is open. **Reliability fix (2026-10-04):** the teleport also moves the controller's stored collision start point (`ctrl+0x680`) and then holds the shark at the target for 45 frames (~0.75 s), re-writing every known position copy each frame. Before that, jumps with terrain in the way snapped back or stopped part-way (the collision move sweeps from the stored last position), and long jumps flung the shark into the sky or under the map (the physics reads the jump as a huge one-frame velocity). Still occasionally finicky when landing inside or right next to geometry (the game pushes the shark out after the hold). Each teleport logs readbacks at 0.5 s and 2 s (`TP readback`, `TP late readback`); a debug scan of memory still holding the old position can be switched on with `TP_DEBUG_SCAN` in `src/device_proxy.cpp` (`ScanSharkPositionCopies`, `src/shark.cpp`). |
 | `F10` | **Reload the current stage from disk** (added 2026-10-03, user-confirmed working; for testing GDW edits without leaving the area). Calls the engine's own deferred stage request (`[0x920E24]` vtable `+0x80` = `0x6C3C50`, `thiscall (flags=1, name)`) with the name the current stage was loaded with (`engine+0xB8`). The engine tick (`0x6C7800`) then unloads the world and reloads the `.GDW` at a safe point in its loop, the same path as the leftover dev "Open Stage" menu. Shows `Reloading <name> ...` in the message line. Debounced process-wide with a 3 s cooldown; ignored while the F8 box is open. Code: `src/stage.{h,cpp}`. |
 | `F11` | Invincibility + infinite hunger toggle: refills shark health (controller `+0x2B0`) to max (`+0x2A8`) and hunger (`+0x2B4`) to max (`+0x2AC`) every frame. Re-resolves the pointer chain each frame, so it survives level loads — unlike the old hardcoded-address god mode that crashed. Also blocks deaths that bypass health: while on, the shark controller's state setter (`0x65EDA0`, patched with a 6-byte entry jump) drops requests to enter state 7 (dead). All four death paths go through it — health ≤ 0 (`0x65D871`), the scripted `DIEM` kill message (`0x65B871`), and two timer-based deaths (`0x668CC6`, `0x66D4E9`). Blocked attempts are logged as `death block:` in `jaws_mod.log`. **Known limitation (user-tested 2026-10-01):** scripted deaths do more than set the state — blocking the state change leaves the shark alive but invisible, with the game otherwise behaving as if it died (buggy). Accepted as-is; health-based invincibility is the reliable part. |
 | `F12` | **Object-ID registry dump** (added 2026-10-03, debug, read-only). For each ID in `C:\jaws_ids.txt` (one per line, decimal or `0x` hex; a built-in list if the file is missing) it appends to `C:\jaws_iddump.txt`: the registry entry, the registered object's first 64 dwords, and the objects its `+0x20`/`+0x24` point at (live instances). Registry = hash map at `engine+0x50` (`engine = [0x920E24]`), entry `[id, ?, object, next]`; the header line also shows the runtime ID counter (`engine+0x14`). Only memory reads, no game code called. Used to debug the scripted trigger (see `docs/brtr_editing.md` "Scripted triggers"). **Boat probe (2026-10-11):** for an `ANPosition` boat marker (vtable `0x7D0AEC`) it also follows marker → spawned copy (`+0xF4`) → live brick (`+0x24`) → `ANShip` AI (brick `+0x20`), as `StagePursuitQuest2` does, and prints the boat's position, its state stack (`+0xC24`/`+0xC28`), path ID (`+0xE20`) and path object (`+0x2A4`), the no-path byte (`+0xA78`), the `+0xD8C` flag and the waypoint-group mask (`+0x318`). Code: `src/iddump.{h,cpp}`. |
+| *(file)* | **Game debug text** (added 2026-10-12): the game's own debug prints, emptied in the release exe, are written to `C:\jaws_debug.log`. See [Game debug text](#game-debug-text-cjaws_debuglog-2026-10-12). Code: `src/debuglog.{h,cpp}`. |
 | *(file)* | **Message overrides** (added 2026-10-04, user-confirmed): `C:\jaws_messages.txt` replaces on-screen messages per stage, re-read when saved. See [Message overrides](#message-overrides-cjaws_messagestxt-2026-10-04). Code: `src/messages.{h,cpp}`. |
 | `F9` | **Custom level picker** (2026-10-04, user-confirmed): lists `custom_levels\*.GDW` next to `Jaws.exe`; Up/Down, Enter loads (engine `RequestStage(1, name)`, like F10), Esc/F9 closes; game keys blocked while open. See "Custom levels" below. (F9 used to be the old three-pass position scanner, removed.) |
 | `I` / `K` | Freecam: move forward / backward |
@@ -28,7 +30,7 @@ Runs under Proton 10.0 on Linux. Targets DirectX 8 (`d3d8.dll`).
 | `Alt` | Hold for fast movement (45× speed) |
 | Mouse | Freecam look (cursor captured and re-centred each frame) |
 
-The **XYZ overlay** (top-left corner) shows the player shark's real world-space position (read directly from game memory — see [XYZ Overlay Accuracy](#xyz-overlay-accuracy--solved-2026-10-01) below) plus its facing (`Hdg` 0–360°: 0 = +Z, 90 = +X; `Pitch` + = nose up — from the world matrix's Z basis row, since the shark model faces local +Z), and all toggle states. The X line ends in `Shark` when showing the real position, or `Cam` when it falls back to the old camera-derived reading (menus, loading screens).
+The **XYZ overlay** (top-left corner) shows the player shark's real world-space position (read directly from game memory — see [XYZ Overlay Accuracy](#xyz-overlay-accuracy--solved-2026-10-01) below) plus its facing (`Hdg` 0–360°: 0 = +Z, 90 = +X; `Pitch` + = nose up — from the world matrix's Z basis row, since the shark model faces local +Z), its **speed** (`Spd` = 3D, `H` = horizontal X/Z, `V` = vertical, + = rising; game units per second, worked out from how far the position moves in ~0.25 s windows, not read from a game field; a jump of over 100 units in one frame, like a teleport, restarts the measurement instead of showing a spike; added 2026-10-16, user-confirmed in-game), and all toggle states. The X line ends in `Shark` when showing the real position, or `Cam` when it falls back to the old camera-derived reading (menus, loading screens).
 
 Screenshots land at:
 ```
@@ -42,6 +44,14 @@ Screenshots land at:
 Replaces any of the game's on-screen messages while a given stage is loaded, without touching `Jaws.exe` on disk. One line per override: `<STAGE or *> <slot> <text>`. `\n` is a line break, `^OK^` / `^CANCEL^` / `^CONT^` are the game's button icons, and `#` starts a comment. Slot numbers: run `scripts/dump_messages.py`, which writes them to `docs/game_messages.txt` (generated locally from your `Jaws.exe`; not in the repo). The file is re-read when saved. Overrides apply when the named stage loads and are undone on the next stage without overrides. Example: `TEST 598 LEAVE THE CUSTOM LEVEL?\n\nPRESS ^OK^ TO LEAVE OR ^CANCEL^ TO STAY.`
 
 How it works (`src/messages.{h,cpp}`): `[0x854D14 + 4*lang]` points at 5 language tables of 1,000 message pointers (English `0x84FEF0`, writable `.data`). Code asks for a message by its English text; `FUN_00453d00` hashes it (case-insensitive; hash built once at startup from the original strings) to a number and returns `tables[lang][number − 1]`. The mod repoints that slot in every language table each time the stage changes. **In-game notes (user-tested 2026-10-04):** FISH/TEST's exit zone shows **slot 598**, and the game puts the destination name (`OPEN OCEAN - SOUTH`) in front of it, so start the text with `\n` like the original. `[` and `]` draw the Esc and Enter key icons, so don't use square brackets as text. Exit prompts: 598 "enter this area" (`LoadChecker`), 201 "leave this stage" (`MBSwimoutChecker`), 199/851 "completed stage", 200 "locked".
+
+### Game debug text (`C:\jaws_debug.log`, 2026-10-12)
+
+`Jaws.exe` calls a printf-style debug print (`0x4549D0`, cdecl: format + args) from 171 places, e.g. `Razas damage!`, `HP:%f`, `StoryMissionCompleted:%d`, `GlobalMessage type:%d range:%f`. The release build reduced it to a lone `ret`. When the mod loads (`Direct3DCreate8`) it checks for that `ret` plus padding, patches in a `jmp` to `DebugPrintHook`, and writes each message, with seconds since start, to `C:\jaws_debug.log` (recreated each game start; on Linux/Proton: `<prefix>/drive_c/jaws_debug.log`). Identical consecutive lines are collapsed into one "repeated N more times" line. `%s` arguments are checked before formatting (these prints were never run in the shipped build), and `%n` is refused. Watch it live:
+
+```bash
+tail -f ~/.steam/steam/steamapps/compatdata/2342933845/pfx/drive_c/jaws_debug.log
+```
 
 ### Custom levels (`custom_levels\`, F9)
 
@@ -64,6 +74,8 @@ No external SDK needed — the DX8 interface is hand-rolled in `src/d3d8_iface.h
 ---
 
 ## Deploy
+
+**Proton version (2026-10-16):** use **GE-Proton** (currently `GE-Proton11-9`, in `~/.steam/root/compatibilitytools.d/GE-Proton11-9-x86_64/`), selected under the game's Steam Properties → Compatibility. Valve's Proton can't play the pre-rendered `movie\*.WMV` cutscenes (WMV2 video + WMA2 audio): it has no decoder for them in a non-Steam game and shows its "video not available" placeholder instead. GE-Proton bundles FFmpeg (`wmv2`/`wmav2`) and plays them. The mod loads the same under both (user-confirmed). In-engine cutscenes never depended on this.
 
 1. **Set the Steam launch option** for Jaws Unleashed:
    ```
@@ -100,6 +112,7 @@ mod/
     ├── input_block.h / .cpp # DirectInput keyboard vtable patch — blocks game input while the F8 box is open
     ├── bookmarks.h / .cpp  # 9 teleport bookmark slots, persisted to C:\jaws_bookmarks.txt
     ├── messages.h / .cpp   # per-stage on-screen message overrides from C:\jaws_messages.txt
+    ├── debuglog.h / .cpp   # re-enables the game's emptied debug print -> C:\jaws_debug.log
     ├── stage.h / .cpp      # F10 reload / F9 load through the engine's deferred stage request
     ├── levels.h / .cpp     # custom_levels\ folder: file-open redirect + level list for F9
     ├── iddump.h / .cpp     # F12 object-ID registry dump (debug)

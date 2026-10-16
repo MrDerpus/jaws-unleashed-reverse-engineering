@@ -155,61 +155,71 @@ void Overlay::UpdateTexture(const OverlayInfo& info)
         snprintf(buf, sizeof(buf), "Hdg: %5.1f  Pitch: %+5.1f", info.yaw_deg, info.pitch_deg);
         TextOutA(memDC, 6, 58, buf, (int)strlen(buf));
     }
+    /* Speed (units/s), measured from position change, see UpdateSharkSpeed */
+    if (info.has_speed) {
+        snprintf(buf, sizeof(buf), "Spd: %6.1f  H: %6.1f  V: %+6.1f", info.speed, info.speed_h, info.speed_v);
+        TextOutA(memDC, 6, 76, buf, (int)strlen(buf));
+    }
 
     /* Status lines */
     SetTextColor(memDC, info.freecam ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 78, info.freecam ? "[F2] FreeCam  ON" : "[F2] FreeCam OFF", 16);
+    TextOutA(memDC, 6, 96, info.freecam ? "[F2] FreeCam  ON" : "[F2] FreeCam OFF", 16);
 
     SetTextColor(memDC, info.fog_off ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 94, info.fog_off ? "[F4] Fog      OFF" : "[F4] Fog       ON", 17);
+    TextOutA(memDC, 6, 112, info.fog_off ? "[F4] Fog      OFF" : "[F4] Fog       ON", 17);
+    SetTextColor(memDC, info.far_view ? RGB(255,255,0) : RGB(150,150,150));
+    TextOutA(memDC, 170, 112, info.far_view ? "[Sh+F4] Far view ON " : "[Sh+F4] Far view OFF", 20);
 
     SetTextColor(memDC, info.sim_paused ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 110, info.sim_paused ? "[F5] Sim Pause ON " : "[F5] Sim Pause OFF", 18);
+    TextOutA(memDC, 6, 128, info.sim_paused ? "[F5] Sim Pause ON " : "[F5] Sim Pause OFF", 18);
 
     SetTextColor(memDC, info.hide_foliage ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 126, info.hide_foliage ? "[F6] Foliage  OFF" : "[F6] Foliage   ON", 17);
+    TextOutA(memDC, 6, 144, info.hide_foliage ? "[F6] Foliage  OFF" : "[F6] Foliage   ON", 17);
 
     SetTextColor(memDC, info.invincible ? RGB(255,255,0) : RGB(150,150,150));
-    TextOutA(memDC, 6, 142, info.invincible ? "[F11] Invincible+Hunger ON " : "[F11] Invincible+Hunger OFF", 27);
+    TextOutA(memDC, 6, 160, info.invincible ? "[F11] Invincible+Hunger ON " : "[F11] Invincible+Hunger OFF", 27);
+
+    SetTextColor(memDC, info.noclip ? RGB(255,255,0) : RGB(150,150,150));
+    TextOutA(memDC, 6, 176, info.noclip ? "[F7] No-clip  ON " : "[F7] No-clip  OFF", 17);
 
     /* Teleport box (F8): prompt with blinking cursor while open, otherwise
      * the last result/error, otherwise just the key hint. */
     if (info.picker_open) {
         SetTextColor(memDC, RGB(0, 255, 255));
         const char* title = "Custom levels  Up/Down  Enter=load  Esc=close";
-        TextOutA(memDC, 6, 162, title, (int)strlen(title));
+        TextOutA(memDC, 6, 196, title, (int)strlen(title));
         if (info.picker_count == 0) {
             SetTextColor(memDC, RGB(150,150,150));
             const char* none = "none: put .GDW files in custom_levels\\ next to Jaws.exe";
-            TextOutA(memDC, 6, 178, none, (int)strlen(none));
+            TextOutA(memDC, 6, 212, none, (int)strlen(none));
         }
         for (int i = 0; i < info.picker_count && i < 16; ++i) {
             bool sel = i == info.picker_sel;
             SetTextColor(memDC, sel ? RGB(255, 255, 0) : RGB(200, 200, 200));
             snprintf(buf, sizeof(buf), "%s %s", sel ? ">" : " ", info.picker_names[i]);
-            TextOutA(memDC, 6 + (i / 8) * 250, 178 + (i % 8) * 16, buf, (int)strlen(buf));
+            TextOutA(memDC, 6 + (i / 8) * 250, 212 + (i % 8) * 16, buf, (int)strlen(buf));
         }
     } else if (info.tp_active) {
         SetTextColor(memDC, RGB(0, 255, 255));
         bool cursor = (GetTickCount() / 400) & 1;
         snprintf(buf, sizeof(buf), "TP> %s%s", info.tp_text, cursor ? "_" : " ");
-        TextOutA(memDC, 6, 162, buf, (int)strlen(buf));
+        TextOutA(memDC, 6, 196, buf, (int)strlen(buf));
         SetTextColor(memDC, RGB(150,150,150));
         const char* hint = "X Y Z / X Z / slot#  Enter=go  Esc=cancel";
-        TextOutA(memDC, 6, 178, hint, (int)strlen(hint));
+        TextOutA(memDC, 6, 212, hint, (int)strlen(hint));
         const char* hint2 = "Ctrl+1..9 = save current spot to slot";
-        TextOutA(memDC, 6, 194, hint2, (int)strlen(hint2));
+        TextOutA(memDC, 6, 228, hint2, (int)strlen(hint2));
         /* Bookmark slots, two columns */
         SetTextColor(memDC, RGB(200, 200, 200));
         for (int i = 0; i < 9; ++i)
             if (info.tp_slots[i])
-                TextOutA(memDC, 6 + (i / 5) * 250, 214 + (i % 5) * 16, info.tp_slots[i], (int)strlen(info.tp_slots[i]));
+                TextOutA(memDC, 6 + (i / 5) * 250, 248 + (i % 5) * 16, info.tp_slots[i], (int)strlen(info.tp_slots[i]));
     } else if (info.tp_msg) {
         SetTextColor(memDC, RGB(255, 255, 0));
-        TextOutA(memDC, 6, 162, info.tp_msg, (int)strlen(info.tp_msg));
+        TextOutA(memDC, 6, 196, info.tp_msg, (int)strlen(info.tp_msg));
     } else {
         SetTextColor(memDC, RGB(150,150,150));
-        TextOutA(memDC, 6, 162, "[F8] Teleport  [F9] Levels", 26);
+        TextOutA(memDC, 6, 196, "[F8] Teleport  [F9] Levels", 26);
     }
 
     SelectObject(memDC, hOldFont);

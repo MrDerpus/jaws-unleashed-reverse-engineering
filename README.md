@@ -2,7 +2,7 @@
 
 A reverse-engineering project for **Jaws Unleashed** (PC, 2006, Appaloosa Interactive / Majesco). The goal is to fully decode the game's `.GDW` archive format and extract its assets (textures, meshes, animations, audio, and the built scene graph for every level), reconstruct levels in Blender, and understand enough of the engine to mod it. As of October 2026 that last goal includes **building your own levels in Blender and playing them in the running game** (see [the tutorial](docs/custom_level_tutorial.md)).
 
-The PC build runs under Wine/Proton on Linux and uses **DirectX 8** (`d3d8.dll`). A companion PS2 asset dump (`_FISH.GDE` and a full PS2 release) is used as a cross-reference for cut content and format differences.
+The PC build runs under Wine/Proton on Linux (we use GE-Proton, since Valve's Proton can't play the game's WMV movies; see [`mod/README.md`](mod/README.md) "Deploy") and uses **DirectX 8** (`d3d8.dll`). A companion PS2 asset dump (`_FISH.GDE` and a full PS2 release) is used as a cross-reference for cut content and format differences.
 
 > **Disclaimer:** This is an unofficial, non-commercial fan research project. *Jaws Unleashed* and all its assets, code, and trademarks are the property of their respective rights holders (Appaloosa Interactive, Majesco Entertainment, Universal Studios). **This repository contains no game files or extracted assets** — only original research tooling (Python scripts), documentation, and the mod source. You need your own legitimate copy of the game to use any of these tools.
 

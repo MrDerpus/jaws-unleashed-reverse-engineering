@@ -27,7 +27,10 @@ struct OverlayInfo {
     bool  pos_is_shark;      /* true: shark world pos from memory; false: camera fallback */
     bool  has_facing;
     float yaw_deg, pitch_deg;
-    bool  freecam, fog_off, wireframe, hide_foliage, sim_paused, invincible;
+    bool  has_speed;         /* shark speed, units/s (UpdateSharkSpeed) */
+    float speed, speed_h, speed_v;
+    bool  freecam, fog_off, wireframe, hide_foliage, sim_paused, invincible, noclip;
+    bool  far_view;          /* Shift+F4 far view (farview.h) */
     bool  tp_active;         /* teleport text box open */
     const char* tp_text;     /* text typed so far */
     const char* tp_msg;      /* transient result/error line, or nullptr */

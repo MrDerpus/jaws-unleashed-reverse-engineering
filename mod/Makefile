@@ -32,7 +32,10 @@ SRCS := src/d3d8_proxy.cpp \
         src/stage.cpp \
         src/iddump.cpp \
         src/messages.cpp \
-        src/levels.cpp
+        src/levels.cpp \
+        src/debuglog.cpp \
+        src/hwtrace.cpp \
+        src/farview.cpp
 
 TARGET := d3d8.dll
 

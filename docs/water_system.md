@@ -13,6 +13,7 @@ The water system is one of the most technically significant parts of the engine 
 | `NAWater2004` | Jaws Unleashed | Primary shipping water system |
 | `NASlideWater2004` | Jaws Unleashed | Shallow/sliding water (beaches, canals) |
 | `NATextureGeneratorGrid` | Jaws Unleashed | Procedural water texture generation |
+| `NAWaterYCamera` | Jaws Unleashed | Above/underwater switch: viewports, fog, camera far plane (decoded 2026-10-17, see Rendering Notes) |
 
 The version suffixes (2000, 2003, 2004) are literal year markers, giving a clear timeline of engine evolution. All versions are retained in the class registry, suggesting the engine carries forward old code rather than replacing it — water bodies in different levels may use different class versions.
 
@@ -55,5 +56,7 @@ Each level's `NAWater2004` object (exactly one per level, placed in `BRTR`) does
 ## Rendering Notes
 
 The engine uses heavy underwater fog as a draw-distance mask — a technique carried over from Ecco. This was a deliberate design choice to hide pop-in and limit visible geometry complexity at depth, where the water light model absorbs colour and reduces visibility naturally.
+
+**`NAWaterYCamera` (decoded 2026-10-17).** One per level (OPEN_S: action `NAWaterYCamera 1`, class `0x02071070`, ID 28100). Fields (PROP `0x08001330` + index): 7 viewport node IDs (`m_viewportabove` … `m_viewportsharkview`), `m_creatorreflection`, `m_fogabove`/`m_fogbelow` (IDs of the `FogAbove`/`FogBelow` `GDFog` nodes), `m_fogbelowstartPC`/`EndPC`, the same for PS2, `m_fogstartbottom`/`endbottom` + `m_fogbottomy` (deeper water), three fog colours, `m_fogtransparentbelow`, water textures, transparency/reflection settings and `m_transparencyfarplanefromabove`/`frombelow`. When the camera crosses the surface (`0x62AC40` up, `0x62AEF0` down) it shows/hides the matching viewports, swaps fogs and sets the camera far plane. While underwater its tick (`0x62B430`) writes the PC fog start/end (blended toward the bottom values with depth) into `FogBelow` **and** the camera far plane. OPEN_S stock: 30–170, bottom 70–170 below y = −40. Underwater fog end past ~400 causes object flicker/culling bugs, 2500 crashed (see `rendering_system.md` "Draw distance").
 
 `NATextureGeneratorGrid` suggests the water surface texture (caustics, ripples) is generated procedurally by the engine each frame rather than being stored as a static asset — consistent with the 2,787 extracted GTEX sprites (count updated 2026-07-29, see `CLAUDE.md`) including caustic pattern layers confirmed in the sprite texture set.

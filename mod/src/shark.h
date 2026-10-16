@@ -48,6 +48,20 @@ struct SharkState {
  * during level load fails cleanly instead of crashing the game. */
 bool ReadShark(SharkState& out);
 
+/* Speed in game units per second, from how far the shark's world position
+ * moves (not a field read from the game). Feed it every frame's position;
+ * it averages over ~0.25 s windows, and a jump of more than 100 units in one
+ * frame (teleport, respawn, stage load) restarts it instead of showing a
+ * spike. `have` = false: no shark this frame (resets). Returns false until
+ * the first window is complete. Process-wide state, so it survives the
+ * game's frequent D3D device re-creation. */
+struct SharkSpeed {
+    float total;         /* 3D speed */
+    float horiz;         /* X/Z plane */
+    float vert;          /* Y, + = rising */
+};
+bool UpdateSharkSpeed(bool have, const SharkState& st, SharkSpeed& out);
+
 /* Invincibility: refills current health (ctrl+0x2B0) to max health
  * (ctrl+0x2A8), and current hunger (ctrl+0x2B4) to its max (ctrl+0x2AC) --
  * the same routines compute/clamp/zero both pairs together. Both fields confirmed by decompilation: the ability-setup
@@ -82,3 +96,19 @@ bool TeleportShark(float x, float y, float z, char* err, size_t err_sz);
  * back. Writes one line per hit into `out` (newline-separated). Not called
  * by default; it found ctrl+0x680 and [ctrl+0x58]+0xA8. */
 void ScanSharkPositionCopies(const float* want /* null = current */, float tol, char* out, size_t out_sz);
+
+/* Debug (F7 trace): addresses of the shark's position fields to watch for
+ * writes -- brick local X/Y, ctrl+0x680, [ctrl+0x58]+0xA8. Returns how many
+ * were filled (0 = no shark). */
+int SharkTraceAddrs(unsigned long* addrs, const char** labels);
+
+/* No-clip (2026-10-12). The shark's per-frame collision step (0x65BFC0,
+ * vtable slot 0x7F2958) asks for terrain contacts (0x6C80C0, mask 0x18001)
+ * and pushes the shark out of each (0x4E4DA0), up to 8 times, then after
+ * ~90 stuck frames runs its own "SafePoint Teleport" to the last free spot.
+ * It skips all of that when ctrl+0x810 != 0 (the game sets it in one
+ * scripted move, 0x669D8C). On: holds ctrl+0x810 = 1; off: clears it again
+ * if we set it. Call every frame. The separate object-contact handler
+ * (0x671AB0, mask 0xC00: boats, debris) ignores the flag, so solid objects
+ * still push back. */
+void SetSharkNoClip(bool on);

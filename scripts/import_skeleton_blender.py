@@ -25,7 +25,7 @@ scripts/rip_skeletons.py) plus the model's OBJ in models/<NAME>/.
 Run headless:
     blender -b --python scripts/import_skeleton_blender.py -- \\
         --name FISH --skel 1766 [--anim-skel 1770] [--no-root-motion] \\
-        [--root /path/to/JAWS] [--save out.blend]
+        [--root /path/to/JAWS] [--clip NAME] [--save out.blend]
 Or open it in Blender's Scripting workspace, edit CONFIG and press Run.
 
 Without --skel, every skeleton in skeletons/<NAME>/ that is used by a scene
@@ -305,7 +305,7 @@ def list_skeletons(root, name):
 
 
 def main():
-    global JAWS_ROOT, NAME, SKEL_ID, ANIM_SKEL, ROOT_MOTION
+    global JAWS_ROOT, NAME, SKEL_ID, ANIM_SKEL, ROOT_MOTION, DEFAULT_CLIP
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     save = None
     if argv:
@@ -318,6 +318,7 @@ def main():
         elif a == '--no-root-motion': ROOT_MOTION = False
         elif a == '--root': JAWS_ROOT = next(it)
         elif a == '--save': save = next(it)
+        elif a == '--clip': DEFAULT_CLIP = next(it)
     root = resolve_root()
     if SKEL_ID is None:
         print(f'Skeletons in {NAME}:')

@@ -37,6 +37,7 @@ static const DWORD CTRL_HEALTH_MAX   = 0x2A8;
 static const DWORD CTRL_HEALTH       = 0x2B0;
 static const DWORD CTRL_HUNGER_MAX   = 0x2AC;
 static const DWORD CTRL_HUNGER       = 0x2B4;
+static const DWORD CTRL_NO_COLLISION = 0x810;   /* see SetSharkNoClip */
 
 static bool rd(DWORD addr, void* out, SIZE_T n)
 {
@@ -73,6 +74,46 @@ bool ReadShark(SharkState& out)
     out.yaw_deg   = yaw < 0 ? yaw + 360.0f : yaw;
     out.pitch_deg = asinf(fmaxf(-1.0f, fminf(1.0f, fy))) * 57.29578f;
     return true;
+}
+
+bool UpdateSharkSpeed(bool have, const SharkState& st, SharkSpeed& out)
+{
+    static bool          started = false, valid = false;
+    static LARGE_INTEGER freq, win_t;
+    static float         win_p[3], last_p[3];
+    static SharkSpeed    shown;
+
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    if (!freq.QuadPart) QueryPerformanceFrequency(&freq);
+
+    if (!have) { started = valid = false; return false; }
+
+    if (started) {
+        float sx = st.x - last_p[0], sy = st.y - last_p[1], sz = st.z - last_p[2];
+        if (sx*sx + sy*sy + sz*sz > 100.0f * 100.0f) started = false;
+    }
+    last_p[0] = st.x; last_p[1] = st.y; last_p[2] = st.z;
+    if (!started) {
+        started = true;
+        win_t = now;
+        win_p[0] = st.x; win_p[1] = st.y; win_p[2] = st.z;
+        out = shown;
+        return valid;
+    }
+
+    float dt = (float)(now.QuadPart - win_t.QuadPart) / (float)freq.QuadPart;
+    if (dt >= 0.25f) {
+        float dx = st.x - win_p[0], dy = st.y - win_p[1], dz = st.z - win_p[2];
+        shown.horiz = sqrtf(dx*dx + dz*dz) / dt;
+        shown.vert  = dy / dt;
+        shown.total = sqrtf(dx*dx + dy*dy + dz*dz) / dt;
+        valid = true;
+        win_t = now;
+        win_p[0] = st.x; win_p[1] = st.y; win_p[2] = st.z;
+    }
+    out = shown;
+    return valid;
 }
 
 bool TeleportShark(float x, float y, float z, char* err, size_t err_sz)
@@ -188,6 +229,36 @@ void ScanSharkPositionCopies(const float* want, float tol, char* out, size_t out
     }
     if (used + 64 < out_sz)
         snprintf(out + used, out_sz - used, "  %d hit(s)", hits);
+}
+
+void SetSharkNoClip(bool on)
+{
+    /* Remembers which controller we switched off, so turning no-clip off
+     * only clears the flag we set (a new level gets a new controller). */
+    static DWORD set_on = 0;
+    DWORD ctrl = 0, v = 0;
+    if (!rd(SHARK_CTRL_GLOBAL, &ctrl, 4) || !ctrl) { set_on = 0; return; }
+    if (on) {
+        DWORD one = 1;
+        if (rd(ctrl + CTRL_NO_COLLISION, &v, 4) && v != 1) wr(ctrl + CTRL_NO_COLLISION, &one, 4);
+        set_on = ctrl;
+    } else if (set_on == ctrl) {
+        DWORD zero = 0;
+        wr(ctrl + CTRL_NO_COLLISION, &zero, 4);
+        set_on = 0;
+    }
+}
+
+int SharkTraceAddrs(unsigned long* addrs, const char** labels)
+{
+    DWORD ctrl = 0, brick = 0, other = 0;
+    if (!rd(SHARK_CTRL_GLOBAL, &ctrl, 4) || !ctrl || !SharkBrick(brick)) return 0;
+    int n = 0;
+    addrs[n] = brick + BRICK_LOCAL + 0x24; labels[n++] = "brick local X";
+    addrs[n] = brick + BRICK_LOCAL + 0x28; labels[n++] = "brick local Y";
+    addrs[n] = ctrl + CTRL_LAST_POS;       labels[n++] = "ctrl+0x680 X";
+    if (rd(ctrl + 0x58, &other, 4) && other) { addrs[n] = other + BRICK_WORLD + 0x24; labels[n++] = "[ctrl+0x58]+0xA8 X"; }
+    return n;
 }
 
 static bool RefillPair(DWORD ctrl, DWORD max_off, DWORD cur_off)

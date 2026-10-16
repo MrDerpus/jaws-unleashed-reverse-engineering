@@ -355,6 +355,23 @@ The red monkey is Blender's Suzanne: exported as OBJ (triangulated, smart-UV), `
 
 About 15 in-game iterations. Visual probes (hide + collision-off steps, delays, an ID test row of differently coloured monkeys) separated "control never starts" from "steps don't work", and **the mod's F12 dump** (`mod/README.md`) settled it by showing the registry: the control was registered with correct data but had no live instance (`+0x24` = 0), while the destructible's runtime held the right hook value. Wrong turns worth not repeating: the "max file ID + 1" collision theory (partly right, not the cause), IDs at `0x100000` (break objects), `m_nFlags` = 2 as "auto-start" (it isn't), and pointing a hook at a shipped plain-node control (`LoadingEffectControl`), which has no live instance either.
 
+## Draw distance in a level file (2026-10-17, user-tested)
+
+Longer view distance is a same-size float edit (no chunk resizing). Fields, the same in every level (node names, PROP IDs):
+
+| Node | Field | PROP | OPEN_S stock | Tested good |
+|---|---|---|---|---|
+| `SharkCamera` | `m_FarPlane` | `0x08001800` | 600 | 3000 |
+| `FogAbove` | `m_FogStart` / `m_FogEnd` | `0x0800184D` / `0x0800184E` | 40 / 1100 | 1000 / 2900 |
+| `NAWaterYCamera 1` (`ACTN`) | `m_fogbelowstartPC` / `EndPC` | `0x0800133A` / `0x0800133B` | 30 / 170 | 100 / 400 |
+| same | PS2 copies | `0x0800133C` / `0x0800133D` | 30 / 170 | changed to match (unused on PC) |
+| same | `m_fogstartbottom` / `endbottom` | `0x0800133E` / `0x0800133F` | 70 / 170 | 100 / 400 |
+| `FogBelow` | `m_FogStart` / `m_FogEnd` | `0x0800184D` / `0x0800184E` | 40 / 80 | 100 / 400 (overridden by the line above anyway) |
+
+`NAWaterYCamera` is an `ACTN` block, not a `CHBR` node, so `brtr_scene_graph.load_nodes` doesn't see it; find it by its name PROP (`0x080017C3`, which comes after its field PROPs) or by searching for `PROP 0x08001339` = the `FogBelow` node ID. **Underwater the fog end is also the camera far plane** (see `rendering_system.md` "Draw distance"), so keep it at 400 or below: 300–1200 made the shipwreck flicker, barriers show only up close and NPCs cull more; 800–2500 crashed on load.
+
+Test levels (OPEN_S copies, `edited_levels/`, installed in `custom_levels/`, F9): `FAR_S` (3000 / 1000–2900 / 300–1200), `FAR_M` (1500 / 600–1450 / 300–1200), `FAR_C` (camera and above-water fog only), `FAR_U` (underwater 300–1200 only), `FAR_U4` (underwater 100–400 only), **`FAR_X` (3000 / 1000–2900 / 100–400, user-confirmed good)**. They were made by a one-off script with OPEN_S's file offsets; for other levels, find the PROPs by ID as above. The mod's `Shift+F4` does the same at runtime in every level without editing files.
+
 ## Current live state (2026-10-04, after the install cleanup)
 
 The custom level is a reproducible kit (`levels/custom_fish/`, `scripts/make_level_kit.py`, user tutorial `docs/custom_level_tutorial.md`); `build.sh` installs it as `custom_levels/CUSTOM_FISH.GDW` next to `Jaws.exe`, loaded by the mod's F9 picker. **No stock file is edited.**

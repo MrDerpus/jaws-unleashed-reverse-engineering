@@ -98,17 +98,33 @@ Verified on FISH.GDW: spawn reads `(2000, -6.4, -3630.7)` against the BRTR spawn
 | `+0x50` | shark brick pointer | `SharkRelPos` routine |
 | `+0x54` | `SharkConfig` object pointer | ability setup reads tuning floats from it (`+0xD84`, `+0xD8C`, `+0x10C`, `+0xB98`) |
 | `+0x240` | state machine value (`int`). **`7` = dead** | is-dead check `0x664770`; state setter below |
+| `+0x204` | held prey / bite target (receives damage message `0x27`) | bite damage `0x65CB30` (2026-10-12) |
+| `+0x248` | sub-state while holding prey (`6` = full `Shark_GW_Pitbull04`, `9`/`0x16` = 2-bite variants, `0xF` = shake/tear) | bite damage `0x65CB30` (2026-10-12) |
 | `+0x244` | secondary state value (initialized to `-1` alongside `+0x240`) | constructor `0x66693D` |
 | `+0x2A8` | **max health** | ability setup `0x53AD50` |
 | `+0x2AC` | **max hunger** | ability setup `0x53AD50` |
 | `+0x2B0` | **current health** (float) | clamped to `+0x2A8`; is-dead check tests `<= 0` |
 | `+0x2B4` | **current hunger** (float) | clamped to `+0x2AC`; user-verified in-game (refilling it keeps the hunger bar full) |
 | `+0x72C`–`+0x73C` | five ability multipliers (floats) | ability setup: `= save_byte * const`, from save-state bytes `0x8D0124`–`0x8D0128` |
-| `+0x680` | **last / collision-resolved position** (3 floats): copied from the brick's world translation after the scene update (`0x666611`), set to the resolved position from `0x5BEB80` when alive (`0x670485`). The collision move sweeps from here to the brick's new position each frame, so a teleport must move it too (mod F8 fix, 2026-10-04). | code above; runtime scan |
+| `+0x680` | **last / collision-resolved position** (3 floats): copied from the brick's world translation after the scene update (`0x666611`), also copied from the brick at the end of the collision step `0x65BFC0` and at `0x670485` (`0x5BEB80` is just a getter returning `obj+0x24`, corrected 2026-10-12). The collision move sweeps from here to the brick's new position each frame, so a teleport must move it too (mod F8 fix, 2026-10-04). | code above; runtime scan |
 | `+0x58` | object whose `+0xA8` also mirrors the shark's world position (also referenced from `+0xCC`, `+0x16C`) | runtime scan 2026-10-04 |
+| `+0x810` | **collision off**: while non-zero the collision step `0x65BFC0` returns at once (no push-out, no safe-point teleport). Set to 1 by the state machine at `0x669D8C`, cleared at init `0x664EC0`; no other reader. The mod's F7 no-clip holds it at 1 (user-confirmed 2026-10-12) | `0x65C043` |
+| `+0x864` / `+0x834` | safe points (two 4×3 world matrices): the shark's world matrix saved after 40 collision-free frames (`+0x89C` counter), older copy shifted to `+0x834`; flags `+0x898`/`+0x894` = valid | `0x65BFC0` |
 | `+0x704` | flag; when set and the requested state is `0`, the state setter substitutes state `0x1D` (and clears controller `+0x3C`) | state setter `0x65EDA0` |
 
 **Ability setup `0x53AD50`** recomputes max health/hunger from the ability multipliers and `SharkConfig` tuning values, then clamps current to max: `max_hp = (cfg[0xD8C] * ability[0x73C] + k1) * k2` (constants `k1`/`k2` at `0x7CE0D8` / `0x7CEB90`), and the same shape for hunger with `cfg[0xD84]` / `ability[0x738]`.
+
+### Collision step and no-clip (2026-10-12)
+
+Found with a hardware write-watch trace on the shark's position fields (mod `Shift+F7`, `src/hwtrace.cpp`); the static guess that `0x5BEB80` was the sweep was wrong (it is a getter returning `obj+0x24`).
+
+- **`FUN_0065BFC0`** (controller vtable slot at `0x7F2958`) is the per-frame terrain collision step. It returns at once if `ctrl+0x810 != 0` or state is `0x10`/`0x16`. Otherwise it queries contacts with `0x6C80C0(brick, 0x18001, -1, -1, 0xE)` (result record at `[0x920E24]+0x2B8`) and pushes out with **`0x4E4DA0`** (moves the brick back along the contact normal by the penetration depth through `0x6CEFA0` (add vector to translation), then removes the velocity into the surface), up to 8 times. While holding prey (`+0x204`) it runs a paired version (`0x4E4F20`) against the prey too.
+- After 8 failed tries it sets "stuck"; after more than `0x59` stuck frames it logs `SafePoint Teleport jobbik/rosszabbik` and moves the shark to a saved safe point (`+0x864`/`+0x834`), zeroing velocities. This is why an F8 teleport into solid geometry used to end up somewhere nearby, often behind a wall.
+- At the end it copies the brick's world position into `+0x680`.
+- **`FUN_00671AB0`** (next slot, `0x7F2960`) handles object contacts (mask `0xC00`: boats, debris; `Jaws.ImpactObject` sound, hit reactions, `autocolli hit shark`), with its own push-out loop (4 tries). It ignores `+0x810`, so no-clip still collides with those.
+- `FUN_004E50D0` is the same push-out loop used by other actor classes (boats, NPCs).
+
+**No-clip** = hold `ctrl+0x810` = 1 (mod F7). User-tested 2026-10-12: passes through the ground and most solid objects, still limited to the water, F8 teleports into geometry stay put.
 
 ### State setter and every death path
 
@@ -122,6 +138,37 @@ Verified on FISH.GDW: spawn reads `(2000, -6.4, -3630.7)` against the BRTR spawn
 | `0x66D4E9` | Timer-based: a similar comparison against controller `+0x5AC`. |
 
 Blocking `SetState(7)` (the mod's F11 death block) stops all four. But scripted deaths also hide the model and tell the mission the shark died through other paths, so after a blocked scripted kill the shark stays alive, invisible, and the game otherwise behaves as if it died. Health/timer deaths block cleanly.
+
+### Bite animation `Shark_GW_Pitbull04` and bite damage (2026-10-12)
+
+`Shark_GW_Pitbull04` is one of the great white's 73 clips (AQUARIUM `SKEL 2515`: frames 997–1036, 40 frames). It is the shark's normal grab-chew-shake move on held prey (user viewed it in Blender: "a regular eating animation"), and the bite damage is timed to frames in it. Found by searching `Jaws.exe` for the string `SHARK_GW_PITBULL04` (`0x8B7890`) with `DecompStringRefs.java`.
+
+**Clip-frame table, `0x6651BB`–`0x6652A7`** (inside an unrecognized function near the controller constructor `0x664BD8`). For each clip name the code calls the animation object's vtable `+0x1C` (clip start frame) and `+0x20` (clip end frame) and stores the results in globals; neighbours in the same table are `SHARK_GW_RELEASE`, `SHARK_GW_KIKOP_GYORS` ("spit out, fast"), `SHARK_GW_FAROKCSAP` ("tail whip") and `SHARK_GW_DIE_I17L31O_`. Pitbull04's entries:
+
+| Global | Value |
+|---|---|
+| `0x90BCB4` / `0x90BCB8` | start / end (full clip) |
+| `0x90BCBC` / `0x90BCC0` / `0x90BCC4` | start +12 / +23 / +33 |
+| `0x90BCC8` / `0x90BCCC` | start / end (second copy) |
+| `0x90BCD0` / `0x90BCD4` | start +5 / +11 |
+| `0x90BCD8` / `0x90BCDC` | start / end (third copy) |
+| `0x90BCE0` / `0x90BCE4` | start +5 / +11 |
+
+**Playback:** `0x66B187` and `0x66B475` (both in the big shark update code, not recognized as functions) call `0x65E610` (play clip, with the start/end globals and a speed from `0x5BEBC0`), set controller `+0x248` (sub-state) to `6`, and play the sound `Jaws.Chew` (`0x8B4DF5`/`0x8B4E09`).
+
+**Damage, `0x65CB30`** (per tick, called from `0x67003B`). In state `5` (`+0x240`, prey in the mouth; `+0x204` = the held target), `0x4DD1F0(frame)` returns 1 when the animation passed `frame` this tick (previous < frame ≤ current). At each such frame the shark sends message `0x27` (damage) to the held target:
+
+| Sub-state `+0x248` | Damage frames | Bites |
+|---|---|---|
+| `6` (full Pitbull04) | start +12, +23, +33 (AQUARIUM: 1009, 1020, 1030) | 3 |
+| `9` | start +5, +11 | 2 |
+| `0x16` (22) | start +5, +11 | 2 |
+
+Damage = `(cfg[0xD74] * ctrl[0x730] + k1) * cfg[0x4AC]`, with `cfg` = `SharkConfig` (`ctrl+0x54`) and `k1` at `0x7CE0D8` (the same constant as max health). `ctrl+0x730` is one of the five ability multipliers loaded from the save (`+0x73C` is health and `+0x738` hunger, so this is one of the other three; probably bite strength, not confirmed). After the hit, the code starts the live action at `cfg[0x850]` (`0x6C3010`) on the target (`0x5525C0`).
+
+Sub-state `0xF` (15) doesn't use Pitbull04: it deals damage from how far the shark moved (`|dx| + |dz|` against `0x90BEA4`/`0x90BEA8`, times `cfg[0x46C]`, once over the `cfg[0x474]` threshold), plays `Jaws.Tear` and prints the debug string `Razas damage!` (Hungarian *rázás* = shaking), probably the thrashing tear-apart.
+
+**Open:** what puts the shark into state 5 and sub-states 9 / 22, which ability `+0x730` is, and whether "04" means earlier Pitbull versions existed (the exe names only this one).
 
 ### Other globals seen nearby (unexplored)
 
@@ -348,6 +395,22 @@ No lose condition, no boss phase, no completion action. The tick (`0x5FBA00`) co
 - Which level data was meant to instantiate the quest: **none survives**. No GDW contains a `StagePursuitQuest*` instance (searched by class ID, 2026-10-10).
 - `0x69AC70(0x8000)` in the fail path (`RequestStage` flag 2 restarts the stage, seen in-game).
 - The jet-ski AI is `ANShip` (definition object `0x1264` bytes; only ANShip code, `0x410000`–`0x41D000`, writes the state stack at `+0xC24`/`+0xC28`, state 5 at `0x41691A`). Route following works (see above; speed 120 with turn/stop distances 40/20 on the canal); `+0xA80` (current waypoint) used by the first draft is still unexplored.
+
+## Draw distance and fog (2026-10-17)
+
+The "small render radius" is level data plus one water action, not a hardcoded limit.
+
+- **Camera:** `GDCamera` fields `m_nFOV`, `m_nRatio`, `m_NearPlane`, `m_FarPlane` (BRTR `PROP 0x080017FD`–`0x08001800`); runtime near/far at `+0x114`/`+0x11C`. `0x69B400` is the point-vs-frustum outcode test (near, far, four sides); `0x69B2A0` builds the frustum. Every level's `SharkCamera` has far plane **600**.
+- **Fog objects:** `GDFog` (`m_FogStart`/`m_FogEnd` = `PROP 0x0800184D`/`0x0800184E`, runtime `+0x12C`/`+0x134`). Each level has `FogAbove`, `FogBelow`, `FogReflection`, `FogTransparentAbove/Below`.
+- **`NAWaterYCamera`** (action class `0x02071070`, live vtable `0x7F0120`; PROP = `0x08001330` + field index, fields `m_viewportabove` … `m_transparencyfarplanefrombelow`) switches between above- and underwater rendering. Runtime: `+0x80`/`+0x88` = IDs of the above/below fog, `+0x90`/`+0x98` = `m_fogbelowstartPC`/`EndPC` (stock 30/170 in OPEN_S), `+0xB0`/`+0xB8` = `m_fogstartbottom`/`endbottom` (deep water, below `m_fogbottomy` `+0xC0`, interpolated in between), `+0x150` = 0 above / 1 below. Its tick **`0x62B430`** runs every frame underwater: it writes those values into the below fog (`+0x12C`/`+0x134`, plus `+0x144..+0x14C` colour) **and sets the current camera's far plane (`+0x11C`) to the fog end**. So underwater the fog end is the draw distance, and `FogBelow`'s own values (40/80) are overridden. Crossing the surface calls `0x62AC40` (going above) or `0x62AEF0` (going below): they show/hide the viewport objects, set the camera far plane once from `*(lookup(cam+0x2E4 or +0x2EC) + 0x50)`, and set the music underwater flag `0x8B2E7C`. Init: `0x62B1B0`. `0x5519A0(mask)` (cdecl) = current camera; `0x6C3010` (thiscall on the engine, `(id, 0)`) = live object by ID.
+- **Tests on OPEN_S** (custom levels `edited_levels/FAR_*.GDW`, user-tested): far plane 3000 + above fog 1000–2900 shows distant objects fine. Underwater fog 800–2500 crashed on load; 300–1200 made the shipwreck flicker or appear only up close, barriers appear only when very close, NPCs get culled more (none of it in stock). 100–400 = no problems. Why a longer underwater far plane breaks per-object visibility isn't traced.
+- **Mod:** `Shift+F4` far view (`mod/src/farview.{h,cpp}`) applies these values at runtime.
+
+## Movie playback (2026-10-16)
+
+`FUN_007221E0` plays the pre-rendered `movie\*.WMV` files through DirectShow: `CoCreateInstance(CLSID_FilterGraph)` → `IGraphBuilder` (IID at `0x804CC4`), path built with `"%s.WMV"` (`0x8BD0E4`) and widened by hand, then `IGraphBuilder::RenderFile` (vtable `+0x34`) and `IVideoWindow` (IID at `0x8053C4`) sized to the game window. It loops pumping window messages until the movie ends or a skip key is pressed. If `RenderFile` fails it returns silently, so a missing file just skips the movie. The movies are WMV2 + WMA2 (720×480). Under Valve's Proton 10.0 they showed Proton's "video not available" placeholder (no decoder for these formats in a non-Steam game); under GE-Proton11-9 they play (user-confirmed). See `mod/README.md` "Deploy".
+
+**Which movies are requested:** the names aren't in the exe. They are `PROP 0x080005E6` on movie-play actions in the levels, and all 12 match the 12 shipped files (nothing is requested that's missing): TITLE.GDW `INTRO` and `SHARK` (`PC MPEG Demo 1 Loader` / `… 1`), `Movie Scene 1–6` = `JAWSC4`, `JAWSC10`, `JAWSC7`, `JAWSC11`, `JAWSC8`, `JAWSC9` (menu order), `Trailers Page 0` `FLUX`/`PSYCHO`/`INF`, and CHASE.GDW `OUTSCENE` (`MPGPlay 3_pc`, the ending). The gaps in the `JAWSC` numbers (no 1–3, 5, 6) are not referenced anywhere; they may follow the film's scene or chapter numbering, which isn't verified.
 
 ## Open items
 

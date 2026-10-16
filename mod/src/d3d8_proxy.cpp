@@ -38,6 +38,7 @@
 #include "d3d8_iface.h"
 #include "device_proxy.h"
 #include "levels.h"
+#include "debuglog.h"
 
 static HMODULE g_dxvk = nullptr;
 
@@ -288,6 +289,7 @@ IDirect3D8* WINAPI Direct3DCreate8(UINT sdk_version)
     log_msg("[jaws_mod] Direct3DCreate8 called");
     InstallTimeHooks();
     InstallLevelFileHooks();
+    InstallDebugPrint();
 
     if (!g_dxvk) {
         /* Lazy-load DXVK's d3d8 via system32 path. For a 32-bit process,

@@ -26,6 +26,8 @@
 #include "messages.h"
 #include "iddump.h"
 #include "levels.h"
+#include "hwtrace.h"
+#include "farview.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -38,6 +40,9 @@ static int   g_tp_hold_frames = 0;
 static int   g_tp_scan_frames = 0;
 static float g_tp_hold_target[3];
 static float g_tp_old[3];
+
+/* F7 no-clip: process-wide for the same reason. */
+static bool g_noclip = false;
 
 /* F9 level picker state: process-wide for the same reason. */
 static bool g_picker_open  = false;
@@ -363,59 +368,35 @@ HRESULT __stdcall DeviceProxy::EndScene()
     }
     freecam_prev_ = freecam_now;
 
-    /* F7 — two-pass health scanner.
-     * Pass 1 (press at full health): records all floats in [0.001, 20.0] across full .data.
-     * Pass 2 (press after taking damage): logs addresses whose value changed. */
+    /* F7 — no-clip (2026-10-12): sets the shark controller's collision-off
+     * flag every frame while on (see SetSharkNoClip). Shift+F7 runs the
+     * hardware write-watch trace on the shark's position fields instead
+     * (debug, see hwtrace.h; press again or wait 30 s to log the result). */
     bool f7_now = key_down(VK_F7);
-    if (f7_now && !f7_prev_) {
-        static int   scan_phase = 0;
-        static DWORD scan_addr [16000];
-        static float scan_val0 [16000];
-        static int   scan_n    = 0;
-        char buf[160];
-
-        if (scan_phase == 0) {
-            scan_n = 0;
-            /* Exact match: 1.0f (0x3F800000) or 10.0f (0x41200000) — full range */
-            for (DWORD va = 0x845000u; va < 0xE70000u && scan_n < 16000; va += 4) {
-                DWORD raw = *reinterpret_cast<const DWORD*>(va);
-                if (raw == 0x3F800000u || raw == 0x41200000u) {
-                    scan_addr[scan_n] = va;
-                    scan_val0[scan_n] = *reinterpret_cast<const float*>(va);
-                    ++scan_n;
-                }
-            }
-            snprintf(buf, sizeof(buf),
-                "[jaws_mod] F7 scan1: %d exact-1.0/10.0 (0x845000-0xE70000) — take damage then F7", scan_n);
+    {
+        static DWORD trace_until = 0;
+        bool edge = f7_now && !f7_prev_;
+        bool shift = key_down(VK_SHIFT);
+        if (HwTraceActive() && (edge || GetTickCount() > trace_until)) {
+            HwTraceStop(log_msg);
+            SetTpMsg("Trace stopped, written to log");
+        } else if (edge && shift && !tp_active_) {
+            DWORD addrs[4];
+            const char* labels[4];
+            char msg[96];
+            int n = SharkTraceAddrs(addrs, labels);
+            if (n && HwTraceStart(addrs, labels, n, msg, sizeof(msg))) trace_until = GetTickCount() + 30000;
+            else if (!n) snprintf(msg, sizeof(msg), "trace: no shark");
+            SetTpMsg("%s", msg);
+            char buf[160];
+            snprintf(buf, sizeof(buf), "[jaws_mod] Shift+F7: %s", msg);
             log_msg(buf);
-            scan_phase = 1;
-        } else {
-            int dec = 0, inc = 0;
-            for (int i = 0; i < scan_n; ++i) {
-                float v = *reinterpret_cast<const float*>(scan_addr[i]);
-                if (v < scan_val0[i] - 0.005f) {
-                    snprintf(buf, sizeof(buf),
-                        "[jaws_mod] dec 0x%08lX  was=%.4f  now=%.4f",
-                        scan_addr[i], scan_val0[i], v);
-                    log_msg(buf);
-                    if (++dec >= 40) { log_msg("[jaws_mod] dec (capped)"); break; }
-                }
-            }
-            for (int i = 0; i < scan_n; ++i) {
-                float v = *reinterpret_cast<const float*>(scan_addr[i]);
-                if (v > scan_val0[i] + 0.005f && v < 20.0f) {
-                    snprintf(buf, sizeof(buf),
-                        "[jaws_mod] inc 0x%08lX  was=%.4f  now=%.4f",
-                        scan_addr[i], scan_val0[i], v);
-                    log_msg(buf);
-                    if (++inc >= 20) { log_msg("[jaws_mod] inc (capped)"); break; }
-                }
-            }
-            snprintf(buf, sizeof(buf), "[jaws_mod] F7 scan2: %d dec  %d inc", dec, inc);
-            log_msg(buf);
-            scan_phase = 0;
+        } else if (edge && !tp_active_) {
+            g_noclip = !g_noclip;
+            log_msg(g_noclip ? "[jaws_mod] no-clip ON" : "[jaws_mod] no-clip OFF");
         }
     }
+    SetSharkNoClip(g_noclip);
     f7_prev_ = f7_now;
 
     /* F9 — custom level picker (see levels.h). Up/Down select, Enter loads,
@@ -464,14 +445,18 @@ HRESULT __stdcall DeviceProxy::EndScene()
     if (f3_now && !f3_prev_) TakeScreenshot();
     f3_prev_ = f3_now;
 
-    /* Fog toggle (F4) — SetRenderState override keeps it suppressed each frame */
+    /* Fog toggle (F4) — SetRenderState override keeps it suppressed each frame.
+     * Shift+F4 toggles far view instead (longer draw distance, see farview.h). */
     bool f4_now = key_down(VK_F4);
-    if (f4_now && !f4_prev_) {
+    if (f4_now && !f4_prev_ && key_down(VK_SHIFT)) {
+        log_msg(ToggleFarView() ? "[jaws_mod] far view ON" : "[jaws_mod] far view OFF");
+    } else if (f4_now && !f4_prev_) {
         fog_off_ = !fog_off_;
         real_->SetRenderState(28, fog_off_ ? FALSE : TRUE); /* force immediate update */
         log_msg(fog_off_ ? "[jaws_mod] fog OFF" : "[jaws_mod] fog ON");
     }
     f4_prev_ = f4_now;
+    UpdateFarView();
 
     /* F5 — simulation pause (wireframe left commented out — not supported by DXVK) */
     bool f5_now = key_down(VK_F5);
@@ -670,12 +655,18 @@ HRESULT __stdcall DeviceProxy::EndScene()
         info.x = st.x; info.y = st.y; info.z = st.z;
         info.has_facing = true;
         info.yaw_deg = st.yaw_deg; info.pitch_deg = st.pitch_deg;
-    } else {
+    }
+    SharkSpeed spd;
+    info.has_speed = UpdateSharkSpeed(info.pos_is_shark, st, spd);
+    info.speed = spd.total; info.speed_h = spd.horiz; info.speed_v = spd.vert;
+    if (!info.pos_is_shark) {
         info.x = cam_x_; info.y = cam_y_; info.z = cam_z_;
     }
     info.freecam = freecam_; info.fog_off = fog_off_; info.wireframe = wireframe_;
     info.hide_foliage = hide_foliage_; info.sim_paused = sim_paused_;
     info.invincible = invincible_;
+    info.noclip     = g_noclip;
+    info.far_view   = FarViewEnabled();
     info.tp_active = tp_active_;
     info.tp_text   = tp_buf_;
     char slot_text[BOOKMARK_SLOTS][40];

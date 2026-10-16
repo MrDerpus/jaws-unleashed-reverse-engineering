@@ -15,7 +15,7 @@ The PC version targets **DirectX 8** (`d3d8.dll`, `IDirect3DDevice8`). The game 
 | Primary pixel format | `D3DFMT_A8R8G8B8` (32bpp; name is MSB→LSB bit order, actual little-endian file/memory byte order is BGRA — see Texture Formats below) |
 | Coordinate system | D3D left-handed, Y-up |
 | Display resolution (confirmed) | 1920×1080 |
-| Runtime | Wine / Proton via DXVK d3d8 wrapper |
+| Runtime | Wine / Proton (GE-Proton11-9 since 2026-10-16, for WMV movie playback) via DXVK d3d8 wrapper |
 
 ---
 
@@ -65,6 +65,20 @@ eye.z = −(V._13·V._41 + V._23·V._42 + V._33·V._43)
 pitch = asin(V._23)
 yaw   = atan2(V._13, V._33)
 ```
+
+### Draw distance (decoded 2026-10-17)
+
+The visible radius is set by level data and one water action; the exe has no fixed limit.
+
+| What | Where | Stock |
+|---|---|---|
+| Camera far plane | `SharkCamera` node (`GDCamera`), `m_FarPlane` = `PROP 0x08001800`; runtime `camera+0x11C` (near plane `+0x114`) | 600 in every level |
+| Above-water fog | `FogAbove` node (`GDFog`), `m_FogStart`/`m_FogEnd` = `PROP 0x0800184D`/`0x0800184E`; runtime `+0x12C`/`+0x134` | 300–1100 end, per level |
+| Underwater fog **and underwater far plane** | `NAWaterYCamera` action: `m_fogbelowstartPC`/`EndPC` (`PROP 0x0800133A`/`0x0800133B`), deep-water `m_fogstartbottom`/`endbottom` (`0x0800133E`/`0x0800133F`) | 30/170 and 70/170 in OPEN_S |
+
+Underwater, `NAWaterYCamera`'s tick (`0x62B430`) copies its fog values into the `FogBelow` object every frame **and sets the camera far plane to the fog end**, so the underwater fog end is also the underwater draw distance (`FogBelow`'s own 40/80 never applies). Above water the far plane is set once when crossing the surface (`0x62AC40`). The frustum test is `0x69B400` (near, far, four sides).
+
+**In-game tests (OPEN_S copies, user-tested):** far plane 3000 + above-water fog 1000–2900 shows distant objects that stock only draws up close, with no side effects. Underwater fog 800–2500 crashed on load. 300–1200 made the shipwreck flicker or appear only right next to the shark, made mission barriers show only when very close or at the screen edge, and culled NPCs more (none of this in stock). 100–400 has no problems. Why a longer underwater far plane breaks those objects isn't traced. The mod's `Shift+F4` applies 3000 / 1000–2900 / 100–400 at runtime (`mod/src/farview.{h,cpp}`). Engine detail: `exe_analysis.md` "Draw distance and fog"; level-file patching: `brtr_editing.md` "Draw distance in a level file".
 
 ### Secondary camera
 Called roughly every 5 frames — believed to be shadow map or reflection pass. Positioned ~345 units above the main camera (Y ≈ +335 vs Y ≈ −9). The proxy mod filters this out using a 5-sample rolling median to reliably seed freecam position from the main camera.
@@ -151,7 +165,7 @@ Sea foliage (kelp, seaweed, plants) uses flat billboard cards with alpha-cutout 
 See `water_system.md` for full detail. Key rendering facts:
 - `NAWater2004` drives open ocean surface — procedural, not authored mesh. **Clarified 2026-07-15**: this is a real, finite, LOD-managed wave/seafloor grid (bounded by `m_detaildistanceabove/below` and the level's `WDIM` world extents), not infinite generation. Beyond that grid, a boolean `m_infinitesurface` flag on the same class enables a flat fallback plane so players never see a void/edge at the world boundary — a cheap visual trick, not real geometry (no collision, no props out there). See CLAUDE.md for full writeup.
 - `NATextureGeneratorGrid` generates water caustic/ripple textures per-frame
-- Heavy fog used as draw-distance mask — inherited from Ecco lineage
+- Heavy fog used as draw-distance mask — inherited from Ecco lineage. **Confirmed 2026-10-17:** underwater, `NAWaterYCamera` sets the camera far plane to the fog end every frame (stock ~170), see "Draw distance" above.
 - `NASlideWater2004` handles beaches and canals
 
 ---
@@ -170,3 +184,4 @@ The engine uses `GDSprite`, `GDRotSprite`, `GDFont`, `GDTextSprite` for UI eleme
 | ~~Skeletal animation keyframe format~~ | **FULLY RESOLVED 2026-07-17**: `SKEL`, `BONE`, `WGHT`, `ROTS`, `BROT`, `MTOB`, `CHLD`, `ANIM` blocks in `RSRC` fully decoded — bind mesh, per-vertex bone weights, recursive bone hierarchy, per-bone quaternion keyframes sliced into named clips. Extractor `scripts/rip_skeletons.py` verified on all 30 of FISH.GDW's skeletons; Blender armature/animation import still not written. See CLAUDE.md's Skeletal Animation System section. |
 | Palette / indexed texture decoding | Some small textures decode incorrectly — CLUT format unresolved |
 | Shadow map / reflection pipeline detail | Secondary camera confirmed; full pass structure not decoded |
+| Why an underwater far plane past ~400 breaks object visibility (flicker, barriers, NPC culling) | Open (2026-10-17). Probably a per-object visibility or fade test, or a draw budget; the same effect may be behind the large-object fade in `brtr_editing.md` |

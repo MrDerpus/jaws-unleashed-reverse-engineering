@@ -26,3 +26,15 @@ Regular `GSMP` category 2 (SFX) samples are documented as "typically <5s." Scann
 | `AQUARIUM_id0681` | 7.08s | |
 
 These files already exist in `audio/<LEVEL>/` right now (no re-extraction needed) — this project has no audio playback/transcription tool available, so this is an unconfirmed lead, not a verified finding. **Next step: a human listens to the `TOWN_id0109`–`id0112` sequence** (now the best remaining candidate — 4 consecutive resource IDs still looks like the strongest structural signature for a short recorded exchange) and works down the rest of the list, and confirms/denies each as spoken dialogue vs. diegetic music/ambience.
+
+## Unused-audio audit (2026-10-15)
+
+`python3 scripts/audit_audio.py [NAME ...]` (read-only) checks every extracted file in `audio/<NAME>/` against the playback chain `Group.Name` request → sound bank → `GSFX` → sample, and writes `audio/audio_audit.csv` + `audio/audio_audit.txt`. Format of the chain and the status meanings are in the script's docstring and `CLAUDE.md` "Unused-audio audit".
+
+First run over 19 levels with audio: 4,050 files, **3,677 used, 373 unrequested**, none without a bank or trigger. Unrequested names, by number of levels:
+
+- **Shared, in 12–18 levels:** `Camera.AboveWater`, `Camera.UnderWater` (surface-crossing sounds), `Jaws.ImpactGlass/Wood/Metal/WindowUnbreak`, `Jaws.GrabBody`, `SeaSeeker.Fire`, `HumanFemale.Panic`, `HHShark.Attack`.
+- **6–8 levels:** `ElectricFence.Ambient/Szikrazas`, `Seal.SplashIn/SplashOut`, `Boat.WaterSplash`, `SeaSeeker.Engine`, `Dolphin.Alarm/Attack`, `Submarine.Ambient`.
+- **Level-specific leads:** DEEPSEA2 `Squid.Hurt/Die/Attack` (only `Squid.Idle` is requested, by two sound objects; the exe's one `Squid` string is the class name); **START `Movie.VoiceBrody3/4`** (samples 470/471, 2.4 s and 5.2 s, uncaptioned; START's captioned Brody lines 1/2 are played by actions 214/215; possibly from the cut Aurora rope ending, unverified, needs listening); START's other `Movie.*` cutscene sounds (`EngineSeaSeeker`, `SquidHurt`, `JawsGrowl2`…); TOWN 388 `MovieTown1.VoiceCrew2` (already known unused); BEACHPST `Truck.*`, `TeeniePartyMusic.Ambient`, `Waterslide.WaterStart`; DEEPSEA `Mine.Servo01–03`; WRACK `Movie.WoodCreak1–3`, `Movie.BoatSplash01/02`.
+
+Caveats: "unrequested" means no string or typed `GSFX` reference was found, not that the sound was proven silent; the exe could still reach a bank entry another way (not seen so far). "Used" means something can ask for it; whether that object or action ever runs needs `dump_gdcontrol.py` or a play test.
