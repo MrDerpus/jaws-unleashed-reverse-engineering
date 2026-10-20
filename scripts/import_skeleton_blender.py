@@ -24,8 +24,8 @@ scripts/rip_skeletons.py) plus the model's OBJ in models/<NAME>/.
 
 Run headless:
     blender -b --python scripts/import_skeleton_blender.py -- \\
-        --name FISH --skel 1766 [--anim-skel 1770] [--no-root-motion] \\
-        [--root /path/to/JAWS] [--clip NAME] [--save out.blend]
+        --name FISH --skel 1766 [--anim-skel 1770 [--anim-name LEVEL]] \\
+        [--no-root-motion] [--root /path/to/JAWS] [--clip NAME] [--save out.blend]
 Or open it in Blender's Scripting workspace, edit CONFIG and press Run.
 
 Without --skel, every skeleton in skeletons/<NAME>/ that is used by a scene
@@ -57,6 +57,7 @@ JAWS_ROOT   = ""          # project folder; empty = the folder above this script
 NAME        = "FISH"      # GDW stem
 SKEL_ID     = 1766        # skeleton to import (FISH 1766 = great white)
 ANIM_SKEL   = None        # take clips from another skeleton (humans: 1770)
+ANIM_NAME   = None        # GDW stem of ANIM_SKEL (default: NAME)
 ROOT_MOTION = True        # move the armature by the clip's root motion
 FPS         = 30          # playback rate (engine tick rate not confirmed)
 DEFAULT_CLIP = "Uszas"    # first clip whose name contains this becomes active
@@ -163,9 +164,10 @@ def make_material(name, png):
     return mat
 
 
-def build(root, name, skel_id, anim_skel=None, root_motion=True, fps=30):
+def build(root, name, skel_id, anim_skel=None, root_motion=True, fps=30, anim_name=None):
     sk = json.load(open(root / 'skeletons' / name / f'skel_{skel_id:05d}.json'))
-    an = json.load(open(root / 'skeletons' / name / f'skel_{anim_skel:05d}.json')) if anim_skel else sk
+    an = (json.load(open(root / 'skeletons' / (anim_name or name) / f'skel_{anim_skel:05d}.json'))
+          if anim_skel else sk)
     bones = sk['bones']
     if len(an['bones']) != len(bones):
         raise SystemExit(f'animation skeleton has {len(an["bones"])} bones, model has {len(bones)}')
@@ -305,7 +307,7 @@ def list_skeletons(root, name):
 
 
 def main():
-    global JAWS_ROOT, NAME, SKEL_ID, ANIM_SKEL, ROOT_MOTION, DEFAULT_CLIP
+    global JAWS_ROOT, NAME, SKEL_ID, ANIM_SKEL, ANIM_NAME, ROOT_MOTION, DEFAULT_CLIP
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     save = None
     if argv:
@@ -315,6 +317,7 @@ def main():
         if a == '--name': NAME = next(it)
         elif a == '--skel': SKEL_ID = int(next(it))
         elif a == '--anim-skel': ANIM_SKEL = int(next(it))
+        elif a == '--anim-name': ANIM_NAME = next(it)
         elif a == '--no-root-motion': ROOT_MOTION = False
         elif a == '--root': JAWS_ROOT = next(it)
         elif a == '--save': save = next(it)
@@ -324,7 +327,7 @@ def main():
         print(f'Skeletons in {NAME}:')
         list_skeletons(root, NAME)
         return
-    build(root, NAME, SKEL_ID, ANIM_SKEL, ROOT_MOTION, FPS)
+    build(root, NAME, SKEL_ID, ANIM_SKEL, ROOT_MOTION, FPS, ANIM_NAME)
     if save:
         bpy.ops.wm.save_as_mainfile(filepath=str(Path(save).resolve()))
         print('saved', save)

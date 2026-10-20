@@ -71,6 +71,6 @@ The bite system (see `bite_system.md`) references `m_rubberskeletonid` — a rep
 
 ## Notes
 
-- The engine freeze date (June 2003) predates the Jaws license acquisition (August 2004). The animation system was inherited from *Ecco the Dolphin: Defender of the Future* (2000) and carried forward through *Sole Predator* development unchanged.
+- The animation system was inherited from *Ecco the Dolphin: Defender of the Future* (2000), but not unchanged: the `SKEL` format stamp is **20020410** (10 April 2002), the date of its last revision, which added the per-frame running-position track; the loader also checks `> 20001009` for the morph-frame count (corrected 2026-10-21; this used to cite a "June 2003 engine freeze", which is only the container version date, see `docs/GDW_FORMAT.md` "Block format date stamps").
 - `NALODSkeleton` confirms the engine has LOD-aware skeletal rendering — low-poly skeletons at distance, full skeleton up close.
 - `NAMorphModel` / `GDMorphAnim` suggest facial animation or creature deformation is done via morph targets rather than bones in some cases.

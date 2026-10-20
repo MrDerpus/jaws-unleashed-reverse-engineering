@@ -280,6 +280,35 @@ Csorda = herd.
 | `TRLODAct` | 4/5 | `m_SpriteID` |
 | `TRSplash` | 27/30 | `m_Sound1`, `m_Sound2`, `m_Sound3` |
 
+## Appaloosa Mermaid tech demo (2001-01-05)
+
+*Added 2026-10-20.* Two videos the user supplied, titled "Appaloosa Mermaid techdemo, 2001.01.05" (41.6 s and
+52.0 s, 480p; kept outside the repo in the user's Downloads). Per the user, the demo came after Ecco: Defender
+of the Future (2000). Seen from frames pulled with ffmpeg (no audio reviewed):
+
+- **The mermaid** is a slim, pale-blue humanoid **with legs**, black hair and translucent fin-like flippers on
+  the feet. She is **not** the Jaws mermaid (green fish tail, human skin, blonde hair; see
+  `docs/mission_system.md` "The Gauntlet's live mermaid"). No model is shared.
+- **Video 1** (no HUD): she swims through rocky canyons past tight fish schools; a large armoured, spiny fish
+  appears with a blue ring effect around it.
+- **Video 2** (playable prototype with a full HUD): counters with an extra-lives count (top left), a round
+  radar (top right), a target-name bar reading **"GIANT MEDUSA"** and later **"SNAKE FIGHTER"**, glowing
+  jellyfish-like orbs she fights, and a spiny snake creature.
+
+**Link to the code:** *medusa* is Hungarian *medúza*, "jellyfish". The jellyfish code from Ecco
+(`DDMedusaAct`/`DDFieldAct`, see "Jellyfish" above) is still in both Jaws exes, next to Jaws's own
+`MBMedusaFieldRef`. Together with the ball-shaped fish schools (like Ecco's `MLHalRaj`), this suggests the
+demo ran on the same Appaloosa engine and Ecco-derived code, between Ecco (2000) and Sole Predator / Jaws.
+**What doesn't survive:** no "Giant Medusa", "Snake Fighter" or mermaid text is in `Jaws.exe`, the PS2
+`SLUS_210.62` or the Ecco files in `~/Projects/ECCO`, and Ecco's files contain no mermaid at all. The demo's
+own content (character, enemies, HUD) left no trace found in Jaws.
+
+**Stray "MermaidR" bytes (not demo evidence):** the pelican skeleton (`SKEL` with clips `Pelican_*`, 262
+vertices; WRACK 1198, TITLE 894, OPEN_S 2476, plus PS2 OPEN_S/TITLE/WRACK/OPEN_NE) has the text `MermaidR` in
+the unused slots of its `WGHT` table, which hold leftover memory. The pelican was likely exported in a tool
+session that also had a "MermaidR…" object loaded, most plausibly the Jaws Gauntlet mermaid's rig. Nothing
+dates it to the demo.
+
 ## Open questions
 
 - Whether the kept classes' method bodies changed. Ecco and Jaws virtual functions are paired in

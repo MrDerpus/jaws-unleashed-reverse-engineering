@@ -269,6 +269,23 @@ User spotted a `TridentStaff` mesh and a `DiamondNecklace` mesh in `WRACK.GDW`'s
 | 12 | Mermaid | Yes — `BSCollectibleGameObject Mermaid`, `KATATAMA.GDW` (real pos `(249.8, 5.0, -324.8)`); also a real nested instance in `GAUNTLET.GDW`, placed inside the actual `SM23TheGauntletMission` node (i.e. part of SC22 The Gauntlet's own mission content, not the generic collectible system) |
 | 13 | Nautilus | Yes — `BSCollectibleGameObject Nautilus`, `AQUARIUM.GDW`, real pos `(945.6, -191.1, -316.4)` |
 
+**The Gauntlet's live mermaid (2026-10-20):** category 12 has two different models.
+- **Static statue:** template `Mermaid Include:12 - Mermaid` (GAUNTLET node 13100; KATATAMA's copy is what
+  `BSCollectibleGameObject Mermaid` uses) holds `MermaidModel` → plain `GDModel`s `Mermaid` + `hair`
+  (804 triangles, no rig).
+- **Animated swimmer:** in `SM23TheGauntletMission` (3358), template `12 - Mermaid` (3360,
+  `BSCollectibleGameObjectTemplate`: type 12, count 1, rare 1, `m_AddOn` → 13112 `CollectibleAddOn` =
+  `flash_effect` + `Collectable BiteTarget`) holds **`MermaidModel 1`** (3362, `GDSkeletonModel`, mesh 1169,
+  926 triangles), skinned by **`SKEL 946`**: 31 bones, 644 vertices, clips `Mermaid_Pain` (frames 2–31),
+  `Mermaid_Swim` (32–61) and one-frame `Mermaid_Left`/`Mermaid_Up`. That's the standard ambient-creature set
+  (`Hammerhead_*`, `Ray_*`, …) without `Attack`. Its AI is `ACTN` 3361 **`Mermaid Action`, class
+  `MSGeneralFish`** (Jaws-only generic fish AI). So the Gauntlet's mermaid swims around and is collected by
+  biting it. Same in the PS2 `GAUNTLET.GDE`. Only GAUNTLET has the rig.
+- Blender: `blender -b --python scripts/import_skeleton_blender.py -- --name GAUNTLET --skel 946 --clip Mermaid_Swim`
+  (a saved copy: `skeletons/GAUNTLET/mermaid_skel946.blend`).
+- **Not the Appaloosa Mermaid tech demo's character** (blue, with legs): see `docs/ecco_leftovers.md`
+  "Appaloosa Mermaid tech demo". No mermaid string in `Jaws.exe` beyond the collectible texts.
+
 **Naming conventions found for real placed instances (three distinct styles, used inconsistently per level):** `CGO_<Name>` (categories 01–08, `WRACK` etc.), `BSCollectibleGameObject <Name>` (a proper class-typed instance node — `AQUARIUM` Nautilus/LicencePlate, `KATATAMA` Mermaid/LicencePlate/TinCan, `START` Body Bag/LicencePlate), `<Name>Collectibles` (`DOCKS`'s `PirateShipCollectibles`/`LicencePlateCollectibles`/`TinCanCollectibles`), and bare unprefixed names (`TOWN`'s `bodybag`). All of these are real, positioned, top-level or mission-nested marker nodes with no attached mesh child of their own — consistent with being runtime spawn points (the actual pickup mesh instanced at that position by game code), the same pattern used elsewhere in this project for vehicle-mount spawns like `TKSub`.
 
 **Trident alone was checked against every one of these conventions** (`BSCollectibleGameObject Trident`, `TridentCollectibles`, bare `Trident`/`trident`) across all 20 GDWs and came up empty every time — only the disconnected `10 - Trident` template container (holding the unused `TridentStaff` mesh, a clean 208-triangle asset, mesh_idx 332 in `WRACK.GDW`) exists anywhere. This remains a genuine, narrow finding: of the full 13-category completionist system, Trident is the one item that was modeled and cataloged but never placed as a findable pickup anywhere in the shipped game.

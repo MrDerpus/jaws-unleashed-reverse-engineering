@@ -72,13 +72,32 @@ The differences fit an older version of the same tool. Defender's chunks are pac
 
 ## Archive Structure
 
-**Engine version:** All 20 GDW files share the identical header `GDED BINARY FORMAT, VERSION 2.6.3.16` with an internal date of `20030626` (June 26, 2003) — three years before the 2006 release. The engine was frozen well before ship.
+**Engine version:** All 20 GDW files share the identical header `GDED BINARY FORMAT, VERSION 2.6.3.16` with an internal date of `20030626` (June 26, 2003), stored as a string in the `VERS` chunk (`Jaws.exe` holds the same string, next to `misc_core_open`). **Correction (2026-10-21):** this is the container format's version date, not an engine freeze. Individual block formats kept changing until December 2005 (see "Block format date stamps" below).
+
+### Block format date stamps (found 2026-10-21)
+
+Data blocks carry a format-version number that is a literal **YYYYMMDD date**, and `Jaws.exe`'s loaders compare against it (every exe hit is a `cmp [esp+x], imm` or `cmp eax, imm`). Found by scanning all 20 GDWs, the PS2 `.GDE`s and the exe for date-shaped uint32s and keeping those that sit in block headers:
+
+| Block | Stamp | Date | Note |
+|---|---|---|---|
+| `WDIM` | 19980304 | 4 Mar 1998 | |
+| `GNRL` | 19980331 | 31 Mar 1998 | |
+| `GMAT` | 19980409 | 9 Apr 1998 | after the empty `OBPR` (`0x0130E079`) |
+| `GMOV` | 19991005 | 5 Oct 1999 | |
+| `GSMP` | 20001201 | 1 Dec 2000 | `0x013131B1` |
+| `SKEL` | **20020410** | **10 Apr 2002** | all 752 skeletons; the loader also checks `> 20001009` (morph-frame count) and `≥ 20020410` (running-position track) |
+| `GTEX` | 20050515 | 15 May 2005 | the "stamp `0x0131F253`" in the texture header |
+| `GMDL` | 20051205 | 5 Dec 2005 | all 11,948 meshes |
+| `RSRC` | 20051208 | 8 Dec 2005 | |
+| (PS2 only) | 20060316 | 16 Mar 2006 | 360 blocks in the `.GDE`s, also checked by `Jaws.exe`; block not identified |
+
+The exe also compares against stamps not seen in the data (1998–2006, e.g. 19980902 in several loaders, 20030218, 20050707), probably formats with no blocks in the shipped files or older revisions still accepted. **The only 2001–2002 date anywhere is the `SKEL` stamp (April 2002)**, i.e. the skeleton format's last revision falls between *Ecco: Defender* and *Sole Predator*. Values 20011008–20011013 that a raw scan finds are chance byte patterns in pixel data, not headers. The 1998 stamps predate GWB's early-1999 start, so the oldest formats may come from earlier Novotrade/Appaloosa tools (inference). Other dates in the exe: PE timestamp and `__DATE__` 14 Sep 2006, `(c) 2004 Majesco Entertainment`, libpng 1.0.5 (Oct 1999), IJG JPEG (1996).
 
 **Development history and engine lineage:**
 
 The engine predates Jaws Unleashed by several years. Appaloosa Interactive built the same underwater engine for *Ecco the Dolphin: Defender of the Future* (2000). The game was then developed under the working title *Sole Predator* and demonstrated as a tech demo in 2004 while Appaloosa searched for a publisher. A publisher subsequently acquired the Jaws license and the game shipped in 2006 as *Jaws Unleashed*.
 
-The engine freeze date of June 2003 means the core technology was already mature before Sole Predator was even publicly shown. When the Jaws license was acquired, the engine was not meaningfully changed — content and gameplay were extended on top of a frozen build. This explains several things visible in the files:
+**Correction (2026-10-21):** this used to say the engine was frozen in June 2003. That date (`20030626`) is only the container format's version; the block format stamps (see "Block format date stamps") show the skeleton format revised in April 2002 and the texture, mesh and resource formats in May–December 2005, so the engine kept changing during Jaws development. Several things visible in the files show old code carried forward:
 
 - `SharkWorld` sits alongside `GDWorld` in the class registry — shark-specific code was layered on top of the generic engine rather than integrated into it
 - The water system has multiple versioned classes (`NAWaterGrid2000`, `NAWater2003`, `NAWater2004`, `NASlideWater2004`) — these represent evolution layers carried forward from Ecco through Sole Predator
@@ -689,4 +708,4 @@ GDW (little-endian, chunk-based)
 
 **Corrected (2026-07-17):** the original version of this diagram put `SCRT` inside `RSRC` and called it obfuscated scripting, and omitted `RSPR`/`SKIP` and the second embedded archive entirely. See the corrected chunk table above and CLAUDE.md for full details.
 
-The engine is **component-driven and editor-authored**. Runtime gameplay objects are assembled from serialized components with reflected properties. The format preserves a remarkable amount of internal metadata — class names, property names, and object names are all stored as readable strings, making many systems self-documenting. The engine freeze date of `20030626` (June 2003) predates the 2006 ship by three years; the core was finalized before the Jaws license was even acquired.
+The engine is **component-driven and editor-authored**. Runtime gameplay objects are assembled from serialized components with reflected properties. The format preserves a remarkable amount of internal metadata — class names, property names, and object names are all stored as readable strings, making many systems self-documenting. The container version date `20030626` (June 2003) is not an engine freeze: block formats were still revised in 2005 (see "Block format date stamps").

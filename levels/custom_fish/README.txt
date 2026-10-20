@@ -59,6 +59,32 @@ Limits
   Negative scale (mirroring) isn't supported. Apply it first.
   Linked duplicates (Alt+D) share one mesh in-game, which keeps the file small.
 
-When you're done
-  Save the .blend, then tell Claude. The export script is included in the
-  Text Editor (blender_export_scene.py); Claude can also run it headless.
+Building the level (when you're done editing)
+  1. In Blender: File > Save (Ctrl+S). The build reads the saved file, so
+     unsaved changes are left out. Blender can stay open.
+  2. Open a terminal (on Linux: your terminal app; any folder) and run:
+
+       cd ~/Projects/JAWS/levels/custom_fish
+       ./build.sh
+
+     (use the path where your project folder is, if it's not
+     ~/Projects/JAWS). It exports the JAWS collection from the saved .blend
+     with Blender in the background, builds the level and installs it in the
+     game's custom_levels folder as CUSTOM_FISH.GDW. Takes about a minute;
+     the last line says "deployed to ...". If something fails, it prints the
+     end of build.log (in this folder).
+
+     Options:
+       ./build.sh --show-exits   also show exit zones as coloured columns
+       ./build.sh --no-deploy    build custom_fish.GDW here, don't install
+     Settings at the top of build.sh: LEVEL_NAME (the name in the F9 list)
+     and MUSIC (keep / none / custom).
+
+  3. In the game: press F10 if you're already in the level, otherwise F9,
+     pick CUSTOM_FISH with the arrow keys and press Enter.
+
+  Needs: Blender on the PATH (the "blender" command works in a terminal),
+  Python 3 with Pillow, ffmpeg (only for MUSIC=custom), and the mod
+  installed. Where the game is installed is set by LIVE_DATA near the top
+  of scripts/build_scene.py (the game's data folder; custom_levels is
+  created next to it).
