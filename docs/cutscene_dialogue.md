@@ -13,7 +13,7 @@ GSMP [size]
     PROP [..] [u32 0x04000025] 'SMPC' [u32 len][caption, NUL-padded]
   [u32 0x013131B1][u32 0x22]       0x20 = has caption (plain samples have 0x02)
   [u32 len][caption, padded to 4]  same text again
-  [u32 duration_ms][u32 sample_rate][u32 byte_count][u32 pad]
+  [u32 duration_ms][u32 sample_rate][u32 byte_count]   (corrected 2026-11-23: no pad word; PCM starts here, then 8 loop bytes)
   [byte_count bytes: signed 16-bit mono PCM, 11025 Hz in every case seen]
 ```
 
@@ -30,6 +30,12 @@ GSMP [size]
 ## Unused line
 
 **TOWN 388, `MovieTown1.VoiceCrew2`:** the same line as 387 ("Something's happening out at the pond. Mr. Mayor, we must leave!…"), recorded by a **different voice actor in a calmer tone** (user-identified by listening). Its name appears only in the `MovieTown1/2/3` bank name lists; no sound event or sound object references it, so the game never plays it. The cutscene plays 387 at tick 10, then the mayor's "OH MY GOD!" (`VoiceMajor3`) at 250. All other 48 lines are referenced. See also `docs/cut_content.md`.
+
+**START 470 / 471, `Movie.VoiceBrody3` / `Movie.VoiceBrody4` (2026-11-23):** two more unused Brody lines, outside the 49 because they are plain `GSMP` samples with no caption (never set up as subtitled dialogue). Transcribed by the user by listening; same voice actor as the shipped Brody lines 1/2:
+- **470** (2.43 s): *"Gottem! Hold tight, he's gonna try and break free!"*
+- **471** (5.19 s): *"Oh my God it's a Great White! Make sure he's fully restrained and let's get him to the research center ASAP."*
+
+They are the dialogue of the cut Aurora rope fight at the end of the tutorial: 470 when the harpoon hooks the shark and the tug-of-war starts, 471 for the capture once the shark is reeled in (`NAAuroraRope.m_finalmovie`). Never played on PC or PS2. See `docs/cut_content.md` "Cut tutorial ending" and `docs/audio_leads.md`.
 
 ## Catalogue (all 49)
 

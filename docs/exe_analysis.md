@@ -170,9 +170,63 @@ Sub-state `0xF` (15) doesn't use Pitbull04: it deals damage from how far the sha
 
 **Open:** what puts the shark into state 5 and sub-states 9 / 22, which ability `+0x730` is, and whether "04" means earlier Pitbull versions existed (the exe names only this one).
 
+### Tick, input, water height and the animation runtime (2026-10-21, found during the Ecco port)
+
+Found while porting Ecco's dolphin controller (`docs/ecco_dolphin_controller.md`); everything here was used by the mod's Ecco
+mode, which is user-confirmed working, so the addresses and the behaviours described are tested in-game unless marked otherwise.
+
+**Per-frame tick.** `MLSharkCtrl`'s tick is vtable `0x7F28FC` slot `0x48` (address `0x7F2944`) = **`0x667FB0`** (thiscall, no
+args). All of the shark's own movement happens inside it. Replacing the slot (mod `ecco.cpp`) replaces the movement while the
+rest keeps working: the camera follows, the F8 teleport and terrain push-out still apply to the brick afterwards, so collision
+is resolved outside the movement code. To move the brick yourself: write its world matrix (`+0x84`) and its local matrix
+(`+0x50`, solved through the parent's world matrix) and set flag `0x20` (stale) at `+0x0C`; call the world updater `0x696EA0`
+first if the flag is already set, as the stock tick does.
+
+**Pad (controller input).** `[[0x920E24]+0x88]+8` → `[buttons][previous buttons][stick X][stick Y]`. Swim = bit `2` or
+`0x800000`; the d-pad bits `0x100`/`0x200` (left/right), `0x40`/`0x80` (up/down). The stock stick reader `FUN_0065EAE0` uses a
+`0x1000` deadzone rescaled to ±`0x4000` and flips Y unless the invert option byte `0x8D1DC1` is set; it also prints
+"Nem Invert" (debug, emptied in release) on every call.
+
+**Water height.** Function pointer at **`0x8B2E9C`**: `float cdecl f(const float* pos)`, returns the water surface height at a
+position, or `-2147483648.0` (`0x7D388C`) when the level has no water. The water action sets it to `0x633260`/`0x633320`, which
+return the water brick's world Y (`[0x902EA4]+0xAC`), i.e. a flat plane.
+
+**Shark clip animator** at **`ctrl+0xBC`**:
+- `PlayClip` `0x65E610` → `0x4DCF70` (a two-slot cross-fader). Per-tick update **`0x4DD250`** (thiscall `(animator, int
+  reset)`, `ret 4`), called from the shark tick at `0x66DF91`. Frame step = speed × `[engine+0xB4]`. Posing goes through
+  `0x6F6150`, cross-fades through `0x6F6230`.
+- Fields: `+0x10` skeleton model, `+0x14` frame, `+0x1C`/`+0x20` start/end, `+0x24`/`+0x28` cross-fade length/remaining,
+  `+0x2C`/`+0x30`/`+0x34` slot B start/end/frame, `+0x3C` weight, `+0x44`/`+0x48` speeds, `+0x58` reference frame, `+0x60`
+  flags (`8` = loop; `1`/`2`/`4` select special per-bone paths, not decoded).
+- **It can be driven from outside:** save its first `0x80` bytes, write a clip range and frame (speed 0, no cross-fade, weight
+  1), call `0x4DD250(anim, 0)`, restore the bytes. The bones take the written pose and the shark logic's own clip timing and
+  "clip ended" checks are unaffected (mod `PoseDolphin`).
+- A second animator at **`ctrl+0x15C`** runs while `ctrl+0x24C` is set. Not identified.
+- **Clips are looked up by name only.** The controller never checks which skeleton or mesh it is driving: a foreign 28-bone
+  rig (padded to 40 bones) whose `ANIM` lists the 73 `Shark_GW_*` names plays as the player (`DOLPHIN` level). Whether
+  anything really needs 40 bones wasn't tested; the padding was a precaution.
+
+**Other animation code:**
+- The generic clip-player action `0x6F75A0` (start `+0x40`, end `+0x48`, speed `+0x50`, frame `+0x64`, loop count `+0x88`)
+  serves other animated objects.
+- `0x6F5EB0` (thiscall `(start, end, float frame)`) poses a skeleton model at a fractional frame. It also sums the per-frame
+  root-motion deltas (`SKEL +0x1C`, 12 bytes per frame) between the last and the new frame, wrapping at the clip end, into the
+  model's `+0x1D8` delta, then interpolates every bone between the two neighbouring frames (`FUN_006E9E90`).
+- **SKEL resource object** (loader `0x6F47D0`, reached through the skeleton model's vtable `+0x84`): `+0x1C` root-motion array,
+  `+0x20` frame count, `+0x24` morph frame count, `+0x40` vertex count, `+0x4C` morph data.
+
+**`ANIM` header's second word, solved:** it is the total byte length of the clip names (Σ `name_len`, NULs included,
+alignment padding excluded). Checked on all 345 `ANIM` chunks in the 20 shipped GDWs, 345 match.
+
+**Drawing from the d3d8 proxy (mod side).** The game sets the view matrix several times per frame (reflection and refraction
+passes render to textures). The last view and projection set while the back buffer is the render target are the main camera;
+drawing at `EndScene` with them places objects correctly in the world (mod `sonar.cpp`). Whether the depth buffer is still
+the scene's at that point wasn't checked separately (the sonar draws with depth test on and looked right).
+
 ### Other globals seen nearby (unexplored)
 
 - `0x920E24`: a top-level engine/world object referenced everywhere (`+0x80`, `+0x84`, `+0x88` sub-objects; `+0xB0` looks like a game clock).
+- `0x8DA1C0`: the `DDGameState` object (`+0x104` `m_angry`, `+0x12C` `m_koteldied`; see "Cut Aurora rope").
 - `0x90BC08`: cleared at the end of the `SharkRelPos` routine; a neighbor of the controller singleton.
 - `0x93BE68`: the debug-print object that `SharkRelPos` / `TailCombo` strings are sent to (`call 0x703BD0`).
 - `0x8D1EBC` / `0x8D1EC0`: written from controller `+0x2A8..+0x2B4` in the `SharkRelPos` routine, likely a HUD copy of the health/hunger values.
@@ -396,6 +450,34 @@ No lose condition, no boss phase, no completion action. The tick (`0x5FBA00`) co
 - `0x69AC70(0x8000)` in the fail path (`RequestStage` flag 2 restarts the stage, seen in-game).
 - The jet-ski AI is `ANShip` (definition object `0x1264` bytes; only ANShip code, `0x410000`–`0x41D000`, writes the state stack at `+0xC24`/`+0xC28`, state 5 at `0x41691A`). Route following works (see above; speed 120 with turn/stop distances 40/20 on the canal); `+0xA80` (current waypoint) used by the first draft is still unexplored.
 
+## Cut Aurora rope: `NAAuroraRope` and friends (decompiled 2026-11-02)
+
+How the cut tutorial ending played (tension, reeling, snagging, the HUD, the two endings) is written up in `docs/cut_content.md` "How the rope fight worked". This section only lists the engine side. Static analysis only (Ghidra headless + objdump); nothing was run in-game.
+
+| Class | Address | What |
+|---|---|---|
+| `NAAuroraRope` | descriptor vtable `0x7DA4C0`, getter `0x4BB630`, field descriptor `0x8DB828` (37 fields) | subclass of `NARope` (getter `0x5AA050`) |
+| | runtime vtable `0x7DA4D4` | slot 22 tick **`0x4BC670`**, slot 23 activate `0x4BC470`, slot 24 deactivate `0x4BD010` |
+| | props vtable `0x7DA56C` | props created at `0x4BB5B0` → ctor `0x4BBDC0` (0x374 bytes, `m_treshold` default 1.1) |
+| | runtime object `0x4BB530` (0x2B4 bytes) | message hook `0x4BBD90` (installed at `+0x48`) handles message **`0x29A`** → damage handler **`0x4BD100(float)`**; segment helper `0x4BC610` |
+| `NAAuroraRopeExcluder` | getter `0x4BD360`, descriptor `0x8DC8E0`, runtime vtable `0x7DA5E8`, tick `0x4BD780` | subclass of `NARopeExcluder` (`0x5AC6F0`) |
+| `NAAuroraRopeBuoyRopeInteractor` | getter `0x574BD0`, vtable `0x7E69CC`, tick `0x574DC0` | not decoded |
+| `MBAurora` | getter `0x4B77F0`, descriptor `0x8DCD00`, collision handler `0x4B9610` | mask `0x4000` → push + rope damage (≤ once per 30 ticks); mask `0x8` → `m_angry` |
+| `MBShipRope` | getter `0x4C0830`, descriptor `0x8DBD48` | stripped copy of the tension core; placed once, in OPEN_S |
+
+**Props field values** (wrapper `a` + 4): `m_maxhp` `0x238`, `m_treshold` `0x240`, `m_capaszaja` `0x250`, `m_aurora` `0x258`, `m_kotelauroravege` `0x260`, `m_kotelforce` `0x268`, `m_halfdist` `0x270`, `m_kotelsebzicapatfeszules` `0x280`, `m_kotelsebez` `0x288`, `m_kotelhajothuzza` `0x290`, `m_kotelhajothuzzacsaktol` `0x298`, `m_hajothuzfesz` `0x2A0`, `m_feszulhpszorzo` `0x2A8`, `m_kotelalap` `0x2B0`, HUD sprites `0x2B8`–`0x310` (`keret`, `hudcapa`, `fazisok` list `0x2C8`, `szinesfazisok` list `0x2D4`, `hudhosszu`, `belseje`, `hudhajo`, sizes/positions), `m_maxscale` `0x318`, `m_damagetime` `0x320`, `m_minlen` `0x328`, `m_maxlen` `0x330`, `m_belsofeszulkotelkifele` `0x338`, `m_behuz` `0x340`, `m_kienged` `0x348`, `m_nemhuztime` `0x350`, `m_font` `0x358`, `m_kozelvantav` `0x360`, `m_kozelvansebez` `0x368`, `m_finalmovie` `0x370`.
+
+**Runtime fields:** `+0x18` props, `+0x1FC` segment count, `+0x260` segments (stride `0x3C`), `+0x270`/`+0x274` rest/actual length, `+0x284` rope HP, `+0x298` last damage time, `+0x29C` flash, `+0x2A0` current line length L, `+0x2A4` last pull time, `+0x2AC` HUD slide offset, `+0x2B0` frames held at `m_minlen`.
+
+**Formulas:** stretch `r = actual / L`; tension `t = 1 − halfdist / (halfdist + r − treshold)`. HP `−= feszulhpszorzo · t` per tick. Shark damage goes out as message **`0x41`** with a pull of `kotelforce` × the rope vector. HUD phase = `(maxhp − hp) · 4 / maxhp`; HUD x = `(640 − hudfulllen) / 2`; it is hidden while `[0x920E24]+0xA8 & 8`. Rumble on rope damage: `0x6C9010(2, 30, 0, 30)`.
+
+**Globals and calls it touches:**
+- `[0x8DA1C0]` = the `DDGameState` object. `+0x104` = `m_angry`, **`+0x12C` = `m_koteldied`**, which is set when the rope's HP reaches 0 and is the flag `MBStageTutorial` waits for.
+- Final movie: `0x692630` / `0x698720`. Before it starts, a type check (`0x6927A0` against `0x8DE6F0`, class unidentified) is followed by `[[0x8DA1C0]+0x20]+0x40 = 6`, meaning unknown.
+- Float constants: `0x7DA5D0` = 160, `0x7D3894` = 4, `0x7CE0D8` = 1, `0x7CE024` = 0, `0x7CE7B8` = 0.8.
+
+**Open:** `NARope`'s own fields (segment setup), the interactor, state 6, what collision mask `0x4000` is.
+
 ## Draw distance and fog (2026-10-17)
 
 The "small render radius" is level data plus one water action, not a hardcoded limit.
@@ -412,13 +494,26 @@ The "small render radius" is level data plus one water action, not a hardcoded l
 
 **Which movies are requested:** the names aren't in the exe. They are `PROP 0x080005E6` on movie-play actions in the levels, and all 12 match the 12 shipped files (nothing is requested that's missing): TITLE.GDW `INTRO` and `SHARK` (`PC MPEG Demo 1 Loader` / `… 1`), `Movie Scene 1–6` = `JAWSC4`, `JAWSC10`, `JAWSC7`, `JAWSC11`, `JAWSC8`, `JAWSC9` (menu order), `Trailers Page 0` `FLUX`/`PSYCHO`/`INF`, and CHASE.GDW `OUTSCENE` (`MPGPlay 3_pc`, the ending). The gaps in the `JAWSC` numbers (no 1–3, 5, 6) are not referenced anywhere; they may follow the film's scene or chapter numbering, which isn't verified.
 
+## Push barriers: `ANTol` buoys and `NAWhirl2000` currents (2026-11-23)
+
+Both "Current's too strong." boundaries push the shark instead of blocking it. Strength tables and the DOCKS gaps are in `docs/speedrun_glitches.md` section 13.
+
+- **`ANTol`** (*tol* = push; class descriptor `0x8CB868`, vtable `0x7D18D4`), on the buoy template `BolyaDef`. BRTR `PROP 0x080002B2` + field index: `m_type`, `m_radius`, `m_fmul`, `m_delay`, `m_forcemax`. Runtime: `+0x100` next tick time, `+0x104` radius² (set by init `0x43F670` from `+0x114`), `+0x10C` type, `+0x11C` fmul, `+0x124` delay, `+0x12C` forcemax.
+- **Tick `0x43F6A0`:** when the game clock (`[0x920E24]+0xB0`) passes `+0x100`, re-arm it `m_delay` ticks ahead; take the shark brick (`[0x90BC08]`) and the buoy's world positions (`+0xA8`/`+0xB0` = x, z; y ignored); if d² < r², push = the buoy's world Z axis (`+0x9C`–`+0xA4`, passed through `0x7080C0`) × (1 − d²/r²) × fmul; if `m_type` ≠ 0, clamp its length to `m_forcemax`. Then `0x694860(0x5F, vec)` and a `MSG_WHIRL` broadcast through `0x6C6120`. `0x43F700` is the same test for a given (x, z).
+- The push follows the buoy's facing, not the direction away from the buoy, so overlapping buoys in a line add up.
+- **`NAWhirl2000`** (descriptor `0x902FF8`, vtable `0x7F0A4C`, force function `0x63BD80` at slot `+0x84`): push along the path direction = force × (1 − d/rad), d = 3D distance to the path line. Runtime rad `+0x154`, grad `+0x15C`, force `+0x164`.
+- **Message:** `0x63DD50` shows "Current's too strong." (string `0x8B2128`) and arms a timer. Message names: `MSG_WHIRL` = string `0x84F12C` (table `0x8D3FBC`), `MSG_ARAMLAT` (*áramlat* = current) `0x8D3F48`.
+- Not traced: how the shark controller turns `MSG_WHIRL` into motion (so push units aren't converted to swim speed yet).
+
 ## Open items
 
 - ~~Meaning of the two integers in each field registration~~: resolved 2026-10-03, see "`GDControl`… Registration integers, resolved".
 - `GDControl` leftovers: the `0x400000` flag (`0x2000`/`0x4000`), why kill hides but keeps collision, why file-set `0x100` keeps collision but runtime-set `0x100` doesn't, spawn modes 3 vs 4, and the engine code that gives group-type nodes' actions a live instance at load.
+- How the shark controller applies `MSG_WHIRL` (`0x5F`) pushes from buoys and currents (see "Push barriers").
 - Complete the class-name resolution in `dump_class_fields.py` (132/691 named).
 - The full state-value enumeration of `SetState` (~40 states; only `7` = dead identified).
 - `0x920E24` engine object layout.
+- The second shark animator (`ctrl+0x15C`, gated by `ctrl+0x24C`), the animator flag bits `1`/`2`/`4`, and whether a player skeleton needs exactly 40 bones (2026-10-21).
 - Whether the scripted-death side effects (model hide, mission notification) can also be suppressed cleanly. The user said this isn't wanted (2026-10-01), so it's parked.
 
 ## On-screen message tables (2026-10-04)

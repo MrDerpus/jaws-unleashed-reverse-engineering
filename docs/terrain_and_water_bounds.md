@@ -29,6 +29,10 @@ Every level places exactly **one** `NAWater2004` object in its primary `BRTR` sc
 
 `m_OutOfBoundID` / `m_BoundaryID` (found next to the string `"You have left the mission area.\n"` in `Jaws.exe`) is a **separate, unrelated mission-boundary trigger** — it fires a warning/penalty when a player leaves a mission's playable radius. It has nothing to do with the infinite-surface rendering trick.
 
+## Level edges: push barriers, not walls (2026-11-23)
+
+Most level edges don't stop the shark with collision. They push it back: buoy lines (`ANTol` on the buoy template `BolyaDef`) and current paths (`NAWhirl2000`), both showing "Current's too strong.". A strong enough swim can beat them (the vanilla Arrival out-of-bounds). Per-level strengths, the uncapped DOCKS/TOWN/ARMADA buoys and DOCKS's zero-push gaps: `docs/speedrun_glitches.md` section 13; engine side: `docs/exe_analysis.md` "Push barriers".
+
 ---
 
 ## Dead End: Embedded Sub-Archives Are Not Terrain Tiles

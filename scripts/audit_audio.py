@@ -43,15 +43,28 @@ Status per extracted file in audio/<NAME>/:
 
 Limits: a request only proves the sound can be asked for; the requesting
 object or action may itself never run (check with dump_gdcontrol.py). Names
-the exe builds at run time from pieces would be missed (none found: no '%s.'
-format strings). The whole file is scanned, so the embedded loading-screen
+built at run time: corrected 2026-11-23, the exe does build some. Three
+creature-AI init functions (0x508380, around 0x512F3D and 0x514F46) take the
+creature's first animation clip name, cut it at the first '_' (Mermaid_Swim ->
+Mermaid) and sprintf '%s.Idle' / '%s.Hurt' / '%s.Die' (0x8A5898/90/88). Checked:
+no unrequested bank name matches a skeleton prefix in its level, so this
+script's results don't change; it doesn't model these names itself. The whole file is scanned, so the embedded loading-screen
 archives are merged with the main one.
 
+Recording check (2026-11-23): the same PCM is often stored under several
+names and levels. For every file that isn't 'used', column `recording` says:
+  plays_elsewhere  identical PCM is 'used' under another name/level
+                   (copy_of lists up to 3 of those files) -> it is heard in-game
+  unheard          no 'used' file has the same PCM -> genuinely never played
+Exact match on the 16-bit samples (needs the 2026-11-23 rip_smpb/rip_smpc fix).
+
 Output: audio/audio_audit.csv (one row per file) and audio/audio_audit.txt
-(summary + every file that isn't 'used').
+(summary + every file that isn't 'used', unheard ones first).
 """
 import collections
 import csv
+import hashlib
+import wave
 import re
 import struct
 import sys
@@ -248,6 +261,24 @@ def main(names):
         print(f'{name:9} {sum(c.values()):4} files  ' + '  '.join(f'{k} {c[k]}' for k in
               ('used', 'unrequested', 'no_bank', 'no_gsfx')))
 
+    # identical recordings: is a non-used file heard under another name?
+    def pcm_hash(path):
+        try:
+            with wave.open(str(ROOT / path)) as w:
+                return hashlib.md5(w.readframes(w.getnframes())).hexdigest()
+        except Exception:
+            return None
+    used_by_hash = collections.defaultdict(list)
+    for r in rows:
+        r['_h'] = pcm_hash(r['file'])
+        if r['status'] == 'used' and r['_h']:
+            used_by_hash[r['_h']].append(r['file'])
+    for r in rows:
+        if r['status'] != 'used':
+            twins = [f for f in used_by_hash.get(r['_h'], []) if f != r['file']]
+            r['recording'] = 'plays_elsewhere' if twins else 'unheard'
+            r['copy_of'] = ' '.join(twins[:3]) + (f' (+{len(twins) - 3})' if len(twins) > 3 else '')
+
     # names asked for only in another level (the bank there may differ, so just a note)
     for r in rows:
         if r['status'] == 'unrequested':
@@ -257,7 +288,7 @@ def main(names):
                 elsewhere |= {n for n, req in all_requests.items() if n != r['gdw'] and key in req}
             r['note'] = ('name requested in ' + ' '.join(sorted(elsewhere))) if elsewhere else ''
 
-    fields = ['gdw', 'file', 'sample', 'kind', 'status', 'gsfx', 'names', 'requested_by', 'note']
+    fields = ['gdw', 'file', 'sample', 'kind', 'status', 'recording', 'copy_of', 'gsfx', 'names', 'requested_by', 'note']
     with open(AUDIO / 'audio_audit.csv', 'w', newline='', encoding='utf-8') as fh:
         w = csv.DictWriter(fh, fields)
         w.writeheader()
@@ -265,8 +296,11 @@ def main(names):
             w.writerow({k: r.get(k, '') for k in fields})
 
     c = collections.Counter(r['status'] for r in rows)
+    rc = collections.Counter(r.get('recording') for r in rows if r['status'] != 'used')
     out = [f'# Audio audit ({len(rows)} files): ' + ', '.join(f'{k} {c[k]}' for k in
            ('used', 'unrequested', 'no_bank', 'no_gsfx')),
+           f'# Of the {sum(rc.values())} not used: {rc["unheard"]} unheard (no identical used recording), '
+           f'{rc["plays_elsewhere"]} play elsewhere under another name',
            '# Made by scripts/audit_audio.py. Statuses: see the script docstring. Full table: audio_audit.csv',
            '']
     for status, title in (('unrequested', 'In a sound bank, but no request for its name (likely unused)'),
@@ -274,13 +308,21 @@ def main(names):
                           ('no_gsfx', 'No GSFX trigger points at it (unused)')):
         sel = [r for r in rows if r['status'] == status]
         out += [f'## {title}: {len(sel)}', '']
-        for r in sel:
-            extra = f'  {r["names"]}' if r['names'] else ''
-            note = f'  ({r["note"]})' if r.get('note') else ''
-            out.append(f'{r["file"]}{extra}{note}')
-        out.append('')
+        for rec, sub in (('unheard', 'Unheard (no identical used recording)'),
+                         ('plays_elsewhere', 'Same recording plays elsewhere under another name')):
+            part = [r for r in sel if r.get('recording') == rec]
+            if not part:
+                continue
+            out += [f'### {sub}: {len(part)}', '']
+            for r in part:
+                extra = f'  {r["names"]}' if r['names'] else ''
+                note = f'  ({r["note"]})' if r.get('note') else ''
+                twin = f'  = {r["copy_of"]}' if r.get('copy_of') else ''
+                out.append(f'{r["file"]}{extra}{note}{twin}')
+            out.append('')
     (AUDIO / 'audio_audit.txt').write_text('\n'.join(out), encoding='utf-8')
     print('total ' + ', '.join(f'{k} {c[k]}' for k in ('used', 'unrequested', 'no_bank', 'no_gsfx')))
+    print(f'not used: {rc["unheard"]} unheard, {rc["plays_elsewhere"]} play elsewhere')
     print(f'wrote {AUDIO / "audio_audit.csv"} and {AUDIO / "audio_audit.txt"}')
 
 

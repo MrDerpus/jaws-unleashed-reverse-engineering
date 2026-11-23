@@ -41,6 +41,8 @@ Known level files:
 
 **Credit where it's due:** the user said from the start that *Jaws Unleashed* was made with the same editor as Appaloosa's *Ecco the Dolphin: Defender of the Future*. Claude was hesitant at first and called the claim unverified, since nothing in the Jaws files names the tool. The user then supplied the evidence below, and the comparison proved them right.
 
+**Editor vs. engine (user information, 2026-11-24):** two separate in-house Appaloosa tools. **Game World Builder** is the editor used to build the world environments (the levels this format stores). The runtime game engine is called **Diesel Power**, a custom engine. **Source:** the back cover of the European (PAL) Dreamcast release of *Ecco the Dolphin: Defender of the Future* (© Sega Enterprises 2000, catalogue MK-51033-50) reads: "GameWorld Builder™ Software Technology & Diesel Power™ Game Engine are the property of Appaloosa Interactive Corp" (scan supplied by the user, 2026-11-24; copy in [`docs/sources/Ecco_Defender_Dreamcast_PAL_back_cover.png`](sources/Ecco_Defender_Dreamcast_PAL_back_cover.png)). Both names are trademarks there, and the wording itself separates the two: GWB is the "software technology" (tool suite), Diesel Power the "game engine". The cover is Ecco's, from 2000; that Jaws (2006) still runs on Diesel Power is an inference from the shared codebase (62 Ecco classes, same `GDED` format), since the name appears nowhere in `Jaws.exe`, the PS2 exe, any GDW or the 2001 press kit (searched 2026-11-24), and Jaws' own credits don't name either tool. Name clash to keep in mind when searching: GRIN's unrelated Swedish engine was also called "Diesel". In these docs, "the engine" means Diesel Power, and the `GDED` file format is the GWB output it loads.
+
 **The tool:** Appaloosa's own PS2 press information kit (September 2001; copy in [`docs/sources/Appaloosa_PS2_press_information_2001-09.pdf`](sources/Appaloosa_PS2_press_information_2001-09.pdf), from [Sega Retro](https://segaretro.org/images/8/86/PS2PressInformation_2001-09_Ecco_Appaloosa_info.pdf); this PDF was exported from Word in January 2020, author field "Csaba Soltesz") describes the **Game World Builder™ ("GWB") 3D tool suite**, in development since early 1999 for *Ecco the Dolphin* on Dreamcast and ported, with all of Ecco's levels, to PS2 in under three months. *Defender of the Future*'s credits name GWB; *Jaws Unleashed*'s credits don't. The press kit's description of GWB matches the Jaws format closely:
 
 | Press kit (2001) | *Jaws Unleashed* data |
@@ -589,7 +591,7 @@ Category values: `2` = SFX, `3` = music (long loops, 2–3.5 min at 22050 Hz), `
 
 ### GSMP+SMPB (embedded voice lines)
 
-A variant identified by `data[pos+16:pos+20] == b'OBPR'`. Contains an OBPR sub-chunk replacing the hash/category fields, then a secondary header at `pos+16+8+obpr_size` with sample rate and byte count.
+A variant identified by `data[pos+16:pos+20] == b'OBPR'`. Contains an OBPR sub-chunk replacing the hash/category fields, then a 16-byte secondary header at `pos+16+8+obpr_size` (`[magic][field][sample_rate][byte_count]`), the PCM, and the usual 8 loop bytes (corrected 2026-11-23; read as 20 bytes before, which skipped 2 samples).
 
 These appear to be unused/cut NPC voice lines present in the GDW files but not triggered in the shipped game.
 

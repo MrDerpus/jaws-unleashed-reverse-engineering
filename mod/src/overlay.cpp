@@ -181,6 +181,11 @@ void Overlay::UpdateTexture(const OverlayInfo& info)
 
     SetTextColor(memDC, info.noclip ? RGB(255,255,0) : RGB(150,150,150));
     TextOutA(memDC, 6, 176, info.noclip ? "[F7] No-clip  ON " : "[F7] No-clip  OFF", 17);
+    SetTextColor(memDC, info.ecco ? RGB(255,255,0) : RGB(150,150,150));
+    if (info.ecco && info.ecco_status && info.ecco_status[0])
+        TextOutA(memDC, 170, 176, info.ecco_status, (int)strlen(info.ecco_status));
+    else
+        TextOutA(memDC, 170, 176, info.ecco ? "[Sh+F2] Ecco ON " : "[Sh+F2] Ecco OFF", 16);
 
     /* Teleport box (F8): prompt with blinking cursor while open, otherwise
      * the last result/error, otherwise just the key hint. */

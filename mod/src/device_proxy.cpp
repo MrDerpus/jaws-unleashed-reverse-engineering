@@ -28,6 +28,8 @@
 #include "levels.h"
 #include "hwtrace.h"
 #include "farview.h"
+#include "sonar.h"
+#include "ecco.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -297,6 +299,7 @@ void DeviceProxy::ExtractCamPos(const D3DMATRIX& v)
     cam_x_ = cx;
     cam_y_ = cy;
     cam_z_ = cz;
+    EccoSetCamera(cx, cy, cz);
 
     /* Rolling history for median-position seeding on F2 activation -- now only
      * ever fed accepted (gated) samples, so this stays a real-camera history. */
@@ -321,9 +324,12 @@ HRESULT __stdcall DeviceProxy::SetTransform(D3DTRANSFORMSTATETYPE state,
             UpdateFreecam();
             D3DMATRIX fc_view;
             BuildViewMatrix(fc_view);
+            if (on_primary_target_) { main_view_ = fc_view; have_view_ = true; }
             return real_->SetTransform(state, &fc_view);
         }
+        if (on_primary_target_) { main_view_ = *mat; have_view_ = true; }
     }
+    if (state == D3DTS_PROJECTION && mat && on_primary_target_) { main_proj_ = *mat; have_proj_ = true; }
     return real_->SetTransform(state, mat);
 }
 
@@ -341,7 +347,18 @@ HRESULT __stdcall DeviceProxy::EndScene()
     /* Toggle freecam on F2 (rising edge) — moved off F1 so F1 is free for
      * the game's own map screen (freecam interferes with the map's 3D view). */
     bool freecam_now = key_down(VK_F2);
-    if (freecam_now && !freecam_prev_) {
+    /* Shift+F2 -- Ecco mode (2026-10-21): Ecco: Defender of the Future's
+     * dolphin movement drives the shark (see ecco.h). */
+    if (freecam_now && !freecam_prev_ && key_down(VK_SHIFT)) {
+        if (!InstallEccoHook()) {
+            log_msg("[jaws_mod] Ecco mode: hook install FAILED (exe bytes differ?)");
+            SetTpMsg("Ecco mode: hook install failed");
+        } else {
+            bool on = ToggleEcco();
+            log_msg(on ? "[jaws_mod] Ecco mode ON" : "[jaws_mod] Ecco mode OFF");
+            SetTpMsg(on ? "Ecco mode ON" : "Ecco mode OFF");
+        }
+    } else if (freecam_now && !freecam_prev_) {
         log_msg("[jaws_mod] F2 toggled");
         freecam_ = !freecam_;
         if (freecam_) {
@@ -667,6 +684,8 @@ HRESULT __stdcall DeviceProxy::EndScene()
     info.invincible = invincible_;
     info.noclip     = g_noclip;
     info.far_view   = FarViewEnabled();
+    info.ecco       = EccoEnabled();
+    info.ecco_status = EccoStatus();
     info.tp_active = tp_active_;
     info.tp_text   = tp_buf_;
     char slot_text[BOOKMARK_SLOTS][40];
@@ -688,6 +707,9 @@ HRESULT __stdcall DeviceProxy::EndScene()
     for (int i = 0; i < g_picker_count && i < MAX_CUSTOM_LEVELS; ++i)
         info.picker_names[i] = CustomLevelName(i);
     info.tp_msg    = (tp_msg_[0] && GetTickCount() < tp_msg_until_) ? tp_msg_ : nullptr;
+    /* Ecco sonar pulses (world space, main camera) under the overlay */
+    if (EccoEnabled() && have_view_ && have_proj_ && on_primary_target_)
+        SonarDraw(real_, main_view_, main_proj_);
     overlay_.Draw(real_, info);
 
     return real_->EndScene();

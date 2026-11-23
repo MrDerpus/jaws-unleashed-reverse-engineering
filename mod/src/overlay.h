@@ -31,6 +31,8 @@ struct OverlayInfo {
     float speed, speed_h, speed_v;
     bool  freecam, fog_off, wireframe, hide_foliage, sim_paused, invincible, noclip;
     bool  far_view;          /* Shift+F4 far view (farview.h) */
+    bool  ecco;              /* Shift+F2 Ecco mode (ecco.h) */
+    const char* ecco_status; /* its state line */
     bool  tp_active;         /* teleport text box open */
     const char* tp_text;     /* text typed so far */
     const char* tp_msg;      /* transient result/error line, or nullptr */

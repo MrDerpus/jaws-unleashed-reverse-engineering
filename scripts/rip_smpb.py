@@ -68,7 +68,10 @@ def extract_smpb_blocks(data, stem):
             offset = pos + 4
             continue
 
-        # Secondary header follows OBPR: [magic 4b][field 4b][sample_rate 4b][byte_count 4b][pad 4b]
+        # Secondary header follows OBPR: [magic 4b][field 4b][sample_rate 4b][byte_count 4b],
+        # then the PCM, then [uint32 loop start][uint32 loop end] (+2 pad bytes when
+        # byte_count % 4 == 2), same tail as plain GSMP. Corrected 2026-11-23: the header
+        # was read as 20 bytes with a trailing "pad", which skipped the first 2 samples.
         sec_hdr = pos + 16 + 8 + obpr_size
         sample_rate = read_u32(data, sec_hdr + 8)
         byte_count  = read_u32(data, sec_hdr + 12)
@@ -80,7 +83,7 @@ def extract_smpb_blocks(data, stem):
             offset = pos + 4
             continue
 
-        audio_start = sec_hdr + 20
+        audio_start = sec_hdr + 16
         raw = data[audio_start : audio_start + byte_count]
 
         if len(raw) < 64:
@@ -122,7 +125,8 @@ def main():
 
         for sample_id, flags, sample_rate, byte_count, dur, raw in blocks:
             fname = f'{stem}_smpb_id{sample_id:04d}_{sample_rate}hz_{dur:.2f}s.wav'
-            out_path = OUTPUT_DIR / fname
+            (OUTPUT_DIR / stem).mkdir(parents=True, exist_ok=True)
+            out_path = OUTPUT_DIR / stem / fname      # audio/<LEVEL>/, where the other rippers write
             with wave.open(str(out_path), 'w') as w:
                 w.setnchannels(1)
                 w.setsampwidth(2)

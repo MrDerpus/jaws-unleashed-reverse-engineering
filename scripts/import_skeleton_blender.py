@@ -258,6 +258,9 @@ def build(root, name, skel_id, anim_skel=None, root_motion=True, fps=30, anim_na
     for clip in clips:
         act = bpy.data.actions.new(clip['name'])
         act.use_fake_user = True
+        # Blender 4.0's Action Editor only lists actions whose id_root is
+        # OBJECT; unassigned new actions have it blank, so set it up front.
+        act.id_root = 'OBJECT'
         frames = list(range(clip['start_frame'], clip['end_frame'] + 1))
         keys = {}                                # data_path, index -> [(frame, value)]
         prev_q = [None] * len(bones)

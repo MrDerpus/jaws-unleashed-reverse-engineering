@@ -10,6 +10,7 @@ Runs under **GE-Proton11-9** on Linux (since 2026-10-16; earlier testing used Va
 | Key | Action |
 |-----|--------|
 | `F1` | *(unbound by the mod — left free for the game's own map screen)* |
+| `Shift+F2` | **Ecco mode** (2026-10-21, user-confirmed working): the shark moves with Ecco the Dolphin: Defender of the Future's swim physics and controls (ported `DolphCtrl` states 0–6). Swim button = swim (taps add speed), RMB charge, R brake, T/Y 180° turn, C circle, B cruise, Q/E roll, U turn up. Optional `C:\jaws_ecco.txt` (`scale`, `invert_x`, `invert_y`, `skip_shark_tick`, `body_length`). Hooks the shark tick vtable slot `0x7F2944`. In the `DOLPHIN` custom level (`scripts/build_ecco_dolphin.py`) it also poses Ecco's model with the dolphin's own clips (2026-10-21, user-confirmed). **Sonar** (2026-10-21, user-confirmed): F or the middle mouse button underwater sends Ecco's sonar cone and wave from the head with the sonar sound, 1 s cooldown, visual only (stage the files with `python3 scripts/stage_ecco_sonar.py`; tuning `sonar_head`, `sonar_alpha`, `sonar_ztest` in `C:\jaws_ecco.txt`; `src/sonar.{h,cpp}`). `src/ecco.{h,cpp}`; details `docs/ecco_dolphin_controller.md` "Step 2, Phase A". |
 | `F2` | Toggle freecam on / off *(moved off F1 2026-08-12 so F1 stays free for the map; god-mode removed the same pass)* |
 | `F3` | Screenshot — saves `C:\jaws_screenshot_NNNN.bmp` |
 | `F4` | Toggle fog on / off |

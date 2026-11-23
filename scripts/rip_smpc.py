@@ -30,8 +30,12 @@ carries its subtitle text twice, in the OBPR and in the sample header:
         PROP [..] [u32 0x04000025] 'SMPC' [u32 len][caption, NUL-padded]
       [u32 0x013131B1][u32 0x22]    0x20 = has caption
       [u32 len][caption, padded to 4]
-      [u32 duration_ms][u32 sample_rate][u32 byte_count][u32 pad]
+      [u32 duration_ms][u32 sample_rate][u32 byte_count]
       [byte_count bytes of signed 16-bit mono PCM]
+      [u32 loop start][u32 loop end] (+2 pad bytes when byte_count % 4 == 2)
+
+Corrected 2026-11-23: the header was read with a 4th "pad" word, which is
+really the first 2 PCM samples; the old output skipped them.
 
 Cutscenes name their sounds ("Movie2.Mayor3"); a sound-bank node in BRTR
 (PROP 0x08001939 group name, 0x0800193A names, 0x0800193B/0x0800193C parallel
@@ -80,7 +84,7 @@ def smpc_blocks(d):
             caption = d[x + 12:x + 12 + tl].split(b'\0')[0].decode('latin-1').strip()
             y = x + 12 + ((tl + 3) & ~3)
             dur, rate, count = u32(d, y), u32(d, y + 4), u32(d, y + 8)
-            start = y + 16
+            start = y + 12               # PCM right after byte_count (was y + 16, 2 samples late)
             if not (4000 <= rate <= 48000) or start + count > p + 8 + size:
                 continue
             yield u32(d, p + 8), rate, dur, caption, d[start:start + count]

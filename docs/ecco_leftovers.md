@@ -108,6 +108,68 @@ checked: whether any dangling `GDControl` target or deleted node ID points at an
 **Correction to the `MLEnemy` row below:** Ecco never placed it (0 instances), and in Jaws it's a brick
 instead of an action, so it's a Jaws class reusing an unused Ecco name, not Ecco content.
 
+### `MLHalRaj` fish schools restored in Jaws (2026-10-21, user-confirmed working first try)
+
+The old Ecco fish school runs in the shipped `Jaws.exe` unchanged. `scripts/build_fishball_test.py
+[OUT] [--deploy NAME]` puts three schools of WRACK's clownfish in front of the spawn of the blank FISH
+base (`levels/custom_fish/FISH_blank_base.GDW`) → `edited_levels/FISHBALL.GDW`, loaded with the mod's F9.
+
+**Shape:** not a true ball. One leader wanders and the rest hold random offsets from it, which gives the
+swirling clumps of Defender, the Mermaid demo and the Sole Predator beta screenshots, not Jaws's long
+`MLHalRaj3` columns. **`MLHalRaj2`** (implied by the "3") is in neither exe, so it can't be restored. User's
+theory: it was the school of the Mermaid demo and early Sole Predator (fits the dates, unverifiable).
+
+**Placing it, no `CLAS` edit needed:** every level's `ACCM` list already names `MLHalRaj` (it's the whole
+engine registry; FISH index `0x143`), and the action loader `0x68ED80` only uses the class ID's low 12 bits
+(remapped through the file's list), so the class word is `0x02144143` (middle bits = index + 1, as in
+`MLMadarRaj` `0x0214C14B`). PROP IDs in FISH: `0x08000984` + field index (`mnum` … `maxcolor`, order in the
+table below).
+
+**Layout (Ecco 120NORTH node 6354, kept as is):** `GDStdBrick` carrying the `ACTN` → empty `GDStdBrick`
+→ fish `GDModel` (Ecco: `fish03.GDM` `GDMovingModel` with a `GDMorphAnim`). All three need `m_nFlags` `0x12`.
+
+**Code (Jaws `MLHalRaj` vtable `0x7DD0D4`, props value = wrapper offset + 4):**
+- Init `0x4E9A80`: takes the brick's first child and, if that has a child, the grandchild as the model;
+  hides both (`0x100`) and allocates per-fish arrays (`mnum` × matrix, state, offset, vertex colours).
+- Tick `0x4EA3E0`: fish 0 leads at `maxspeed`, picks a new random heading every
+  `ccount`…`ccount+ccountrnd` ticks, and turns back when outside the sphere `mrange` (or the box
+  `boxx/y/z` when `mrange` = 0). Fish *i* steers to the leader's matrix × its random offset
+  (x, y in ±`frange`/2; z in 0…−`rangez`, or ±`frange`/2 when `rangez` = −1), at
+  `maxspeed` × (1 − rnd × `maxspeedmulrnd`), turning at `rotaccel`; farther than `maxleader` it uses
+  `fast`. Objects in **`felid`** (an ID list; Ecco left it empty) closer than `ecconear` make a fish flee,
+  turning at `escaccel`. **`mrange`, `maxleader` and `ecconear` are squared distances.** Fish swim along +Z.
+- Draw `0x4E9FF0`: renders the model once per fish (grandchild case: fish matrix × the model's own local
+  transform, so scale/orientation go on the model node), shading each fish's vertex colours from
+  `mincolor` to `maxcolor` by its angle to the camera (the two fields Jaws added).
+- `fp`, `eatscale`, `damage`, `animspeed`, `animspeedrnd` are not read by the Jaws code (Ecco's eating and
+  morph-animation fields), and `zaj` (sound) is only looked up. The fish can't be eaten and the static
+  clownfish doesn't animate.
+
+**Values used** (Ecco 120NORTH's 97 schools use `mnum` 3–19, `mrange` 2–40, `frange` 2–20, `rangez` −1 to
+−10, `maxspeed` 0.2–0.3, `fast` 0.3–0.6, `rotaccel` 0.005, `escaccel` 0.009, `ccount` 30/30,
+`maxleader` 100, `ecconear` 50, `felid` empty): distances roughly doubled for the clownfish (WRACK
+`GMDL 1361` → `GMAT 739` → `GTEX 219`, at WRACK's scale 7.5, ≈ 1.1 units long; Ecco's fish03 ≈ 0.65), the
+shark (`SHARRRK` 26116) in `felid` with `ecconear` 400, `mincolor`/`maxcolor` 0.6/1.0, and the shipped
+clownfish's render settings (`m_RenderSetting` `0x860`, `m_ChannelSetting` `0x3F`).
+
+**Scaled up (user requests, same day):** v2 ~3× the fish and 2× the spread (`mnum` 60/100/40, `mrange`
+400/900/100, `frange` 16/24/8); v3 **50× the fish: 3,000 / 5,000 / 2,000 = 10,000 fish, no frame drop at all
+(user-tested)**. `mnum` has no cap in the code (all per-fish arrays are heap-allocated from it).
+
+**Side by side with the shipped schools:** the level also holds two stock Jaws schools (FISH templates
+`Piros-Feher Hal Sprite` 23022 and `Zebra Hal Sprite` 22980, copied as they are, each placed by a copy of
+FISH's `MLHalRaj3Reference` 34098). Differences found on the way:
+- **`MLHalRaj3` is a `GD3dSprite` subclass:** Jaws's schools are flat sprite fish (one material, e.g.
+  `GMAT 969`), not meshes, so a clownfish `MLHalRaj3` can't be made. `MLHalRaj` draws real 3D models. The
+  beta screenshots' 3D-looking ball schools fit the old class.
+- `MLHalRaj3` is a **brick** placed as a top-level template plus `MLHalRaj3Reference` nodes (`m_Ref` =
+  template, own `m_fishnum`, `m_speed`, `m_moverange`, `m_groupsize`/`z`, `m_enemy`, `m_feardist`,
+  `m_size`, `m_health`); `MLHalRaj` is an **action** on an ordinary brick.
+- The Jaws fish are **edible** (each template carries an `NABiteTarget` and an `MLHalRaj3Catch` action);
+  the Ecco ones aren't.
+- Jaws schools flee from **`HalRiaszto`** (26265, "fish alarmer"), a child brick of the shark, with
+  `m_feardist` 5 (15 on the template).
+
 ---
 
 ## How this was measured

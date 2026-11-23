@@ -169,6 +169,8 @@ private:
      * render to an off-screen texture first, each with their own camera. */
     IDirect3DSurface8* backbuffer_surf_    = nullptr;
     bool                on_primary_target_ = true;
+    D3DMATRIX           main_view_ = {}, main_proj_ = {};   /* last matrices set on the back buffer (sonar) */
+    bool                have_view_ = false, have_proj_ = false;
 
     /* Camera state extracted from the view matrix */
     float cam_x_ = 0, cam_y_ = 0, cam_z_ = 0;

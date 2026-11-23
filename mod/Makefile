@@ -35,7 +35,9 @@ SRCS := src/d3d8_proxy.cpp \
         src/levels.cpp \
         src/debuglog.cpp \
         src/hwtrace.cpp \
-        src/farview.cpp
+        src/farview.cpp \
+        src/ecco.cpp \
+        src/sonar.cpp
 
 TARGET := d3d8.dll
 
