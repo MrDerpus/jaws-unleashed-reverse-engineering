@@ -1,0 +1,235 @@
+# Field-level diff: Ecco: Defender (2.1.12.1) / Ecco: Sentinels of the Universe (2.3.2.1) / Jaws Unleashed (2.6.3.16)
+# Generated 2026-11-25 by: python3 -I scripts/gded_lineage.py fields Def=<Defender DC 2000-04 + PS2 US levels> Sent=<Sentinels levels>@2.3 Jaws=GAME_GDWs/*.GDW
+# Source: each level's CLAS PRIM field table (union over all levels of each game). See docs/GDW_FORMAT.md.
+
+Def: 89 files, 769 classes, 6106 fields
+Sent: 8 files, 455 classes, 4101 fields
+Jaws: 20 files, 714 classes, 6662 fields
+classes in all: 125, identical fields in all: 69
+
+DDFieldAct: Def 13 / Sent 14 / Jaws 14
+   Def->Sent: +m_radius  -
+   Sent->Jaws: +m_range  -m_radius
+
+DDGameState: Def 18 / Sent 3 / Jaws 5
+   Def->Sent: +m_monocam  -m_air m_alert m_beuszik m_bossdefeated m_csapzarva m_eccoarea m_finred m_firstdialact m_flags m_hamon m_nirflags m_nwlevel m_tempboss m_tempdoor m_tempfanatic m_tempresig
+   Sent->Jaws: +m_angry m_csonakdied m_darabnum m_enemyrange m_koteldied  -m_fustemit m_monocam m_sidecam
+
+DDLissaAct: Def 6 / Sent 6 / Jaws 9
+   Sent->Jaws: +m_speedrndx m_speedrndy m_speedrndz  -
+
+DDThrow: Def 19 / Sent 19 / Jaws 16
+   Sent->Jaws: +m_v  -m_turn m_vx m_vy m_vz
+
+GD3dSprite: Def 9 / Sent 8 / Jaws 10
+   Def->Sent: +  -m_ExtRenderSetting
+   Sent->Jaws: +m_Color m_ExtRenderSetting  -
+
+GDAct: Def 5 / Sent 5 / Jaws 8
+   Sent->Jaws: +m_CameraFilter m_ExecFilter m_ExportFilter  -
+
+GDBrick: Def 14 / Sent 12 / Jaws 19
+   Def->Sent: +m_WireColor  -m_Color m_Difficulty m_Time
+   Sent->Jaws: +m_CameraFilter m_CreatorDistance m_ExecFilter m_ExportFilter m_GenMapBound m_RoomMask m_Viewport  -
+
+GDCamera: Def 7 / Sent 7 / Jaws 6
+   Sent->Jaws: +  -m_WaterLevel
+
+GDConeCreator: Def 2 / Sent 2 / Jaws 4
+   Sent->Jaws: +m_BackLength m_Viewport  -
+
+GDControl: Def 17 / Sent 17 / Jaws 26
+   Sent->Jaws: +Separator01 Separator02 Separator03 Separator04 Separator05 Separator06 Separator07 Separator08 Separator09  -
+
+GDFog: Def 11 / Sent 12 / Jaws 12
+   Def->Sent: +m_Color  -
+   Sent->Jaws: +m_FogType  -m_nFogType
+
+GDFollow: Def 7 / Sent 6 / Jaws 6
+   Def->Sent: +  -m_RotSpeed
+
+GDHarmonic: Def 9 / Sent 9 / Jaws 10
+   Sent->Jaws: +m_relative  -
+
+GDInclude: Def 1 / Sent 1 / Jaws 5
+   Sent->Jaws: +m_RefName m_SaveTime m_SaveUser m_Version  -
+
+GDIncludedef: Def 1 / Sent 1 / Jaws 4
+   Sent->Jaws: +m_SaveTime m_SaveUser m_Version  -
+
+GDLight: Def 9 / Sent 14 / Jaws 15
+   Def->Sent: +m_AttType m_Color m_EndAtt m_Range m_StartAtt  -
+   Sent->Jaws: +m_Shadow  -
+
+GDLoad: Def 1 / Sent 1 / Jaws 5
+   Sent->Jaws: +m_Async m_Progress m_idLoader m_idProgressOver  -
+
+GDModel: Def 10 / Sent 6 / Jaws 9
+   Def->Sent: +  -m_ColiListID m_ColliGroup m_ExtRenderSetting m_LodModelID
+   Sent->Jaws: +m_ChannelSetting m_ExtRenderSetting m_ModelColor  -
+
+GDPlayMovie: Def 5 / Sent 5 / Jaws 6
+   Sent->Jaws: +m_KeepRunning m_SkipDelay  -m_SetMode
+
+GDPlaySfx: Def 2 / Sent 2 / Jaws 3
+   Sent->Jaws: +m_bStopOnDeact  -
+
+GDPptFont: Def 3 / Sent 2 / Jaws 2
+   Def->Sent: +  -m_Align
+
+GDPrimRegions: Def 3 / Sent 3 / Jaws 2
+   Sent->Jaws: +  -sperfect
+
+GDReference: Def 1 / Sent 1 / Jaws 2
+   Sent->Jaws: +m_Addons  -
+
+GDRotSprite: Def 9 / Sent 9 / Jaws 12
+   Sent->Jaws: +m_DH m_DW m_UseDW  -
+
+GDSkeletonAnim: Def 6 / Sent 9 / Jaws 9
+   Def->Sent: +m_nMorphFirst m_nMorphLast m_rMorphSpeed  -
+
+GDSkeletonModel: Def 2 / Sent 4 / Jaws 5
+   Def->Sent: +m_nMorphKeyNum m_nSkelKeyNum  -
+   Sent->Jaws: +m_EditorKeyNum  -
+
+GDSound: Def 3 / Sent 4 / Jaws 4
+   Def->Sent: +m_Falloff  -
+
+GDSprite: Def 9 / Sent 10 / Jaws 10
+   Def->Sent: +m_Color  -
+
+GDTextSprite: Def 2 / Sent 2 / Jaws 1
+   Sent->Jaws: +  -m_idCounter
+
+GDViewport: Def 10 / Sent 11 / Jaws 24
+   Def->Sent: +m_Color  -
+   Sent->Jaws: +m_Aspect m_ClearColor m_ClearOnly m_ClearZ m_CopyOtherBuffer m_CreateTarget m_DependsOn m_JoinBGControl m_JoinBGFactor m_MotionBlur m_RenderList m_TargetTexture m_ViewportSetting  -
+
+GDWorld: Def 5 / Sent 5 / Jaws 10
+   Sent->Jaws: +m_IncludeList m_IncludeTimes m_JoinBGDelta m_JoinBGZones m_SaveTime m_SaveUser m_filterviewports  -m_SoundBankName m_stage
+
+MLCameraAct: Def 7 / Sent 14 / Jaws 16
+   Def->Sent: +m_addangle m_count m_countrnd m_maxdist m_state m_target rate2 yrate  -target
+   Sent->Jaws: +m_colli m_target2  -
+
+MLEnemy: Def 6 / Sent 1 / Jaws 12
+   Def->Sent: +m_mlenemytype  -m_nHitPoint m_rBaseAccel m_rBaseRotAccel m_rDamage m_rDrag m_rRotDrag
+   Sent->Jaws: +m_bloodcloud m_boundingrad2 m_cameratype m_destroyed m_mainmodel m_sharkviewglow m_sharkviewmodel m_sharkviewtarget m_swallowpositions m_zlockable m_zlockvect  -
+
+MLHalRaj: Def 23 / Sent 25 / Jaws 25
+   Def->Sent: +maxcolor mincolor  -
+
+MLMadarRaj: Def 11 / Sent 26 / Jaws 11
+   Def->Sent: +m_Accel m_CameraViewDepthZ m_CameraViewHeightY m_DialogAct m_DialogBrick m_DirChangeRatioMax m_DirChangeRatioMin m_FeedAction m_Flag m_GoForCameraView m_Gravity m_SensingDistance m_TeleportDelay m_VeloMax m_VeloMin  -
+   Sent->Jaws: +  -m_Accel m_CameraViewDepthZ m_CameraViewHeightY m_DialogAct m_DialogBrick m_DirChangeRatioMax m_DirChangeRatioMin m_FeedAction m_Flag m_GoForCameraView m_Gravity m_SensingDistance m_TeleportDelay m_VeloMax m_VeloMin
+
+MLParticle: Def 39 / Sent 41 / Jaws 41
+   Def->Sent: +m_borntype m_centerforce  -
+
+MLTurnToTarget: Def 5 / Sent 3 / Jaws 3
+   Def->Sent: +fixaxis  -needrate2 starttarget turnrate2
+
+NAColorize: Def 20 / Sent 18 / Jaws 17
+   Def->Sent: +m_power  -m_bluedistrnd m_greendistrnd m_reddistrnd
+   Sent->Jaws: +  -m_power
+
+NADetachAct: Def 25 / Sent 27 / Jaws 27
+   Def->Sent: +m_startdelay m_startdelayrnd  -
+   Sent->Jaws: +m_instantexec  -m_type
+
+NAFlare: Def 44 / Sent 32 / Jaws 33
+   Def->Sent: +  -m_fixedsizepower m_shadowcolor m_shadowmat m_shadowphaseadd m_shadowphaseangadd m_shadowphaseangaddrnd m_shadowphasestart m_shadowrad m_shadowradamp m_shadowrotangadd m_shadowrotangstart m_shadowslicesrnd
+   Sent->Jaws: +m_innercolor m_outercolor m_rootlink  -m_raycolor m_transparency
+
+NAGlowAct: Def 17 / Sent 16 / Jaws 17
+   Def->Sent: +  -m_ExtRenderSetting
+   Sent->Jaws: +m_ChannelSetting  -
+
+NALightning: Def 9 / Sent 43 / Jaws 48
+   Def->Sent: +m_amplitudefallmul m_amplitudefallpower m_amplitudelengthrate m_angleadd m_angleaddrnd m_angleaddstartrnd m_anglestart m_anglestartrnd m_forkamplitudemul m_forkangle m_forkanglernd m_forkendfademul m_forkendsizemul m_forklengthmaxlenfrac m_forklengthmul m_forklengthmulrnd m_forkmaxdepth m_forknum m_forknummul m_forknumrnd m_forknumrndmul m_forkprobabilityend m_forkprobabilitypower m_forkprobabilitystart m_forksegmentsmul m_forkstartfademul m_forkstartsizemul m_fractalsmoothcenter m_fractalsmoothleft m_fractalsmoothright m_rndspeed m_rndspeedrnd m_segmentnum m_splineendspeedmul m_splinestartspeedmul m_uVstartrnd m_uVtile  -m_VertNum m_segmentrnd m_uVTile
+   Sent->Jaws: +m_forkfirstalphamul m_forklastalphamul m_forkrestlengthmulpow m_lifespan m_lifespanrnd  -
+
+NAParticle2000: Def 63 / Sent 72 / Jaws 90
+   Def->Sent: +m_rootlink m_scaleaddmul m_scalexadd m_scalexaddrnd m_scaleyadd m_scaleyaddrnd m_slowdownend m_slowdownsmooth m_templatemodelid  -
+   Sent->Jaws: +m_absolutevectors m_bluernd m_centerforcex m_centerforcexrnd m_centerforcey m_centerforceyrnd m_centerforcez m_centerforcezrnd m_centerpos m_color m_colorrndtype m_followmulx m_followmulxrnd m_followmuly m_followmulyrnd m_followmulz m_followmulzrnd m_gradientcolor m_greenrnd m_maxdistance m_redrnd m_templategentype m_templatematerials  -m_blue m_boundingrad m_checkwater m_green m_red
+
+NARingAct: Def 28 / Sent 27 / Jaws 28
+   Def->Sent: +  -m_ExtRenderSetting
+   Sent->Jaws: +m_ChannelSetting  -
+
+NATestAct: Def 4 / Sent 4 / Jaws 10
+   Sent->Jaws: +m_data4 m_id m_idlist m_text m_vect0 m_vect1  -
+
+NAVertexWave: Def 13 / Sent 15 / Jaws 18
+   Def->Sent: +m_colortemplate m_dontclone  -
+   Sent->Jaws: +m_fadeinout m_maxrange m_type m_updatetype  -m_vertexsnap
+
+NAVirtualModel: Def 1 / Sent 1 / Jaws 6
+   Sent->Jaws: +m_Alloc m_BoundingRad m_NumMaterial m_NumTri m_NumTriSet m_NumVert  -m_RenderType
+
+NAWhirl2000: Def 11 / Sent 11 / Jaws 11
+   Sent->Jaws: +m_noshark  -m_noecco
+
+PCheckJoy: Def 25 / Sent 4 / Jaws 6
+   Def->Sent: +  -m_Action_B m_Action_Back m_Action_Cheat m_Action_Left m_Action_Right m_Action_Select m_Action_X m_Action_Y m_Repeat_Delay m_Sound_A m_Sound_B m_Sound_Back m_Sound_Cheat m_Sound_Down m_Sound_Left m_Sound_Right m_Sound_Select m_Sound_Start m_Sound_Up m_Sound_X m_Sound_Y
+   Sent->Jaws: +m_Circle m_Square  -
+
+PModelAlphaChain: Def 4 / Sent 3 / Jaws 3
+   Def->Sent: +  -m_Change
+
+PMove: Def 9 / Sent 8 / Jaws 8
+   Def->Sent: +  -m_Loop
+
+PRotExplosion: Def 8 / Sent 8 / Jaws 9
+   Sent->Jaws: +m_UseActCam  -
+
+TRLODAct: Def 5 / Sent 5 / Jaws 4
+   Sent->Jaws: +  -m_SpriteID
+
+TRMultiLODAct: Def 1 / Sent 1 / Jaws 5
+   Sent->Jaws: +m_BornFreq m_Box m_Number m_bReborn  -
+
+TRSplash: Def 30 / Sent 27 / Jaws 27
+   Def->Sent: +  -m_Sound1 m_Sound2 m_Sound3
+
+TRSurf: Def 11 / Sent 12 / Jaws 12
+   Def->Sent: +m_ListType  -
+
+=== classes in Sent and Jaws only (36)
+Editor_SetClamping: Sent 5 / Jaws 5
+GDExtendedLight: Sent 3 / Jaws 3
+GDRelocator: Sent 3 / Jaws 3
+GDSetCamera: Sent 1 / Jaws 2  +m_UseViewportSet  -
+GDSphereSector: Sent 1 / Jaws 1
+JTAreaWave: Sent 12 / Jaws 12
+JTSRotAct: Sent 4 / Jaws 10  +m_acc m_decc m_eps m_randomize m_speedrndmin m_time  -
+MBFadeAct: Sent 3 / Jaws 3
+MBRopkodoSprite: Sent 5 / Jaws 5
+MLArea: Sent 5 / Jaws 5
+MLArea2: Sent 5 / Jaws 5
+MLEnvAct: Sent 2 / Jaws 2
+MLFogAct: Sent 6 / Jaws 6
+MLForsaken: Sent 6 / Jaws 6
+MLHalRaj3: Sent 29 / Jaws 31  +m_aramspeed m_fearspeed  -
+MLMovingTest: Sent 8 / Jaws 8
+MLWLB: Sent 2 / Jaws 3  +m_camvizszintb  -
+NACollisionDetector: Sent 2 / Jaws 2
+NAGenerator: Sent 9 / Jaws 20  +m_cleanuplist m_displacementtype m_dxrnd m_dyrnd m_dzrnd m_ongenerateidlist m_propmatrix m_propparent m_rate m_raternd m_selfmatrix  -
+NAHair: Sent 42 / Jaws 46  +m_hairdata m_localrootid m_turbulencevelocityforce m_velocityforce  -
+NAHairTurbulence: Sent 2 / Jaws 3  +m_rndseed  -
+NAModifyColliGroups: Sent 4 / Jaws 4
+NAParticleSplash: Sent 6 / Jaws 6
+NARubberSkeleton: Sent 23 / Jaws 32  +m_blendwithanim m_fade m_halfvelocityat m_maxvelocity m_relocateroot m_skeletonid m_vfracpow0 m_vfracpow1 m_vinvmaxfrac  -
+PExplosion: Sent 8 / Jaws 8
+PGDSpriteAlphaChain: Sent 3 / Jaws 3
+PModelDistFade: Sent 4 / Jaws 4
+PMultiScale: Sent 19 / Jaws 19
+PRandomMove: Sent 1 / Jaws 1
+PSetDynamicLightColor: Sent 3 / Jaws 3
+PSetRenderFlags: Sent 3 / Jaws 3
+PSpriteMove: Sent 5 / Jaws 5
+PTimer: Sent 3 / Jaws 3
+XAnimation: Sent 5 / Jaws 5
+XBone: Sent 5 / Jaws 5
+XExtendedSkeletonModel: Sent 2 / Jaws 2

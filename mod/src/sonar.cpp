@@ -34,6 +34,7 @@
  * 120NORTH, where node 2445's local rotation turns mesh Y onto the mover's Z.
  */
 #include "sonar.h"
+#include "modpath.h"
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <math.h>
@@ -120,15 +121,15 @@ static void PlaySonar()
     g_play(g_wav.data(), nullptr, 0x0004 /* SND_MEMORY */ | 0x0001 /* SND_ASYNC */ | 0x0002 /* SND_NODEFAULT */);
 }
 
-/* ── Settings (shared C:\jaws_ecco.txt) ────────────────────────────────── */
+/* ── Settings (shared jaws_ecco.txt) ────────────────────────────────── */
 static float g_head = 1.3f;     /* head offset along the heading, Ecco units */
 static int   g_ztest = 1;
 static float g_alpha = 0.6f;
 
 void SonarLoad()
 {
-    if (!LoadObj("C:\\jaws_sonar_cone.obj", g_cone)) MakeCone(g_cone);
-    if (!LoadObj("C:\\jaws_sonar_wave.obj", g_wave)) MakeRing(g_wave);
+    if (!LoadObj(MOD_PATH("jaws_sonar_cone.obj"), g_cone)) MakeCone(g_cone);
+    if (!LoadObj(MOD_PATH("jaws_sonar_wave.obj"), g_wave)) MakeRing(g_wave);
 
     if (!g_play) {
         HMODULE w = LoadLibraryA("winmm.dll");
@@ -136,7 +137,7 @@ void SonarLoad()
     }
     if (g_play) g_play(nullptr, nullptr, 0);   /* stop anything still playing from the old buffer */
     g_wav.clear();
-    if (FILE* f = fopen("C:\\jaws_sonar.wav", "rb")) {
+    if (FILE* f = fopen(MOD_PATH("jaws_sonar.wav"), "rb")) {
         fseek(f, 0, SEEK_END);
         long n = ftell(f);
         fseek(f, 0, SEEK_SET);
@@ -148,7 +149,7 @@ void SonarLoad()
     }
 
     g_head = 1.3f; g_ztest = 1; g_alpha = 0.6f;
-    if (FILE* f = fopen("C:\\jaws_ecco.txt", "r")) {
+    if (FILE* f = fopen(MOD_PATH("jaws_ecco.txt"), "r")) {
         char line[160];
         while (fgets(line, sizeof(line), f)) {
             char key[64]; float v;

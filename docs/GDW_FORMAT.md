@@ -68,7 +68,72 @@ The literal strings "GWB" / "Game World Builder" and those four type names don't
 
 The differences fit an older version of the same tool. Defender's chunks are packed (no 4-byte padding; its first chunk starts at `0x29`, straight after the preamble's line breaks). It opens with `LDSC` where Jaws has `FSIZ`/`VERS`/`EXBY`. It has no `SKIP`/`FDIR`/`ENDF` footer (the part Jaws uses for embedded loading-screen archives) and no `GSMP` audio in that file. **Conclusion: *Jaws Unleashed* was built with Game World Builder, the same tool suite as *Defender of the Future*, about five years and several versions later (2.1.12.1 → 2.6.3.16).**
 
-**Lead (noted 2026-10-11, high interest):** [Hidden Palace](https://hiddenpalace.org/Ecco_the_Dolphin:_Defender_of_the_Future_(Feb_17,_2000_prototype)) hosts a *Defender of the Future* **Dreamcast prototype dated 17 February 2000**, from the GWB era (GWB development began in early 1999 for exactly this game). Its level files could carry an even older `GDED` version and maybe tool or debug leftovers. Comparing it with Defender PS2 (2.1.12.1) and Jaws (2.6.3.16) would trace how the format evolved, and might show what GWB itself put into the files. Also worth reading: Sega Retro's [Defender page](https://segaretro.org/Ecco_the_Dolphin_Defender_of_the_Future). A 2000 GameSpot preview of Defender couldn't be fetched (403), so it hasn't been checked.
+**Lead (noted 2026-10-11), followed up 2026-11-25:** [Hidden Palace](https://hiddenpalace.org/Ecco_the_Dolphin:_Defender_of_the_Future_(Feb_17,_2000_prototype)) hosts a *Defender of the Future* Dreamcast prototype dated 17 February 2000. Every Defender build checked since is still 2.1.12.1 (see the version table below). The missing link turned out to be a different game: see the next section.
+
+### Format versions across Appaloosa builds (checked 2026-11-25)
+
+Source: an Appaloosa Dreamcast development-kit dump supplied by the user (a Katana dev-kit hard-disk image, its `kat2` folder tree, four *Defender* GD-ROM builds and two *Sentinels of the Universe* GD-ROM builds), plus the Defender Dreamcast/PS2 and Jaws data already on hand. Everything was read only; nothing from the kit was run.
+
+| Game / build | File dates | `GDED` version | Chunk padding |
+|---|---|---|---|
+| *Ecco: Defender of the Future*, Dreamcast dev-kit builds and prototypes | 1999-09 to 2000-11 | **2.1.12.1** (every one of ~300 level files) | packed |
+| *Ecco: Defender of the Future*, PS2 US release | 2001 | **2.1.12.1** | packed |
+| ***Ecco the Dolphin: Sentinels of the Universe*** (cancelled Defender sequel, user-identified), Dreamcast dev-kit discs and folders | 2001-02-16 to 2001-02-21 | **2.3.2.1** | **4-byte padded** |
+| *Jaws Unleashed*, PC and PS2 | 2006 | **2.6.3.16** | 4-byte padded |
+
+- **The dev kit (inventory, 2026-11-25):**
+  - **`kat2`** is a recovered Katana dev-kit hard disk, 304 files. 113 are `.GDE` levels; the rest are `.KAT` (71), `.AFS` (38), `.DAT` (20), `.INP` (18), `.VDS`, `.ADX`, `.PVR`, `.ELF` and others. The recoverer's note says `?` in names became `$`, and that a second, deleted partition was recovered, holding deleted `ECCO` and `ecco2` folders.
+  - **`Ecco` folders:** 101 + 2 Defender levels, dated 2000-04-15 to 2000-11-09.
+  - **`ecco2` folders (Sentinels):** the earliest files are 4 levels (`120_CReef_North`, `180_Atlantis`, plus `.Id_NN` duplicates) dated **2000-10-24/25**, still 2.1.12.1, i.e. Sentinels started on Defender's levels and format. Then `120_CReef_North` 2000-12-01 (2.1.12.1), then the 2.3.2.1 levels of 2001-02-16 to 2001-02-21.
+  - **The two Sentinels discs** each hold `0.BIN` (the program, 2001-02-19), the 9 levels, `AUDIO64.DRV`, `DSP.FPB`, `DUMMY.DAT` and a `CONFIG.TXT` that picks the boot level (`#start` / `#gameover` / `#loader` / `#levels` sections). Disc 1 boots `000_Title`; disc 2 boots straight into `180_Atlantis`, its older 2.1.12.1 copy. The dev-kit folders have the same `config.txt` files.
+  - **The four Defender discs** (dated up to 2000-06-05 and 2000-11-09) hold 39–50 levels each, all 2.1.12.1. Two have separate `/DEBUGBIN/0.BIN` and `/RETAILBIN/0.BIN` program builds (2000-04-17 / 2000-06-01). A quick string scan found no readable source-file names; not examined further.
+  - **The Katana disk image** (4.55 GB, two partitions) has 147 `GDED` 2.1.12.1 and 5 2.3.2.1 preambles and no "Diesel" string.
+- **`Appaloosa Multimedia Kft`:** the Ecco *Defender* PS2 map files `TERKEP/242_PUMP.TKP` and `340HWGEN.TKP` contain the header `GD-DCK … gyozo … (C) 1999 Appaloosa Multimedia Kft` (*Kft* = Hungarian limited company; "gyozo" is probably a person's name). *Terkep* is Hungarian for "map".
+- **Timeline (user context, 2026-11-25):** *Jaws Unleashed* was made after *Sentinels of the Universe* was cancelled. With the data below, that means Appaloosa carried the cancelled sequel's code line (format 2.3, skeleton system, `MLHalRaj3`, the reworked Ecco classes) into Jaws, rather than going back to the shipped *Defender* code. The cancellation date isn't recorded here; the latest Sentinels files on hand are from 2001-02-21.
+- **Sentinels is the only intermediate version found.** Its 2.3.2.1 levels (`000_Title`, `100_Atlantis`, `110_Ancient`, `120_Galleon`, `180_Atlantis`, `211_IceWorld`, `410_HangLand`, `420_HangCaverns`) sit between Defender and Jaws. Some levels on the same discs are still 2.1.12.1 (`120_CReef_North` from 2000-12, and an older `180_Atlantis` on the second disc), so the version change can be dated to between December 2000 and February 2001.
+- **2.3 already has Jaws' 4-byte chunk padding**; 2.1 is packed. The class-name lists inside `CLAS` (`BRCM`/`ACCM`) are still packed in 2.3, though, while Jaws pads those too.
+- **Top level:** Defender DC has `GNRL KADI WDIM RSPR CLAS RSRC BRTR SCRT` and Defender PS2 has `LDSC GNRL …`. Sentinels has `GNRL WDIM RSPR CLAS RSRC BRTR SCRT EXTR` followed by one `Tile` chunk at the very end. Jaws adds `FSIZ VERS EXBY` in front and `SKIP FDIR ENDF` behind, and has neither `EXTR` nor `Tile`. So the size/version header and the embedded-archive footer came after February 2001. Dreamcast builds of both Ecco games put a 0x40018-byte PVR loading image (`TITL`/`TSCR`) before the `GDED` preamble.
+- **Sentinels-only chunks (2026-11-25):**
+  - `EXTR` is tiny: 4 bytes (a zero count) in most levels; in `000_Title` it's 26 bytes holding one name, `SoulContainer`. Purpose unknown.
+  - **`Tile` = a uniform 3D spatial grid of scene models (decoded 2026-11-25).** Mixed-case tag, the last chunk of each 2.3.2.1 level that has a `BRTR`, one per file, not padded. Layout: `uint32` stamp `0x0131079D` (= 19990429, a date like the Jaws block stamps), `float[3]` grid origin, `float[3]` cell size (20–80 units), `uint32` nx, ny, nz, `uint32` list length L, then nx·ny·nz `uint32` cells, then L `uint32` list entries. Each cell is an index into the list, where a 0-terminated run of entries starts; cells can point into another cell's run (shared tails), and every run ends cleanly. Sizes match exactly in all 6 levels (e.g. `420_HangCaverns`: 30×18×11 cells of 30 units from (−200, −300, −250), L = 5,132, 44 + 23,760 + 20,528 = 44,332 bytes). **Every list entry is a `BRTR` node ID** (100% in all 5 non-empty levels): mostly `GDModel` and `MLEnvModel`, plus a few `GDStdBrick`, `GDMovingModel`, `GDLight` and `TRGift` nodes, and only a subset of each level's models (e.g. 433 of ~2,550). So it says which objects occupy each cell; whether the game used it for draw culling or collision lookup isn't confirmed. `000_Title` has an empty grid (L = 0). Jaws has no `Tile` chunk.
+- **Sentinels quirk:** in the two Atlantis files that carry the PVR loading image (`100_Atlantis`, `180_Atlantis` on disc 1), the `RSRC` size field is exactly 0x158000 bytes short. Resources (`GMDL`, `GMAT`, `MREG`) continue past it up to `BRTR`, so a walker stops after `RSRC`; cause unknown.
+- **Class tables (union over all levels of each game):**
+
+| | Defender (89 levels) | Sentinels (8) | Jaws (20) |
+|---|---|---|---|
+| Brick classes (`BRCM`) | 138 | 116 | 311 |
+| Action classes (`ACCM`) | 708 | 382 | 484 |
+| Primitive classes (`CPCM`) | 9 | 9 | 19 |
+| Property classes (`PRCM`) | 46 | 41 | 60 |
+
+  56 brick classes and 78 action classes are in all three. **Classes that first appear in Sentinels and survive into Jaws** (none of them are in Defender):
+  - bricks: the whole skeleton system (`XBone`, `XSkeletonModel`, `XExtendedSkeletonModel`, `XAnimation`, `XAnimationSet`), `MLHalRaj3`, `MLEnemy`, `MLArea`/`MLArea2`, `NAHair`, `MBCsik`, `GDExtendedLight`, `GDSphereSector`;
+  - actions: `NAGenerator`, `NARubberSkeleton`, `NAHairTurbulence`, `NACollisionDetector`, `NAModifyColliGroups`, `NAParticleSplash`, `GDRelocator`, `MLFogAct`, `MLEnvAct`, `MBFadeAct`, `PModelDistFade`, `PExplosion`, `PTimer` and others (28 in all);
+  - property classes: `MLPropBoxArray`, `MLPropPointArray`, `MLPropSectionArray`.
+- **The shark-fish-school link:** `MLHalRaj3`, Jaws' shipped fish school, which `docs/ecco_leftovers.md` had called Jaws-only, is already placed once in Sentinels' `420_HangCaverns`. So the rewrite of Ecco's `MLHalRaj` happened for Sentinels in 2000–2001, not for Jaws. Also placed in Sentinels: `NARubberSkeleton` (13), `MLEnemy` (9), `NAGenerator` (9).
+- **Sentinels already lists a `SharkCtrl` action class** in every 2.3.2.1 level's class table, along with `GDXBoxWorld` and network-play classes (`LoNetGame`, `PushBallNetServer`, …). None of these are placed, and their names don't occur in the Sentinels executable `0.BIN` (74 of its 548 listed classes are missing from `0.BIN`). So the class tables reflect the editor's class registry, which held more than that Dreamcast game build. `SharkCtrl` is not Jaws' `MLSharkCtrl` by name, and nothing links the two beyond the name.
+- **`CLAS` `PRIM` = the field table; `PROP` IDs index it (found 2026-11-25).** The last sub-chunk of `CLAS`, `PRIM` (not the per-node collision `PRIM`), is `uint32` count + count × (field name, class name) strings (packed up to 2.3, padded in 2.6). **A `PROP` ID is `0x08000000 | index` into this table**, so every level carries its own dictionary of property names: `0x080017D8` = `GDBrick.m_Name`, `0x080017DA` = `GDBrick.mtx`, `0x08001873` = `GDModel.m_3dModelID`, `0x080018D8` = `GDPrimRegions.regions`. This names every previously unknown ID (see `docs/scene_graph.md`). Sizes: Defender 4,546 entries (120 North), Sentinels 3,921 (420 HangCaverns), Jaws 6,662. **19 of the 20 Jaws levels have the identical table; `TITLE0` has 6,657 entries and only its first 979 match**, so its `PROP` IDs mean different fields from index 979 on. Tools that hard-code `PROP` IDs are only valid for the 19 matching levels.
+- **Field-level diff (2026-11-25; full list in `docs/lineage_field_diff.txt`):** union over all levels, Defender 769 classes / 6,106 fields, Sentinels 455 / 4,101, Jaws 714 / 6,662. 125 classes are in all three; 69 of those have identical fields. Notable changes:
+
+| Class | Defender → Sentinels | Sentinels → Jaws |
+|---|---|---|
+| `GDBrick` | +`m_WireColor`; −`m_Color`, `m_Difficulty`, `m_Time` | +`m_Viewport`, `m_ExecFilter`, `m_CameraFilter`, `m_CreatorDistance`, `m_GenMapBound`, `m_RoomMask`, `m_ExportFilter` |
+| `GDModel` | −`m_ColiListID`, `m_ColliGroup`, `m_LodModelID`, `m_ExtRenderSetting` | +`m_ChannelSetting`, `m_ExtRenderSetting`, `m_ModelColor` |
+| `GDSkeletonModel` | +`m_nMorphKeyNum`, `m_nSkelKeyNum` | +`m_EditorKeyNum` |
+| `GDLoad` | — | +`m_Async`, `m_Progress`, `m_idLoader`, `m_idProgressOver` (async loading with a progress screen) |
+| `GDCamera` | — | −`m_WaterLevel` |
+| `GDReference` | — | +`m_Addons` |
+| `GDControl` | unchanged (17) | +`Separator01`–`09` (editor layout only) |
+| `MLHalRaj` | **+`mincolor`, `maxcolor`** | — |
+| `TRSplash` | **−`m_Sound1`–`3`** | — |
+| `DDGameState` | **18 Ecco fields → 3** (`m_fustemit`, `m_monocam`, `m_sidecam`) | → 5 (`m_angry`, `m_csonakdied`, `m_darabnum`, `m_enemyrange`, `m_koteldied`) |
+| `NAWhirl2000` | — | **`m_noecco` → `m_noshark`** |
+| `MLHalRaj3` | (new in Sentinels, 29 fields) | +`m_aramspeed`, `m_fearspeed` (31) |
+
+  So most edits that `docs/ecco_leftovers.md` had put in Jaws already happened in Sentinels; only `NAWhirl2000`'s switch and the second `DDGameState` rewrite are Jaws-era. The skeleton classes (`XBone`, `XExtendedSkeletonModel`, …) are unchanged from Sentinels to Jaws.
+- **Sentinels' `SharkCtrl` is not the Jaws shark.** Its 25 fields are dolphin-style jump and charge physics (`m_aJumpVertSpeed`, `m_rChargeAccelRatio`, `m_rGravity`, `m_rWaterDrag`, …) plus `m_idMorph` and `m_idSplash`, mirroring Sentinels' `DolphConfig`. No Jaws class shares even 3 field names with it. Jaws' shark is `MLSharkCtrl` (one field, `m_cfg`) plus `SharkConfig` (445 fields). So it's likely an Ecco-side controller (for example for a shark morph), unrelated to Jaws' shark despite the name.
+- **Tools (2026-11-25):** `scripts/gdrom_ls.py DISC_DIR [--extract OUT REGEX]` lists a GD-ROM dump (`disc.gdi` + `.iso` tracks) with file dates and each `.GDE`'s version. `scripts/gded_lineage.py` has five commands: `info` (version, top-level chunks, class-table sizes), `compare A=GLOB[,GLOB][@VER] B=…` (class-name overlaps between groups; the table above is `Def=<Defender DC + PS2>`, `Sent=<Sentinels>@2.3`, `Jaws=GAME_GDWs/*.GDW`), `fields` (same group syntax; per-class field diff, produced `docs/lineage_field_diff.txt`), `prop FILE ID…` (name `PROP` IDs from that file's own table) and `placed FILE [CLASS…]` (heuristic count of placed nodes/actions per class). All are read-only; run them with `python3 -I`.
+- **Editor credit:** the string "Created with Game World Builder, © 2000 Appaloosa Interactive" occurs only in Defender's `460_Credits` level (dev-kit and 2000-04 builds). It isn't in Sentinels, Defender PS2 or Jaws. The dev-kit disk image has no "Diesel" string.
 
 ---
 
@@ -571,7 +636,7 @@ This project targets the **PC version** of Jaws Unleashed, which uses **DirectX 
 
 ## Audio System
 
-**Audio extraction is complete.** Two chunk types are fully parsed and exported. All outputs go to `audio/`. Scripts: `scripts/rip_gsmp.py` and `scripts/rip_smpb.py`.
+**Audio extraction is complete.** Two chunk types are fully parsed and exported. All outputs go to `audio/`. Scripts: `scripts/rip_smpb.py` (and `rip_smpc.py`); the original `rip_gsmp.py` was never in the repo, see `docs/audio_format.md`.
 
 ### GSMP (raw PCM sample blocks)
 
@@ -711,3 +776,65 @@ GDW (little-endian, chunk-based)
 **Corrected (2026-07-17):** the original version of this diagram put `SCRT` inside `RSRC` and called it obfuscated scripting, and omitted `RSPR`/`SKIP` and the second embedded archive entirely. See the corrected chunk table above and CLAUDE.md for full details.
 
 The engine is **component-driven and editor-authored**. Runtime gameplay objects are assembled from serialized components with reflected properties. The format preserves a remarkable amount of internal metadata — class names, property names, and object names are all stored as readable strings, making many systems self-documenting. The container version date `20030626` (June 2003) is not an engine freeze: block formats were still revised in 2005 (see "Block format date stamps").
+
+---
+
+## Moved from CLAUDE.md (2026-11-25)
+
+The text below was moved word for word from the root `CLAUDE.md`. It is newer than earlier sections of this file where they disagree.
+
+## GDW Archive Format
+
+`.GDW` files are chunk-based binary containers (little-endian).
+
+**Engine lineage (confirmed 2026-10-11, the user's claim; Claude was hesitant until it was checked):** the format is Appaloosa's **Game World Builder (GWB)** output, the same tool suite as *Ecco the Dolphin: Defender of the Future*. Defender's PS2 `.GDE` levels start `GDED BINARY FORMAT, VERSION 2.1.12.1` (Jaws: 2.6.3.16) and use the same chunks (`GNRL` `WDIM` `RSPR` `CLAS`/`BRCM`/`ACCM` `RSRC` `BRTR` `SCRT`, `CHBR`/`PRPS`/`PROP`, `ACTN`, `GMDL`, `GTEX`, `MREG`, `STRP`) and `GD` classes, packed without 4-byte padding. Appaloosa's 2001 press kit (`docs/sources/Appaloosa_PS2_press_information_2001-09.pdf`) describes GWB as built from "bricks, actions and resources". Details: `docs/GDW_FORMAT.md` "Engine lineage".
+
+**Editor vs. engine (user information, 2026-11-24):** Game World Builder is Appaloosa's in-house **editor** for building the world environments; the runtime **engine** is a separate in-house custom engine called **Diesel Power**. Source: the PAL Dreamcast *Ecco: Defender* back cover (2000, MK-51033-50): "GameWorld Builder™ Software Technology & Diesel Power™ Game Engine are the property of Appaloosa Interactive Corp" (user's scan, `docs/sources/Ecco_Defender_Dreamcast_PAL_back_cover.png`). That Jaws still uses Diesel Power is inferred from the shared Ecco codebase; the name isn't in `Jaws.exe`, the PS2 exe, any GDW or the 2001 press kit. Not to be confused with GRIN's unrelated "Diesel" engine.
+
+**Format date stamps (2026-10-21):** block format versions are literal **YYYYMMDD dates** that `Jaws.exe`'s loaders `cmp` against: `WDIM` 19980304, `GNRL` 19980331, `GMAT` 19980409, `GMOV` 19991005, `GSMP` 20001201, **`SKEL` 20020410** (all 752 skeletons), `GTEX` 20050515 (the texture "stamp `0x0131F253`"), `GMDL` 20051205, `RSRC` 20051208, PS2-only 20060316. The `VERS` string `20030626` is the container version date, **not an engine freeze** (older docs said so; corrected). The only 2001–2002 date anywhere in the files or exe is the April 2002 skeleton revision; raw-scan hits like 20011008–13 are pixel-data noise. Exe: PE timestamp 14 Sep 2006, `(c) 2004 Majesco`, libpng 1.0.5 (1999). Table: `docs/GDW_FORMAT.md` "Block format date stamps".
+
+**File header:** A 44-byte plain-text preamble before the first chunk:
+```
+GDED BINARY FORMAT, VERSION 2.6.3.16.\r\n\r\n\x00\x00\x00
+```
+Chunks start at byte offset 44 (0x2C).
+
+**Chunk structure:**
+```
+[4-byte FOURCC tag][uint32 size][payload]
+```
+
+Chunks may contain nested subchunks. Known top-level chunks (in order as they appear):
+
+| Chunk | Offset (FISH.GDW) | Size | Description |
+|---|---|---|---|
+| `FSIZ` | 0x2C | 4 | File size metadata |
+| `VERS` | 0x38 | 13 | Version string |
+| `EXBY` | 0x50 | 10 | Unknown — small header block |
+| `GNRL` | 0x64 | 8 | General archive data (8-byte placeholder in FISH.GDW) |
+| `WDIM` | 0x74 | 40 | World dimension bounds (~5000×2000×5000) |
+| `RSPR` | 0xA4 | 0 | Unknown — always empty in FISH.GDW |
+| `CLAS` | 0xAC | ~250 KB | Class/reflection database |
+| `RSRC` | 0x3D43C | ~111 MB | Packed resource payloads (contains GMDL, GTEXT, GTEX, GSMP, etc.) |
+| `BRTR` | 0x6A42B40 | ~5.4 MB | **Scene graph / resource tree** — see Scene System section |
+| `SCRT` | 0x6F77FC8 | 12,576 | **Screen/overlay object tree** — see note below. Not scripting, not obfuscated. |
+| `SKIP` | 0x6F7B0F0 | 264 | **Sector-alignment padding** — payload is all `0xFF` bytes, sized so the following `FDIR` starts on a 512-byte file-offset boundary. See note below. |
+| `FDIR` | 0x6F7B200 | 40 | File directory footer |
+| `ENDF` | 0x6F7B230 | 0 | Archive terminator |
+
+Each chunk (including nested ones) is padded to a 4-byte boundary before the next tag begins — account for this when walking the chain, or offsets will drift.
+
+**FDIR chunk structure** (32-byte entries, 8-byte header) — corrected 2026-07-17, FDIR is a real offset index, not just names:
+```
+Header: [uint32 magic/build-date][uint32 entry_count]
+Entry:  [uint32 offset][uint32 size][24 bytes name, null-padded]
+```
+FDIR names are sub-archive identifiers, not individual asset names (e.g. `FISH00`, `TITLE00`–`TITLE0F`, `AQUARI00`). Each entry's `offset`/`size` point at a second, complete, independently-embedded `GDED BINARY FORMAT...` archive concatenated after the primary archive's `ENDF` (see note below) — verified on `FISH.GDW`: entry `FISH00` decodes to `offset=0x6F7B400, size=14415320`, which exactly matches that archive's real start and satisfies `offset+size == EOF`. **Any edit that grows a chunk before this offset (e.g. appending to `RSRC` or `BRTR`) must patch this field by the same delta**, or the game will seek to the wrong place for the second archive. Individual textures/meshes have no stored names in FDIR; they are identified by their numeric resource ID.
+
+**Note on the second embedded archive (found 2026-07-15, mechanics decoded 2026-07-17):** every GDW's declared `ENDF` is not the true end of the file — a second, complete, independent `GDED BINARY FORMAT...` archive (own preamble, own `VERS/EXBY/GNRL/WDIM/RSPR/CLAS/RSRC/BRTR` chain) is concatenated immediately after, padded to reach it with `0xFF` bytes just like `SKIP`. This second archive has **no `FSIZ`, `SCRT`, `SKIP`, `FDIR`, or `ENDF` of its own** — it just ends at true EOF right after its own `BRTR`. Confirmed on `OPEN_S.GDW` (11 such embedded sub-archives) to be **bundled loading-screen scenes** for level transitions (e.g. one named `OPEN_S00`/`LevelLoaderKAT`, holding progress-bar/hint-text UI objects for transitioning to `KATATAMA.GDW`) — not terrain, not cut content. Bounded story levels carry one small (~14MB) embedded archive (mostly a shared/duplicate stub); open zones carry many more, proportional to how many destinations they connect to. `FISH.GDW`'s own second archive has a ~14MB `RSRC` and a tiny (~6KB) `BRTR` (a handful of `CHBR` nodes), consistent with a small loading-screen scene but not independently re-verified by node name.
+
+**Note on PROP-level alignment (found 2026-07-17):** the "padded to a 4-byte boundary before the next tag" rule (see below) also applies **inside** `PRPS` payloads, i.e. individual `PROP` entries are each individually 4-byte-aligned, not just top-level GDW chunks. Missing this causes a full parse desync when decoding a `CHBR` node's property list by hand — probably a general rule for all nested tag sequences in this format (TSET/TANG/VERT sub-chunks not re-verified against it, but suspected to hold there too).
+
+**Note on `SCRT` (corrected 2026-07-08 — do not trust earlier "obfuscated scripting chunk" claim):** There are two `SCRT`-tagged byte sequences in `FISH.GDW`. The one previously documented at offset `0x1105ECC` **inside** `RSRC` is a **false-positive tag match** — its "size" field decodes to over 1 billion, which is impossible, meaning it is not a real chunk header at all, just a coincidental 4-byte pattern inside unrelated binary/compressed data (the printable-ASCII-but-noise bytes seen there are not obfuscated script code, they're just whatever data happens to sit next to the coincidental match). The **real** `SCRT` chunk is a normal **top-level** chunk (sibling of `BRTR`/`FDIR`, not nested in `RSRC`) at `0x6F77FC8`, and it is **not obfuscated** — it uses the same plain `PRPS`/`CHBR`/`PROP` tree format as `BRTR` (see Scene / Object System section). Its root node is named `"Screen"` and its 20 `CHBR` children are named render/overlay targets: `Whale, GDScreen 3-7, CrowdScreenek, WaterSurface, TransparencyAbove/Below/Blur, ReflectionAbove/Below/Blur, ScreenWater/Above/Below, MotionBlur, ZZZ, XXX`. This is a small **screen-space post-processing overlay tree** (water surface reflection/refraction targets, transparency layers, motion blur, crowd billboard, a "Whale" screen effect) tied to the `GDScreen`/`GDOverlay`/`GDForceOverlay` engine classes seen in `CLAS` — not a scripting/gameplay-logic chunk. It reuses the same object-name property (`0x080017D8`) as `BRTR` CHBR nodes, plus a second, still-undocumented property range (`0x08001980`–`0x08001993`) specific to these screen objects. The PS2 `_FISH.GDE` file has the equivalent chunk (also top-level, 8,772 bytes, 14 `CHBR` children) but its nodes use a different but parallel ID range (`0x08001957`–`0x0800196A`) and have no name property set — see PS2 Version Data section.
+
+**Note on `SKIP` (decoded 2026-07-08):** `SKIP` is sector-alignment padding, nothing more. Its payload is entirely `0xFF` bytes, and its size is always exactly what's needed so the byte offset immediately after it (where `FDIR` begins) lands on a multiple of 512. Confirmed across FISH, TOWN, START, AQUARIUM, TITLE0 (PC) and `_FISH.GDE` (PS2) — sizes vary per file (20–428 bytes) because `SCRT` ends at a different arbitrary offset each time, but the post-`SKIP` offset is always `% 512 == 0` in every case checked. No further structure to parse.

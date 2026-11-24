@@ -19,6 +19,7 @@
  */
 
 #include "input_block.h"
+#include "modpath.h"
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <string.h>
@@ -26,7 +27,7 @@
 
 static void log_msg(const char* msg)
 {
-    FILE* f = fopen("C:\\jaws_mod.log", "a");
+    FILE* f = fopen(MOD_PATH("jaws_mod.log"), "a");
     if (f) { fprintf(f, "%s\n", msg); fclose(f); }
 }
 

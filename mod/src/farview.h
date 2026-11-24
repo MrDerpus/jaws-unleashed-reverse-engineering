@@ -43,6 +43,8 @@
 /* Toggles far view. Returns the new state. */
 bool ToggleFarView();
 bool FarViewEnabled();
+/* Sets far view on or off (config file start state). */
+void SetFarView(bool on);
 
 /* Call once per frame (game thread). Applies the values while enabled and
  * restores the level's own values when turned off. */

@@ -36,6 +36,8 @@ SRCS := src/d3d8_proxy.cpp \
         src/debuglog.cpp \
         src/hwtrace.cpp \
         src/farview.cpp \
+        src/config.cpp \
+        src/noclip_guard.cpp \
         src/ecco.cpp \
         src/sonar.cpp
 

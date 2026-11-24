@@ -42,7 +42,7 @@
  * shark brick's transform with the dolphin simulation. The brick position is
  * re-read every frame, so engine collision pushes and F8 teleports carry over.
  *
- * Optional tuning file C:\jaws_ecco.txt ("key value" lines, # comments),
+ * Optional tuning file jaws_ecco.txt ("key value" lines, # comments),
  * read each time Ecco mode is switched on: scale (Jaws units per Ecco unit,
  * default 4), invert_x, invert_y, skip_shark_tick, body_length (Ecco units,
  * default 3.2).

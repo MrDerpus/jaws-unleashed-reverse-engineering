@@ -1,0 +1,46 @@
+# Jaws mod settings: jaws_config.txt next to Jaws.exe (read at startup, re-read when it changes)
+# Lines are "key value"; anything after # is a comment.
+
+# Control layout: copied from this save file (a bare name = next to Jaws.exe).
+# "none" = start from the game's own default controls instead.
+controls_from   PROFILE4.sav
+
+# new = every NEW game gets the layout; loaded saves keep their own controls
+# all = also replace the controls of any save you load
+#       (then change controls here, not in the game's menu)
+controls_apply  new
+
+# Single bindings, applied on top of controls_from (or the defaults):
+#   key   <action> <key>       keyboard
+#   mouse <action> <button>    second slot: left right middle button4..button8
+#                              wheel_up wheel_down
+#   pad   <action> <button>    gamepad: button0..button17, dpad_up/right/down/left
+# The game uses EITHER the mouse OR the gamepad column, depending on the
+# Mouse & Keyboard / Gamepad choice at game launch: mouse lines only work in
+# Mouse & Keyboard mode, pad lines only in Gamepad mode; key lines always.
+# "none" unbinds; 0xNN is a raw code. Actions:
+#   swim turn_up turn_down turn_left turn_right charge_attack bite shark_vision
+#   stealth_attack tail_whip target_lock next_target previous_target
+#   next_body_part previous_body_part map pause dodge camera_mode
+# Keys: a-z 0-9 f1-f12 space enter tab escape backspace lshift rshift lctrl
+#   rctrl lalt ralt up down left right home end pageup pagedown insert delete
+#   numpad0-numpad9 numpad_plus numpad_minus numpad_star numpad_slash
+#   numpad_enter numpad_period minus equals lbracket rbracket semicolon
+#   apostrophe grave backslash comma period slash capslock
+# The live layout is always written to jaws_controls_current.txt (next to
+# Jaws.exe) in this
+# same format, so you can copy lines from there.
+# Examples:
+#   key   dodge     e
+#   mouse dodge     middle
+#   pad   map       none
+
+# Start states of the mod's hotkey features: on / off. Set when the game
+# starts and again whenever you change the line; the hotkeys still toggle
+# them in between. Leave a line out (or # it) to start with the mod default.
+farview         on      # Shift+F4 far view
+fog_off         off     # F4  fog off
+foliage_hide    off     # F6  hide foliage
+noclip          off     # F7  no-clip
+invincible      off     # F11 invincible + infinite hunger
+ecco_mode       off     # Shift+F2 Ecco: Defender dolphin controls

@@ -34,7 +34,7 @@ some of what's in `Jaws.exe` has no use in a shark game:
 
 - **Dead Ecco gameplay is compiled in:** ring-swimming (`NARingAct`), fish schools (`MLHalRaj`) and splashes
   (`TRSplash`) are in the exe and never placed in any Jaws level. They came along with their source files.
-- **Ecco code was edited in place:** `NAWhirl2000` lost exactly one field, `m_noecco`.
+- **Ecco code was edited in place:** `NAWhirl2000` lost exactly one field, `m_noecco`, which became `m_noshark` (field tables, 2026-11-25).
 - **Names were kept and reused:** `DDGameState` is still one node per level, with all 18 Ecco fields
   replaced; `TRActor` is the same story.
 - **Ecco and Jaws classes share source modules** (link order), and Jaws's man-o'-war classes are built on
@@ -43,9 +43,19 @@ some of what's in `Jaws.exe` has no use in a shark game:
 **Not settled:**
 - **Whole copy or chosen modules?** Copying the entire Ecco project and deleting most of it (14 of 933
   `DD`/`TR` classes remain) would leave the same traces as importing selected source folders.
-- **Direct or through another project?** Ecco shipped in 2000 and Jaws in 2006. If another Appaloosa game
-  used this code in between, the Ecco code could have reached Jaws through it. No other Appaloosa title has
-  been checked.
+- **Direct or through another project? Partly answered 2026-11-25: through the *Sentinels* code line.**
+  Ecco shipped in 2000 and Jaws in 2006. Appaloosa's cancelled Defender sequel *Ecco the Dolphin: Sentinels
+  of the Universe* (Dreamcast dev-kit builds, Feb 2001, `GDED` 2.3.2.1) was checked against both. 13 brick
+  classes, 28 action classes and 3 property classes are in Sentinels and Jaws but **not** in Defender. They
+  include the whole skeleton system (`XBone`, `XSkeletonModel`, `XAnimation`, …), Jaws's fish school
+  `MLHalRaj3` (placed once in Sentinels' `420_HangCaverns`), `NAGenerator`, `NARubberSkeleton`, `MLEnemy`
+  and `NAHair`. So the code Jaws started from had already been through Sentinels' development, not just
+  Defender's. Per the user, Jaws was made after Sentinels was cancelled, which fits: the cancelled
+  sequel's code became the base for Jaws. Only 2 brick, 3 action and 1 property class are in Defender and Jaws but missing from
+  Sentinels (`GDMultiTexture`, `NAPredatorModel`; `NAModelFade`, `NASubdivide`, `StoreInput`;
+  `GDPropExtRenderSet`), which fits Sentinels' class tables being a slimmer, newer branch. Whether further
+  Appaloosa projects sat between 2001 and 2006 is still unchecked. Data and method: `docs/GDW_FORMAT.md`
+  "Format versions across Appaloosa builds".
 
 **How much came over:** the whole engine (107 shared `GD*` classes), but only 62 of Ecco's ~2,385 classes
 on the game side. About 32 of those are placed in Jaws levels, mostly general effects and behaviours
@@ -66,8 +76,10 @@ in the game while it was Sole Predator and dropped later, around the move to Jaw
 **Checked 2026-10-12: the shipped game replaced both with new Jaws-only classes, and the old fish-school
 class was worked on in Jaws before being replaced.**
 
-- **Shipped fish schools are `MLHalRaj3`**, which isn't in Ecco (not in its RTTI, not in any of the 48 Ecco
-  levels). In the shipped game they're long columns of one fish type (user observation). It's placed 121
+- **Shipped fish schools are `MLHalRaj3`**, which isn't in *Defender of the Future* (not in its RTTI, not in
+  any of the 48 Defender levels). **Correction 2026-11-25:** it *is* in the cancelled sequel *Ecco the Dolphin:
+  Sentinels of the Universe* (Feb 2001, `GDED` 2.3.2.1), placed once in `420_HangCaverns`, so the rewrite was
+  done for Sentinels, not for Jaws (`docs/GDW_FORMAT.md` "Format versions across Appaloosa builds"). In the shipped game they're long columns of one fish type (user observation). It's placed 121
   times in the PC levels (137 PS2), alongside `MLHalRaj3Catch` (121, `m_TargetID`/`m_BloodID`: the
   bite/blood hookup) and `MLHalRaj3Reference` (296 instanced copies). It's a rewrite, not a renamed
   `MLHalRaj`: 31 fields, all new `m_` names, none shared with the Ecco class. Ecco's has a box volume
@@ -78,11 +90,11 @@ class was worked on in Jaws before being replaced.**
   out. The "3" implies a `MLHalRaj2`, which is in neither executable. Further Jaws-only fish classes:
   `MSHalraj` (10 placements, with attack fields: `m_attackspeed`, `m_bAttack`, `m_damage`), `MSPathFish`,
   `MSGeneralFish`, `MSFishGenerator`.
-- **The old `MLHalRaj` was edited for Jaws.** In `Jaws.exe` it has **25 fields: Ecco's 23 plus two new
-  ones, `mincolor` and `maxcolor`** (from `scripts/dump_class_fields.py`; Ecco's field list has no colour
-  fields). It still has `ecconear` (distance to Ecco). So someone added a colour tint to Ecco's fish school
-  in the Jaws codebase, and the class was later replaced by `MLHalRaj3` and left unplaced. That's the same
-  edited-then-abandoned pattern as `TRSplash`.
+- **The old `MLHalRaj` was edited before Jaws.** In `Jaws.exe` it has **25 fields: Defender's 23 plus two
+  new ones, `mincolor` and `maxcolor`** (from `scripts/dump_class_fields.py`; Defender's field list has no
+  colour fields). It still has `ecconear` (distance to Ecco). **Corrected 2026-11-25:** the colour fields
+  were already added in *Sentinels of the Universe* (Feb 2001), which also introduced `MLHalRaj3`; Jaws
+  inherited both and placed only `MLHalRaj3`. Same for `TRSplash`'s lost sound fields (gone in Sentinels).
 - **Shipped splashes are `NAWaterSplashAct`**, which also isn't in Ecco, placed 867 times across the PC
   levels. `TRSplash` lost its three sound fields (`m_Sound1`–`m_Sound3`) between Ecco and Jaws, then ended
   up never placed.
@@ -140,7 +152,7 @@ table below).
   turning at `escaccel`. **`mrange`, `maxleader` and `ecconear` are squared distances.** Fish swim along +Z.
 - Draw `0x4E9FF0`: renders the model once per fish (grandchild case: fish matrix × the model's own local
   transform, so scale/orientation go on the model node), shading each fish's vertex colours from
-  `mincolor` to `maxcolor` by its angle to the camera (the two fields Jaws added).
+  `mincolor` to `maxcolor` by its angle to the camera (the two fields added in *Sentinels*, 2001).
 - `fp`, `eatscale`, `damage`, `animspeed`, `animspeedrnd` are not read by the Jaws code (Ecco's eating and
   morph-animation fields), and `zaj` (sound) is only looked up. The fish can't be eaten and the static
   clownfish doesn't animate.
@@ -222,7 +234,7 @@ placed next to it in the levels:
   `GDReference` subclass) that places flock instances (`Madarraj`, `Madarraj 1`, ...: 20 in total). Its
   code follows `MLMadarRaj` directly in the exe.
 
-**Some were trimmed for Jaws.** `NAWhirl2000` lost exactly one field, `m_noecco`. `TRSplash` lost its three
+**Some were trimmed** (dated 2026-11-25 against *Sentinels*: `TRSplash` and `MLHalRaj` were changed in Sentinels already; only `NAWhirl2000`'s change is Jaws-era). `NAWhirl2000` lost exactly one field, `m_noecco`, replaced by `m_noshark`. `TRSplash` lost its three
 sound slots, `NAParticle2000` its colour and water-check fields (see the table at the end).
 
 **Some only kept the name.**
@@ -292,7 +304,7 @@ Csorda = herd.
 | Class | Ecco base | Ecco fields kept in Jaws | Ecco instances |
 |---|---|---|---|
 | `TRActor` | GDActor | 1/7 | 808 |
-| `MLHalRaj` | GDAct | all 23 (+2 added in Jaws: `mincolor`, `maxcolor`) | 459 |
+| `MLHalRaj` | GDAct | all 23 (+2 added by *Sentinels*, 2001: `mincolor`, `maxcolor`) | 459 |
 | `NARingAct` | GDAct | all 28 | 446 |
 | `TRSplash` | GDAct | 27/30 | 128 |
 | `MLParticle` | GD3dSprite | all 39 | 122 |
@@ -376,5 +388,13 @@ dates it to the demo.
 - Whether the kept classes' method bodies changed. Ecco and Jaws virtual functions are paired in
   `~/Projects/ECCO/re/func_pairs.tsv` (e.g. `DDMedusaAct` slot `0x74` = Jaws `0x4C51A0`: same logic, other
   offsets), and `jaws_labels.tsv` there has suggested names for those Jaws functions.
-- What Jaws's rewritten `DDGameState` holds now (its Jaws field list, via `scripts/dump_class_fields.py`).
+- ~~What Jaws's rewritten `DDGameState` holds now~~ **Answered 2026-11-25:** 5 fields `m_angry`, `m_csonakdied` (boat died), `m_darabnum` (piece count), `m_enemyrange`, `m_koteldied` (rope died). It was rewritten twice: Sentinels cut Ecco's 18 fields to 3 (`m_fustemit`, `m_monocam`, `m_sidecam`), then Jaws replaced those.
 - Whether the 30 never-placed classes are reachable from code at all (spawned by name, or dead).
+
+---
+
+## Moved from CLAUDE.md (2026-11-25)
+
+The text below was moved word for word from the root `CLAUDE.md`. It is newer than earlier sections of this file where they disagree.
+
+**Ecco code in Jaws (2026-10-12):** beyond the shared engine (107 `GD*` classes), `Jaws.exe` carries 62 of Ecco's game-side classes (`DD`/`TR`/`NA`/`ML`/`P`), from Ecco PS2 RTTI. About 32 are placed in Jaws levels, mostly general effects (`NAModelFade`, `NAFlare`, `NAVertexWave`, `NALightning`…). The other 30 are never placed, including Ecco gameplay like `NARingAct` (rings) and `MLHalRaj` (fish schools). `NAWhirl2000`'s `m_noecco` became `m_noshark`, and `DDGameState` kept its name with all 18 Ecco fields replaced. **Verdict: Jaws was built from Ecco: Defender's codebase, not only its engine.** Whether that was a whole-project copy or chosen modules is not settled; it came through the code line of the cancelled sequel *Sentinels of the Universe* (2001), which already has `MLHalRaj3` and the skeleton classes (2026-11-25, "Verdict"). No dolphin, sonar or Ecco level code survived. **Sole Predator beta screenshots (user observation)** show Defender-style ball-shaped fish schools and breach splash/particle effects. The matching classes are `MLHalRaj` and `TRSplash`, both compiled in and never placed (plus `NAParticle2000`, placed only twice, both in KATATAMA). User's theory: these are Sole Predator-era leftovers, used during development and dropped later. **Checked 2026-10-12, supports it:** the shipped game uses newer classes instead (`MLHalRaj3` turned out to date from *Sentinels*, 2001, not Jaws). Fish schools are `MLHalRaj3` (121 placed + 296 references, plus `MLHalRaj3Catch`): a 31-field rewrite with group size, side ratio and wave fields, shown in-game as long columns of one fish type. The "3" implies a `MLHalRaj2` that exists in neither exe. Splashes are `NAWaterSplashAct` (867). **`MLHalRaj` restored (2026-10-21, user-confirmed working first try):** `scripts/build_fishball_test.py --deploy FISHBALL` places 3 schools of WRACK clownfish in the blank FISH base (F9 → FISHBALL). No `CLAS` edit: `ACCM` already lists it (class `0x02144143`, PROPs `0x08000984` + field index); Ecco layout brick+`ACTN` → empty brick → fish model, all `m_nFlags` `0x12`; `mrange`/`maxleader`/`ecconear` are squared distances; `felid` = flee list (shark). `MLHalRaj2` exists in neither exe. 10,000 fish (3 schools at 50×) run with no frame drop (user-tested). The level also has 2 stock Jaws schools for comparison: shipped `MLHalRaj3` is a **sprite** brick (`GD3dSprite`, template + `MLHalRaj3Reference`, edible, flees `HalRiaszto` 26265 under the shark), not a 3D-mesh action. Details: `docs/ecco_leftovers.md` "`MLHalRaj` fish schools restored". **Ecco's player controller decompiled (2026-10-21, step 1 of an Ecco-in-Jaws port, read-only):** `TRActor` + **`DolphCtrl`** action (34 KB; tick `0x19E270` = 29 KB, states 0–6: idle/brake, swim, charge, jump, tail-walk, 180° turn, circling) + `DolphConfig` brick (119 tuning fields, the `SharkConfig` counterpart); calls ~147 unmatched engine functions; not in `Jaws.exe`, so a port = C++ rewrite in the mod. Dolphin clip table (10 frame ranges of `Ecco.gdm`'s 319-frame pool) recovered. Sources `~/Projects/ECCO/re/dolphctrl/`; write-up and port options: `docs/ecco_dolphin_controller.md`. **Sonar decompiled (2026-10-21), now in the mod as visual + sound (Shift+F2 row below, user-confirmed):** trigger `FUN_001ABBE8` (button bit 4, underwater, cooldown `m_rSonarFrequency`, costs `m_rSonarAirNeed` air, a second press within 15 ticks = magnet sonar; holding only re-arms the cooldown), visuals `NASonarAct`/`NASonarConeAct` (hidden cone/wave meshes on the dolphin actor, head-bone placed, grow and fade), effect = message `0xE` to touched objects' `m_OnSonar` receivers; all sonar classes are absent from `Jaws.exe`. Details: `docs/ecco_dolphin_controller.md` "Step 3". Both old Ecco classes were **edited, then abandoned**: `MLHalRaj` gained `mincolor`/`maxcolor` (25 fields vs Ecco's 23, still including `ecconear`), and `TRSplash` lost its 3 sound fields; **both edits already happened in *Sentinels of the Universe* (2001), not in Jaws** (2026-11-25, `docs/lineage_field_diff.txt`). In Ecco only the player's splash (one per level) sets those 3 slots, always to `_eccosounds\esik1/2/3.wav` (*esik* = "falls"); which in-game sound each file is hasn't been matched yet. When the swap happened isn't dated. Details: `docs/ecco_leftovers.md` "Verdict".

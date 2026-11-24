@@ -18,10 +18,10 @@
 
 """Stage the Ecco sonar files the mod's Ecco mode loads (mod/src/sonar.h).
 
-    python3 scripts/stage_ecco_sonar.py [--sound WAV] [--drive-c DIR]
+    python3 scripts/stage_ecco_sonar.py [--sound WAV] [--game-dir DIR]
 
-Writes, into the Wine prefix's drive_c (default: the Jaws Unleashed Proton
-prefix):
+Writes, into the game folder next to Jaws.exe (default: the Jaws Unleashed
+install in the Proton prefix; before 2026-11-25 the mod read them from drive_c):
   jaws_sonar_cone.obj  Ecco 120NORTH cone Cone01#1 (node 2435), along +Z
   jaws_sonar_wave.obj  the normal-sonar wave: OilTank01#1 (node 2445) plus its
                        child OilTank01#2 (node 2454: scale 0.5, 0.8 along the
@@ -39,7 +39,8 @@ from pathlib import Path
 ECCO = Path.home() / 'Projects' / 'ECCO'
 MODELS = ECCO / 'models' / '120NORTH'
 DEFAULT_SOUND = ECCO / 'audio' / 'sfx' / 'ECCOCORE' / 'ECCOCORE_15_11025hz.wav'
-DEFAULT_DRIVE_C = Path.home() / '.steam/steam/steamapps/compatdata/2342933845/pfx/drive_c'
+DEFAULT_GAME_DIR = (Path.home() / '.steam/steam/steamapps/compatdata/2342933845/pfx/drive_c'
+                    / 'Program Files (x86)' / 'Jaws Unleashed')
 
 
 def read_obj(path):
@@ -68,7 +69,7 @@ def write_obj(path, parts, header):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--sound', type=Path, default=DEFAULT_SOUND)
-    ap.add_argument('--drive-c', type=Path, default=DEFAULT_DRIVE_C)
+    ap.add_argument('--game-dir', type=Path, default=DEFAULT_GAME_DIR)
     a = ap.parse_args()
 
     cone = read_obj(MODELS / 'sonarkup__Cone01_1.obj')
@@ -76,10 +77,10 @@ def main():
     v2, f2 = read_obj(MODELS / 'sonar__OilTank01_2.obj')
     inner = ([(0.5 * x, 0.5 * y + 0.8, 0.5 * z) for x, y, z in v2], f2)
 
-    write_obj(a.drive_c / 'jaws_sonar_cone.obj', [cone], 'Ecco 120NORTH Cone01#1 (sonar cone)')
-    write_obj(a.drive_c / 'jaws_sonar_wave.obj', [outer, inner], 'Ecco 120NORTH OilTank01#1 + #2 (sonar wave)')
-    shutil.copyfile(a.sound, a.drive_c / 'jaws_sonar.wav')
-    print(f'staged cone ({len(cone[0])} v), wave ({len(outer[0]) + len(inner[0])} v), sound {a.sound.name} -> {a.drive_c}')
+    write_obj(a.game_dir / 'jaws_sonar_cone.obj', [cone], 'Ecco 120NORTH Cone01#1 (sonar cone)')
+    write_obj(a.game_dir / 'jaws_sonar_wave.obj', [outer, inner], 'Ecco 120NORTH OilTank01#1 + #2 (sonar wave)')
+    shutil.copyfile(a.sound, a.game_dir / 'jaws_sonar.wav')
+    print(f'staged cone ({len(cone[0])} v), wave ({len(outer[0]) + len(inner[0])} v), sound {a.sound.name} -> {a.game_dir}')
 
 
 if __name__ == '__main__':

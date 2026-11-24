@@ -21,7 +21,7 @@
 #pragma once
 /*
  * Teleport bookmarks: 9 slots of world coordinates, persisted to
- * C:\jaws_bookmarks.txt, one "<slot> <x> <y> <z> [name]" line per saved
+ * jaws_bookmarks.txt, one "<slot> <x> <y> <z> [name]" line per saved
  * slot; '#' lines are comments. The file is meant to be hand-edited and is
  * re-read whenever its modification time changes.
  *

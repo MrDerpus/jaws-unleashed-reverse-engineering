@@ -20,6 +20,7 @@
 
 #pragma once
 #include "d3d8_iface.h"
+#include "modpath.h"
 #include "overlay.h"
 #include <stdio.h>
 
@@ -28,8 +29,16 @@ extern void freeze_sim_time();
 extern void thaw_sim_time();
 extern DWORD (WINAPI *g_real_GetTickCount)();
 
+/* Toggle states (F4 fog off, F6 foliage hide, F11 invincible, F7 no-clip).
+ * Process-wide, not on DeviceProxy: the game recreates its device hundreds
+ * of times per session. Start states come from jaws_config.txt (config.cpp). */
+extern bool g_fog_off;
+extern bool g_hide_foliage;
+extern bool g_invincible;
+extern bool g_noclip;
+
 inline void log_msg(const char* msg) {
-    FILE* f = fopen("C:\\jaws_mod.log", "a");
+    FILE* f = fopen(MOD_PATH("jaws_mod.log"), "a");
     if (f) { fprintf(f, "%s\n", msg); fclose(f); }
 }
 
@@ -190,9 +199,7 @@ private:
     bool  sim_paused_ = false;
 
     /* Render state overrides */
-    bool  fog_off_          = false;
     bool  wireframe_        = false;
-    bool  hide_foliage_     = false;
     bool  alpha_test_enabled_ = false; /* tracks D3DRS_ALPHATESTENABLE for foliage hide */
 
     /* Input debounce */
@@ -206,8 +213,6 @@ private:
     bool  f8_prev_        = false;
     bool  f11_prev_       = false;
 
-    /* Invincibility (F11) — refills shark health to max every frame */
-    bool  invincible_     = false;
 
     /* Teleport text box (F8) */
     bool  tp_active_        = false;

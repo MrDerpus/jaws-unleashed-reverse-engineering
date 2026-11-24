@@ -19,6 +19,7 @@
  */
 
 #include "device_proxy.h"
+#include "modpath.h"
 #include "shark.h"
 #include "input_block.h"
 #include "bookmarks.h"
@@ -28,6 +29,8 @@
 #include "levels.h"
 #include "hwtrace.h"
 #include "farview.h"
+#include "config.h"
+#include "noclip_guard.h"
 #include "sonar.h"
 #include "ecco.h"
 #include <math.h>
@@ -43,8 +46,11 @@ static int   g_tp_scan_frames = 0;
 static float g_tp_hold_target[3];
 static float g_tp_old[3];
 
-/* F7 no-clip: process-wide for the same reason. */
-static bool g_noclip = false;
+/* Toggles: process-wide for the same reason (start states: config.cpp). */
+bool g_noclip       = false;
+bool g_fog_off      = false;
+bool g_hide_foliage = false;
+bool g_invincible   = false;
 
 /* F9 level picker state: process-wide for the same reason. */
 static bool g_picker_open  = false;
@@ -144,7 +150,7 @@ HRESULT __stdcall DeviceProxy::SetRenderTarget(IDirect3DSurface8* rt, IDirect3DS
 
 HRESULT __stdcall DeviceProxy::SetRenderState(DWORD state, DWORD value)
 {
-    if (fog_off_   && state == 28) value = FALSE; /* D3DRS_FOGENABLE */
+    if (g_fog_off   && state == 28) value = FALSE; /* D3DRS_FOGENABLE */
     /* wireframe_ toggle disabled — D3DRS_FILLMODE override not supported by DXVK */
     // if (wireframe_ && state ==  8) value = 2;
 
@@ -152,7 +158,7 @@ HRESULT __stdcall DeviceProxy::SetRenderState(DWORD state, DWORD value)
     if (state == 15) /* D3DRS_ALPHATESTENABLE */
         alpha_test_enabled_ = (value != FALSE);
 
-    if (hide_foliage_ && alpha_test_enabled_) {
+    if (g_hide_foliage && alpha_test_enabled_) {
         if (state == 15 && value != FALSE) {
             /* Enable alpha test but set an impossible condition: alpha > 255.
              * No pixel can ever pass, so all alpha-tested geometry (foliage,
@@ -169,7 +175,7 @@ HRESULT __stdcall DeviceProxy::SetRenderState(DWORD state, DWORD value)
     return real_->SetRenderState(state, value);
 }
 
-/* ── Screenshot — grab front buffer and write BMP to C:\ ─────────────────── */
+/* ── Screenshot — grab front buffer and write BMP to the game folder ─────────── */
 
 /* Process-wide (not per-DeviceProxy) so the numbering survives device
  * recreation — the game calls CreateDevice far more often than a fresh
@@ -182,7 +188,7 @@ static int NextScreenshotIdx()
     if (next_idx == -1) {
         next_idx = 0;
         WIN32_FIND_DATAA fd;
-        HANDLE h = FindFirstFileA("C:\\jaws_screenshot_*.bmp", &fd);
+        HANDLE h = FindFirstFileA(MOD_PATH("jaws_screenshot_*.bmp"), &fd);
         if (h != INVALID_HANDLE_VALUE) {
             do {
                 int n;
@@ -227,7 +233,7 @@ void DeviceProxy::TakeScreenshot()
     }
 
     char path[MAX_PATH];
-    snprintf(path, sizeof(path), "C:\\jaws_screenshot_%04d.bmp", NextScreenshotIdx());
+    snprintf(path, sizeof(path), "%sjaws_screenshot_%04d.bmp", mod_dir().c_str(), NextScreenshotIdx());
 
     DWORD pixel_bytes = vp_w_ * vp_h_ * 4;
     BITMAPFILEHEADER fh = {};
@@ -414,6 +420,14 @@ HRESULT __stdcall DeviceProxy::EndScene()
         }
     }
     SetSharkNoClip(g_noclip);
+    {   /* no-clip also skips area triggers, buoy pushes and currents */
+        static bool tried = false;
+        if (!tried) {
+            tried = true;
+            log_msg(InstallNoclipGuards() ? "[jaws_mod] no-clip guards installed (triggers, buoys, currents)"
+                                          : "[jaws_mod] no-clip guards: install FAILED (exe bytes differ?)");
+        }
+    }
     f7_prev_ = f7_now;
 
     /* F9 — custom level picker (see levels.h). Up/Down select, Enter loads,
@@ -468,11 +482,12 @@ HRESULT __stdcall DeviceProxy::EndScene()
     if (f4_now && !f4_prev_ && key_down(VK_SHIFT)) {
         log_msg(ToggleFarView() ? "[jaws_mod] far view ON" : "[jaws_mod] far view OFF");
     } else if (f4_now && !f4_prev_) {
-        fog_off_ = !fog_off_;
-        real_->SetRenderState(28, fog_off_ ? FALSE : TRUE); /* force immediate update */
-        log_msg(fog_off_ ? "[jaws_mod] fog OFF" : "[jaws_mod] fog ON");
+        g_fog_off = !g_fog_off;
+        real_->SetRenderState(28, g_fog_off ? FALSE : TRUE); /* force immediate update */
+        log_msg(g_fog_off ? "[jaws_mod] fog OFF" : "[jaws_mod] fog ON");
     }
     f4_prev_ = f4_now;
+    UpdateModConfig();   /* jaws_config.txt: controls layout, start states */
     UpdateFarView();
 
     /* F5 — simulation pause (wireframe left commented out — not supported by DXVK) */
@@ -493,8 +508,8 @@ HRESULT __stdcall DeviceProxy::EndScene()
     /* Foliage hide toggle (F6) — forces alpha test to always fail while active */
     bool f6_now = key_down(VK_F6);
     if (f6_now && !f6_prev_) {
-        hide_foliage_ = !hide_foliage_;
-        log_msg(hide_foliage_ ? "[jaws_mod] foliage HIDDEN" : "[jaws_mod] foliage VISIBLE");
+        g_hide_foliage = !g_hide_foliage;
+        log_msg(g_hide_foliage ? "[jaws_mod] foliage HIDDEN" : "[jaws_mod] foliage VISIBLE");
     }
     f6_prev_ = f6_now;
 
@@ -523,11 +538,11 @@ HRESULT __stdcall DeviceProxy::EndScene()
      * loads (unlike the old hardcoded-address god mode, which crashed). */
     bool f11_now = key_down(VK_F11);
     if (f11_now && !f11_prev_) {
-        invincible_ = !invincible_;
-        log_msg(invincible_ ? "[jaws_mod] invincible ON" : "[jaws_mod] invincible OFF");
+        g_invincible = !g_invincible;
+        log_msg(g_invincible ? "[jaws_mod] invincible ON" : "[jaws_mod] invincible OFF");
     }
     f11_prev_ = f11_now;
-    if (invincible_) RefillSharkHealth();
+    if (g_invincible) RefillSharkHealth();
     /* Scripted / timer deaths bypass health and set the shark's "dead"
      * state directly -- block those too (see InstallDeathBlock). */
     {
@@ -537,7 +552,7 @@ HRESULT __stdcall DeviceProxy::EndScene()
             log_msg(InstallDeathBlock() ? "[jaws_mod] death block: SetState hook installed"
                                         : "[jaws_mod] death block: install FAILED (exe bytes differ?)");
         }
-        g_block_shark_death = invincible_ ? 1 : 0;
+        g_block_shark_death = g_invincible ? 1 : 0;
         static int logged = 0;
         static DWORD last_log = 0;
         if (g_blocked_deaths != logged && GetTickCount() - last_log > 1000) {
@@ -569,8 +584,8 @@ HRESULT __stdcall DeviceProxy::EndScene()
         f10_prev = f10_now;
     }
 
-    /* F12 — dump the engine's object-ID registry for the IDs in C:\jaws_ids.txt
-     * to C:\jaws_iddump.txt (read-only debug aid, see iddump.h). */
+    /* F12 — dump the engine's object-ID registry for the IDs in jaws_ids.txt
+     * to jaws_iddump.txt (read-only debug aid, see iddump.h). */
     {
         static bool  f12_prev = false;
         static DWORD last_dump = 0;
@@ -679,9 +694,9 @@ HRESULT __stdcall DeviceProxy::EndScene()
     if (!info.pos_is_shark) {
         info.x = cam_x_; info.y = cam_y_; info.z = cam_z_;
     }
-    info.freecam = freecam_; info.fog_off = fog_off_; info.wireframe = wireframe_;
-    info.hide_foliage = hide_foliage_; info.sim_paused = sim_paused_;
-    info.invincible = invincible_;
+    info.freecam = freecam_; info.fog_off = g_fog_off; info.wireframe = wireframe_;
+    info.hide_foliage = g_hide_foliage; info.sim_paused = sim_paused_;
+    info.invincible = g_invincible;
     info.noclip     = g_noclip;
     info.far_view   = FarViewEnabled();
     info.ecco       = EccoEnabled();

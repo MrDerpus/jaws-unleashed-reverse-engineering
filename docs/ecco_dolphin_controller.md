@@ -141,7 +141,7 @@ Keys:
 | Q, E | roll |
 | U | turn up |
 
-Tuning file `C:\jaws_ecco.txt` takes `scale`, `body_length` (3.2), `invert_x`, `invert_y` and `skip_shark_tick`.
+Tuning file `jaws_ecco.txt` takes `scale`, `body_length` (3.2), `invert_x`, `invert_y` and `skip_shark_tick`.
 
 **Offline check (scratchpad harness, the real `ecco.cpp` with stubbed Windows calls):**
 - Holding swim stays at level 0.5, about 0.087 Ecco units per frame.
@@ -282,12 +282,12 @@ so no level edit is needed and it works in any level while Ecco mode is on (best
   axis is its direction of travel) → `OilTank01#2` (node 2454: scale 0.5, offset 0.8 along the axis). The `#2`/`#3`
   cone sets are the other sonar types (`#3`'s wave at scale 2). Each `OilTank` mesh is a shallow dome, radius 3.2,
   height 0.85.
-- **Files:** `python3 scripts/stage_ecco_sonar.py [--sound WAV]` writes `C:\jaws_sonar_cone.obj`,
-  `C:\jaws_sonar_wave.obj` (#1 + #2 merged) and `C:\jaws_sonar.wav` (default ECCOCORE sample 15, a guess, since the
+- **Files:** `python3 scripts/stage_ecco_sonar.py [--sound WAV]` writes `jaws_sonar_cone.obj`,
+  `jaws_sonar_wave.obj` (#1 + #2 merged) and `jaws_sonar.wav` (default ECCOCORE sample 15, a guess, since the
   bank has no names; try `_50_` or `_46_` by ear). They are read when Ecco mode is switched on; missing meshes fall
   back to a generated cone/ring of the same size, a missing WAV plays nothing. Sound: winmm `PlaySoundA` from memory,
   async.
-- **Tuning** in `C:\jaws_ecco.txt`: `sonar_head` (Ecco units), `sonar_alpha` (0.6), `sonar_ztest` (1; 0 draws
+- **Tuning** in `jaws_ecco.txt`: `sonar_head` (Ecco units), `sonar_alpha` (0.6), `sonar_ztest` (1; 0 draws
   through walls, in case the depth buffer isn't usable at `EndScene`).
 - **Offline check:** the tick logic compiled with mingw and run under wine: pulse at the press, a second press during
   the cooldown ignored, the next press after it fires; cone gone in ~0.5 s, wave ~280 Jaws units in 1 s.

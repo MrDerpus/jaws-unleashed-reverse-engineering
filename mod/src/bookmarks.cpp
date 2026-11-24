@@ -19,12 +19,13 @@
  */
 
 #include "bookmarks.h"
+#include "modpath.h"
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
 
-static const char* BOOKMARK_FILE = "C:\\jaws_bookmarks.txt";
+#define BOOKMARK_FILE MOD_PATH("jaws_bookmarks.txt")
 
 struct Slot { bool used; float x, y, z; char label[BOOKMARK_LABEL_MAX]; };
 

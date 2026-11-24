@@ -20,7 +20,7 @@
 #pragma once
 /*
  * Per-stage replacement of the game's on-screen messages (2026-10-04),
- * from the hand-editable C:\jaws_messages.txt:
+ * from the hand-editable jaws_messages.txt:
  *     <STAGE or *> <slot> <text>      e.g.  TEST 598 SWIM IN TO LEAVE!\n\nPRESS ^OK^ ...
  * `#` lines are comments, `\n` in the text is a line break, ^OK^ / ^CANCEL^
  * / ^CONT^ are the game's button tokens. Slot numbers: docs/game_messages.txt

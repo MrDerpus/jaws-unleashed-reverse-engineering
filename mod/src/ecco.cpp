@@ -33,6 +33,7 @@
  * dt (0x589684) is 1.0.
  */
 #include "ecco.h"
+#include "modpath.h"
 #include "input_block.h"
 #include "sonar.h"
 #define WIN32_LEAN_AND_MEAN
@@ -89,7 +90,7 @@ struct Cfg {
 };
 static Cfg C;
 
-/* Mod-side settings (C:\jaws_ecco.txt). */
+/* Mod-side settings (jaws_ecco.txt). */
 static float g_scale = 4.0f;          /* Jaws units per Ecco unit */
 static float g_body_len = 3.2f;       /* Ecco dolphin mesh length */
 static int   g_invert_x = 0, g_invert_y = 0, g_skip_tick = 0;
@@ -365,7 +366,7 @@ static void ReadSteering(const unsigned* pad, int roll)
 static void LoadSettings()
 {
     g_scale = 4.0f; g_body_len = 3.2f; g_invert_x = g_invert_y = g_skip_tick = 0;
-    FILE* f = fopen("C:\\jaws_ecco.txt", "r");
+    FILE* f = fopen(MOD_PATH("jaws_ecco.txt"), "r");
     if (!f) return;
     char line[160];
     while (fgets(line, sizeof(line), f)) {

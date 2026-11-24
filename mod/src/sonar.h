@@ -32,7 +32,7 @@
  * cooldown (as in Ecco); no new pulse until it's released. No air cost (the
  * port has no air yet), no magnet/power sonar, no effect on Jaws objects.
  *
- * Files, all optional, in C:\ (= <prefix>/drive_c/):
+ * Files, all optional, in the game folder next to Jaws.exe:
  *   jaws_sonar.wav        played with PlaySound on each pulse
  *   jaws_sonar_cone.obj   cone mesh (Ecco's sonarkup Cone01, along +Z)
  *   jaws_sonar_wave.obj   wave mesh (Ecco's OilTank01#1 + #2 domes, axis Y)

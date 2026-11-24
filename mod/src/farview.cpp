@@ -129,6 +129,12 @@ bool ToggleFarView()
     return g_enabled;
 }
 
+void SetFarView(bool on)
+{
+    if (on != g_enabled)
+        ToggleFarView();
+}
+
 void UpdateFarView()
 {
     DWORD engine = engine_ptr(), ctrl = 0, world = 0;

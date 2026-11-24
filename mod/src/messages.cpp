@@ -19,6 +19,7 @@
  */
 
 #include "messages.h"
+#include "modpath.h"
 #include "device_proxy.h"   /* log_msg */
 
 #include <windows.h>
@@ -27,7 +28,7 @@
 #include <string>
 #include <vector>
 
-static const char*  MSG_FILE          = "C:\\jaws_messages.txt";
+#define MSG_FILE MOD_PATH("jaws_messages.txt")
 static const DWORD  LANG_TABLES       = 0x854D14;   /* 5 pointers, English first */
 static const DWORD  ENGLISH_TABLE     = 0x84FEF0;   /* sanity check: exe version */
 static const int    LANGS = 5, SLOTS  = 1000;

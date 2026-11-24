@@ -19,6 +19,7 @@
  */
 
 #include "debuglog.h"
+#include "modpath.h"
 #include "device_proxy.h"   /* log_msg */
 
 #include <windows.h>
@@ -27,7 +28,7 @@
 #include <string.h>
 
 static const DWORD DBGPRINT_ADDR = 0x4549D0;  /* `ret` + 15 bytes of int3/nop padding */
-static const char* DEBUG_FILE    = "C:\\jaws_debug.log";
+#define DEBUG_FILE MOD_PATH("jaws_debug.log")
 
 static CRITICAL_SECTION g_lock;
 static FILE*  g_file = nullptr;
@@ -141,7 +142,7 @@ bool InstallDebugPrint()
 
     InitializeCriticalSection(&g_lock);
     g_file = fopen(DEBUG_FILE, "w");   /* fresh log each game start */
-    if (!g_file) { log_msg("[jaws_mod] debug print: cannot open C:\\jaws_debug.log"); return false; }
+    if (!g_file) { log_msg("[jaws_mod] debug print: cannot open jaws_debug.log"); return false; }
     g_t0 = GetTickCount();
     fprintf(g_file, "# Jaws.exe debug text (mod). Columns: seconds since start, message.\n");
     fflush(g_file);
@@ -156,7 +157,7 @@ bool InstallDebugPrint()
     memcpy(p, patch, 5);
     VirtualProtect(p, 5, old, &old);
     FlushInstructionCache(GetCurrentProcess(), p, 5);
-    log_msg("[jaws_mod] debug print hooked -> C:\\jaws_debug.log");
+    log_msg("[jaws_mod] debug print hooked -> jaws_debug.log (game folder)");
     state = 1;
     return true;
 }

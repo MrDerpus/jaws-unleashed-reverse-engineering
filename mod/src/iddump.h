@@ -27,14 +27,14 @@
  * 0x6C2F90 brick) go through 0x6B8A00 on it:
  *   map+4  bucket count, map+8 bucket array (entry pointers)
  *   entry  [0] id, [1] ?, [2] object, [3] next entry
- * For each ID in C:\jaws_ids.txt (one per line, decimal or 0x hex; a
+ * For each ID in jaws_ids.txt (one per line, decimal or 0x hex; a
  * built-in list if the file is missing) the dump writes the entry and the
- * object's first 64 dwords to C:\jaws_iddump.txt, plus any other entries
+ * object's first 64 dwords to jaws_iddump.txt, plus any other entries
  * whose object's own ID field (+4) equals that ID, and the runtime
  * instances that +0x20 / +0x24 point at (live actions). Only memory reads, no
  * game code is called.
  */
 #include <stddef.h>
 
-/* Appends one dump to C:\jaws_iddump.txt; a one-line summary goes in `msg`. */
+/* Appends one dump to jaws_iddump.txt; a one-line summary goes in `msg`. */
 bool DumpIdRegistry(char* msg, size_t msg_sz);

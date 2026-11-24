@@ -20,8 +20,8 @@
 Resolve BRTR CHBR parent-child hierarchy to true world-space positions.
 
 CHBR nodes nest physically inside a parent CHBR's payload (after its PRPS
-block, before the parent's declared end) rather than only being referenced
-via the root's PROP 0x080003C7 child-ID list. A nested node's own
+block, before the parent's declared end). (PROP 0x080003C7, once thought to be
+a root child-ID list, is SharkWorld.m_teleportlist; see docs/scene_graph.md.) A nested node's own
 PROP 0x080017DA transform is LOCAL to its parent, not world space — reading
 it directly (as rip_brtr_scene.py does) gives misleading positions for any
 non-top-level node (frequently near-(0,0,0) regardless of true location).

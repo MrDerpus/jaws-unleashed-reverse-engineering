@@ -354,3 +354,133 @@ Implemented via `FrenzyMission` class.
 ## "Sole Predator" — Original Working Title
 
 *Sole Predator* was the working title before Majesco licensed the Jaws IP. The string appears in **extracted textures** as promotional/marketing copy describing the game's features — early promotional assets baked into the build that survived the title change. It is absent from class names, mission names, and script strings; the rename was applied to the code/data namespace but not to all texture assets.
+
+---
+
+## Moved from CLAUDE.md (2026-11-25)
+
+The text below was moved word for word from the root `CLAUDE.md`. It is newer than earlier sections of this file where they disagree.
+
+## Game Content — Mission & Mode List
+
+Source: `context.txt` (authoritative in-game list).
+
+**Story Missions (11 total):**
+
+| ID | Stage | Title |
+|---|---|---|
+| M01 | 1 | Tutorial *(also known as "The Arrival", set in Open Ocean)* |
+| M02 | 2 | The Break Out |
+| M03 | 3 | The Dead of Night |
+| M04 | 4 | Hunted |
+| M05 | 5 | Predator in the Bay |
+| M06 | 6 | The Angry Armada |
+| M07 | 7 | A Taste for Blood |
+| M08 | 8 | The Deep |
+| M09 | 9 | The Facility |
+| M10 | 10 | Blood on the Beach |
+| M11 | 11 | The Final Chase |
+
+**Side Challenges (32 total):**
+
+| ID | Title | ID | Title |
+|---|---|---|---|
+| SC01 | Barrels of Fun | SC17 | Mine All Mine |
+| SC02 | Seal Whip | SC18 | Return to Sender |
+| SC03 | Bay Patrol Blood Bath | SC19 | Get Mr. Stripes |
+| SC04 | Dolphin Sightseeing Junket | SC20 | Losing Your Head |
+| SC05 | Dog Gone | SC21 | Scavenge |
+| SC06 | Flip the Bird | SC22 | The Gauntlet |
+| SC07 | Reality TV | SC23 | Manic Maze |
+| SC08 | Row Your Boat | SC24 | Catamaran Jam |
+| SC09 | Sheebang! | SC25 | Oh Puppy |
+| SC10 | The Bends | SC26 | Orca Revenge |
+| SC11 | The Best Laid Plans | SC27 | Shark Frenzy |
+| SC12 | Trouble and Strife | SC28 | Dolphin Frenzy |
+| SC13 | To Kill a Killer | SC29 | Thar She Blows |
+| SC14 | Undertow | SC30 | Deep Chase |
+| SC15 | Up a Creek | SC31 | Lights Out |
+| SC16 | Head Rush | SC32 | Swim for Life |
+
+All 32 side challenges have been mapped to their implementation classes. Complete mapping in `docs/mission_system.md`. Summary:
+
+| Class | SC# | | Class | SC# |
+|---|---|---|---|---|
+| `BarrelsOfFunMission` | SC01 | | `ANSideMission21` | SC20 |
+| `SealWhipMission` | SC02 | | `ANSideMission22` | SC21 |
+| `BayPatrolBloodBathMission` | SC03 | | `TheGauntletMission` | SC22 |
+| `MSDolphinSightseeingMission` | SC04 | | `BGSideMission24` | SC23 |
+| `MSDogGoneMission` | SC05 | | `ANSideMission25` + `MSKatatamaMission` | SC24 |
+| `FlipTheBirdMission` | SC06 | | `OhPuppyMission` | SC25 |
+| `BGSideMission8` | SC07 | | `MBSideMissionAQ` | SC26 |
+| `BGSideMission9` | SC08 | | `FrenzyMission` | SC27+28 |
+| `MBSideMission10` | SC09 | | `ANSideMission33` | SC29 |
+| `TheBendsMission` | SC10 | | *(none found)* | SC30 |
+| `MBSideMission12` | SC11 | | `BGSideMission31` | SC31 |
+| `TroubleAndStrifeMission` | SC12 | | *(none found)* | SC32 |
+| `MSKillKillerMission` | SC13 | | `OrcaExplorationMission` | M02 or cut |
+| `ANSideMission15` | SC14 | | `KillthemallMission` | **CUT** |
+| `UpACreekMission` | SC15 | | `MSHatchMission` | **CUT** "Down the Hatch" |
+| `MBSideMission17` | SC16 | | | |
+| `MSMineAllMineMission` | SC17 | | | |
+| `BGSideMission19` | SC18 | | | |
+| `GetMrStripMission` | SC19 | | | |
+
+### GDW File — Mission Mapping
+
+Source: `context.txt` (PS2 strategy guide) and direct observation. The three Open Ocean GDWs are free-play zones — each contains multiple story and side challenge areas. Story missions that are not accessible from Open Ocean after completion (`M09`, `M11`) have no confirmed GDW of their own.
+
+| GDW | Mission / Area | In-game location name |
+|---|---|---|
+| `AQUARIUM` | M02 — The Break Out | South Shore Aquarium |
+| `ARMADA` | M06 — The Angry Armada | Bridgeport Sound |
+| `BEACH` | M10 — Blood on the Beach | Amity Town Beach / The Pond |
+| `BEACHPST` | M10 — Blood on the Beach (post-mission state variant) | Amity Town Beach (post) |
+| `CHASE` | M11 — The Final Chase | *(not revisitable from Open Ocean)* |
+| `DEEPSEA` / `DEEPSEA2` | M08 — The Deep (two sub-areas) | ENVIRONPLUS Mining Site |
+| `DOCKS` | M10 — Blood on the Beach *(probable)* | Amity Public Docks |
+| `FISH` | Fisherman's Isle *(non-story area)* — **not the M05 mission space, see correction below** | Old South Beach Piers / Fisherman's Isle |
+| `GAUNTLET` | SC10 + SC22 — The Bends & The Gauntlet | The Underwater Caves *(non-story area, Open Ocean: West)* |
+| `KATATAMA` | **M05 — Predator in the Bay (confirmed 2026-07-15, corrected from FISH.GDW)** | Avril Bay — oil platforms, shipyard, power generator |
+| `MINEMSHA` | **Grand Occasus Canals (identified 2026-08-12)** — SC15 Up a Creek | Named after the real Menemsha harbour on Martha's Vineyard from the 1975 film; BRTR contains 50 numbered `canal01`–`canal50` segments + 35 `canal_f01`–`canal_f35` variants + `fog canal 1/2/3` volumes — a fully-built dedicated canal level, not shared with `OPEN_NW` (which lists "Grand Occasus Canals" as accessible but has no such object set of its own) |
+| `OPEN_NE` | Open Ocean: East free-play zone | Bridgeport Sound, Amity Town Beach, Coast Guard HQ, South Amity Cliffs, Cable Junction, Crater Pass, Brody's House, Eastside Homes |
+| `OPEN_NW` | Open Ocean: West free-play zone | Grand Occasus Harbor, Grand Occasus Canals, Water Ski Park, The Underwater Caves, ENVIRONPLUS Mining Site, North Amity Keys, Amity Swamp |
+| `OPEN_S` | Open Ocean: South free-play zone | Red Reef Valley, Seal Island, Misty Ridge, South Shore Aquarium, South Beach Cove, Old South Beach Piers, Fisherman's Isle |
+| `START` | M01 — The Arrival (Tutorial) | Red Reef Valley / The Arrival *(Open Ocean: South)* |
+| `TITLE` / `TITLE0` | Main menu / title screen | *(TITLE0 has 0 meshes)* |
+| `TOWN` | M10 — Blood on the Beach *(probable)* | Amity Town / town area |
+| `WRACK` | M07 — A Taste for Blood | Misty Ridge *(Southeast island, Open Ocean: East/South boundary)* |
+
+**Correction (2026-07-15) — M05 is in `KATATAMA.GDW`, not `FISH.GDW`:** Extracting `KATATAMA.GDW`'s BRTR scene (`scripts/rip_brtr_scene.py`, `NAME='KATATAMA'` → `scenes/KATATAMA_brtr.json`/`.obj`) surfaced `DrillingPlatform 1/2/3` (with `autogun_uw_laser_gun`, `Laser Autogun Root`, `OilRig LOD`), `PowerPlant 1` + `Ventillator`, `OilTank`/`OilTank_Darab*` debris, the `cutter_FIN_V2_opt_FIN_JAV_tores` Coast Guard Cutter (intact/`_rombolt`-destroyed variants), and `AURORA_LO0` — i.e. the complete Avril Bay mission set from the M05 walkthrough (3 oil platforms, shipyard power generator with two feed columns, Coast Guard Cutter, Aurora II). `FISH.GDW`'s BRTR, by contrast, contains none of this — it's pier/dock structures, beach houses, and tourist NPCs (Fisherman's Isle content only), confirming it is not the M05 mission space despite the earlier mapping. **Correction (2026-08-13):** the "corrupt/implausible size field" was actually the BRTR false-positive-offset bug (see "Locating `BRTR`" under Scene Extraction Pipeline) — `KATATAMA.GDW`'s naive `data.find(b'BRTR')` landed on a coincidental match inside `RSRC`, not the real chunk. Re-extracted with the now-fixed `rip_brtr_scene.py` (real BRTR @ `0x7993304`, size 9,122,556) — a clean 4,571-node scene, 2,083 with resolvable meshes. The KATATAMA scene extraction is no longer unverified/incomplete.
+
+**Checked for cut content in KATATAMA (2026-07-15), none found:** exactly 3 `DrillingPlatform` groups exist (matches shipped "three in all"); the 35/923 GMDL mesh indices never placed by BRTR are small props and `_normal`/`_serult` damage-state variants (destruction-mechanic assets swapped in by code, not orphaned level geometry); `StageWreckQuest` (M05's quest class — confirmed via `m_scubadivers` field matching the shark-cage divers) and `MSKatatamaMission` (single `m_PreyID` field, likely an unrelated side-mission hunt target) showed no unused/dead fields comparable to the confirmed cut missions below. This doesn't rule out a cut area — nested BRTR parent transforms aren't resolved to world space yet (see Parent-child hierarchy open problem), so a spatial gap-hunt across the full level hasn't been done.
+
+**Correction (2026-08-12) — `MINEMSHA.GDW` is Grand Occasus Canals (SC15 Up a Creek), not an unknown location:** user-supplied identification, verified against BRTR content — see table row above. This also resolves part of the cut Hot Pursuit mission investigation (see `docs/cut_content.md`, which has the full merged writeup — "Pursuit" and "Jet Ski Mission" were the same mission, official title "Hot Pursuit"): that mission's leftover objects (`JetskiChase`, `jetski_mountpoint`/`_a`, `jetskipath`, `ccjetski`) are concentrated almost exclusively in `MINEMSHA.GDW` (vs. the usual all-20-GDWs shared-asset-pool pattern), and `StagePursuitQuest2`'s gate fields — previously unexplained for an open-water chase — make much more sense as canal lock/sluice gates. A second, independent site was also found in `OPEN_NE.GDW`: a bare `HOTPURSUIT` anchor marker sitting near the `Brody's House` map location, which in-game has no house actually built at it. A fully-modeled second lighthouse (distinct from the bare-placeholder `Lighthouse02`) was found 2026-08-13 next to `MapItemPos_Coast Guard HQ`, a stronger match for the "near the lighthouse" mission-goal framing, but it's still ~5,900 units from the `HOTPURSUIT` marker, not adjacent. Not fully resolved; see `docs/mission_system.md` and `docs/ps2_cut_content_findings.md` for the full writeup.
+
+### Named In-Game Locations — Mission Cross-Reference
+
+| In-game name | Mission | Open Ocean zone |
+|---|---|---|
+| Red Reef Valley / The Arrival | M01 Tutorial | Open Ocean: South |
+| South Shore Aquarium | M02 The Break Out | Open Ocean: South |
+| South Beach Cove | M03 The Dead of Night | Open Ocean: South |
+| Grand Occasus Harbor | M04 Hunted | Open Ocean: West |
+| Old South Beach Piers / Avril Bay | M05 Predator in the Bay | Open Ocean: South |
+| Bridgeport Sound | M06 The Angry Armada | Open Ocean: East |
+| Misty Ridge | M07 A Taste for Blood | Open Ocean: East (SE boundary) |
+| ENVIRONPLUS Mining Site | M08 The Deep | Open Ocean: West (North) |
+| The Facility | M09 The Facility | *(inside M08 area; not revisitable)* |
+| Amity Town Beach / The Pond / Amity Public Docks | M10 Blood on the Beach | Open Ocean: East |
+| *(open ocean)* | M11 The Final Chase | *(not revisitable)* |
+| Fisherman's Isle | SC17 Mine All Mine | Open Ocean: South *(non-story)* |
+| Grand Occasus Canals | SC15 Up a Creek | Open Ocean: West *(non-story)* — dedicated GDW is `MINEMSHA.GDW` (see GDW File — Mission Mapping table above) |
+| The Underwater Caves | SC10 The Bends + SC22 The Gauntlet | Open Ocean: West *(non-story)* |
+| North Amity Keys | SC23 Manic Maze | Open Ocean: West (far North) |
+
+### Shared Assets Across GDWs
+
+The engine bundles a **common asset pool into every GDW** — meshes, textures, and props accessible from any level are duplicated into all 20 archives rather than stored in a separate global file. This is why 911/1049 unique texture IDs appear in multiple GDWs.
+
+**Identifying true cut/unused content:** An asset appearing in all GDWs does not mean it was used in all levels or that it is cut content. The BRTR scene graph controls what is actually placed — an asset is only active in a level if a CHBR node references it via PROP `0x08001873`. To determine whether a shared asset is used vs. unused in a given level, check its mesh resource ID against the BRTR instance list for that GDW.
+
+**Example — "Free the Shark" signs:** These assets appear in all 20 GDWs (shared pool) but are intentional level dressing used only in `AQUARIUM.GDW` (M02 — The Break Out), where Jaws escapes from an aquarium and protesters with signs are set dressing outside the facility. Their presence in other GDWs is engine bundling, not cut content.

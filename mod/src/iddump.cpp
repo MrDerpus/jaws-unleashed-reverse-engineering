@@ -19,6 +19,7 @@
  */
 
 #include "iddump.h"
+#include "modpath.h"
 
 #include <windows.h>
 #include <stdio.h>
@@ -29,8 +30,8 @@
 static const DWORD ENGINE_GLOBAL  = 0x920E24;
 static const DWORD ENGINE_ID_MAP  = 0x50;
 static const DWORD ENGINE_COUNTER = 0x14;     /* runtime ID counter */
-static const char* IDS_FILE  = "C:\\jaws_ids.txt";
-static const char* DUMP_FILE = "C:\\jaws_iddump.txt";
+#define IDS_FILE  MOD_PATH("jaws_ids.txt")
+#define DUMP_FILE MOD_PATH("jaws_iddump.txt")
 
 /* Trigger test (TEST.GDW, 2026-10-03) plus vanilla FISH references. */
 static const DWORD DEFAULT_IDS[] = {
@@ -174,7 +175,7 @@ bool DumpIdRegistry(char* msg, size_t msg_sz)
 
     FILE* out = fopen(DUMP_FILE, "a");
     if (!out) {
-        snprintf(msg, msg_sz, "ID dump: cannot write %s", DUMP_FILE);
+        snprintf(msg, msg_sz, "ID dump: cannot write %s", "jaws_iddump.txt");
         return false;
     }
     SYSTEMTIME st;
@@ -225,6 +226,6 @@ bool DumpIdRegistry(char* msg, size_t msg_sz)
     }
     fprintf(out, "\n");
     fclose(out);
-    snprintf(msg, msg_sz, "ID dump: %d/%u IDs found, written to %s", found, (unsigned)ids.size(), DUMP_FILE);
+    snprintf(msg, msg_sz, "ID dump: %d/%u IDs found, written to %s", found, (unsigned)ids.size(), "jaws_iddump.txt");
     return true;
 }

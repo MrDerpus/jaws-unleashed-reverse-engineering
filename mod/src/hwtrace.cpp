@@ -19,6 +19,7 @@
  */
 
 #include "hwtrace.h"
+#include "modpath.h"
 #include <tlhelp32.h>
 #include <stdio.h>
 #include <string.h>
@@ -63,7 +64,7 @@ static bool IsRetAddr(DWORD v)
 static volatile LONG g_rawlogged = 0;
 static void RawLog(const char* s)
 {
-    HANDLE f = CreateFileA("C:\\jaws_mod.log", FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
+    HANDLE f = CreateFileA(MOD_PATH("jaws_mod.log"), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
                            nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (f == INVALID_HANDLE_VALUE) return;
     DWORD w;

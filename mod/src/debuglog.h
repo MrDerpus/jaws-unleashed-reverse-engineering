@@ -23,7 +23,7 @@
  * (0x4549D0, cdecl, format + args) from 171 places ("Razas damage!\n",
  * "HP:%f\n", "StoryMissionCompleted:%d\n", ...), but the release build
  * emptied it to a lone `ret`. This patches a jump there into our own
- * printer, which writes each line with a timestamp to C:\jaws_debug.log
+ * printer, which writes each line with a timestamp to jaws_debug.log
  * (watch it with `tail -f`). Identical consecutive lines are collapsed.
  */
 

@@ -166,8 +166,8 @@ The top-left corner always shows the shark's game position.
 
 You can replace any message the game shows, for example the exit question, just for your level. The text lives in a plain text file the mod reads:
 
-- **The live file** (what the game uses): `C:\jaws_messages.txt` inside the game's Wine prefix. On Linux:
-  `~/.steam/debian-installation/steamapps/compatdata/2342933845/pfx/drive_c/jaws_messages.txt`
+- **The live file** (what the game uses): `jaws_messages.txt` in the game folder next to `Jaws.exe`. On Linux:
+  `~/.steam/debian-installation/steamapps/compatdata/2342933845/pfx/drive_c/Program Files (x86)/Jaws Unleashed/jaws_messages.txt`
 - **The copy in your level folder:** `levels/custom_fish/jaws_messages.txt`. After editing the copy, put it in place with:
   ```bash
   cp ~/Projects/JAWS/levels/custom_fish/jaws_messages.txt ~/.steam/debian-installation/steamapps/compatdata/2342933845/pfx/drive_c/
@@ -245,7 +245,7 @@ Any you leave out use `calm_above`, so **one file named `calm_above` is enough**
 - Nothing to undo: your level only lives in `custom_levels/`, which the original game never looks at. Delete the file there to remove it from the F9 list.
 - If you followed an older version of this tutorial that edited `OPEN_S.GDW`, copy `OPEN_S.GDW.orig` back over it.
 
-To turn off the custom text, empty (or delete) `C:\jaws_messages.txt`.
+To turn off the custom text, empty (or delete) `jaws_messages.txt`.
 
 ---
 
