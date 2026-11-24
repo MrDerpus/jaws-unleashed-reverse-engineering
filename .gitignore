@@ -1,3 +1,6 @@
 # Python bytecode (embeds local file paths)
 __pycache__/
 *.pyc
+
+# Raw game assets (textures etc.) stay local
+docs/images/old_brody_textures.png

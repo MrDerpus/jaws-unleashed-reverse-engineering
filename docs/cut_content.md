@@ -226,7 +226,7 @@ The Brody standing on the Aurora in the M05 boss fight is an **older character m
 
 **Link to START's ending (2026-11-23):** none of the old clips are stored in `START.GDW` (`MBrody_*` only in OPEN_NE, `Shark_GW_Movie_L2_AuroraCatches` only in TITLE, neither in any PS2 file). But the shipped tutorial-ending cutscene in START is the group node **`AuroraComesMovie` (198)**: `MovieAurora` with two `crew` and a helmsman `kormanyos` (all the generic crew rig `SKEL 2431`, the helmsman playing the shared 2-frame human clip `Kormanyoz`), the harpoon line (`NARope` `SzigonyKotel`, anchor `KotelEgyikVege`), `Scene01`–`04` with the new Brody, the movie shark and a victim. The old clip names describe the same scene: the Aurora coming (`AuroraComesMovie`), Brody at the wheel (`Kormanyoz`), grabbing the harpoon (`GrabHarpoonMovie`), the catch (`AuroraCatchesMovie` + the shark's `AuroraCatches`). So the old Brody animations are most likely an earlier animation set for this START ending, with old Brody himself at the wheel where a generic helmsman now stands. The Blender scene's staging (positions, camera, timing) is a reconstruction, not recovered data.
 
-Files: `docs/images/old_brody_vs_shipped.png` (render: shipped Brody, OPEN_NE `CoastGuard 1`, KATATAMA `Brody`), `docs/images/old_brody_textures.png` (KATATAMA top row, OPEN_NE bottom).
+Files: `docs/images/old_brody_vs_shipped.png` (render: shipped Brody, OPEN_NE `CoastGuard 1`, KATATAMA `Brody`), `docs/images/old_brody_textures.png` (KATATAMA top row, OPEN_NE bottom; raw game textures, kept local and not in the repo).
 
 ## Unused alternate voice take — TOWN (found 2026-10-03)
 
