@@ -41,7 +41,7 @@ FISH.GDW BRTR stats:
 | `0x080017E3` | `GDBrick.m_RoomMask` | uint32 |
 | `0x080017E4` | `GDBrick.m_Comment` | uint32 |
 | `0x080017FD`–`0x08001802` | `GDCamera`: `m_nFOV` (radians, e.g. 0.873), `m_nRatio`, `m_NearPlane`, **`m_FarPlane`** (`SharkCamera`: 600), `m_FogSensor`, `m_CameraFlags` (2026-10-17) | float / uint32 |
-| `0x08001848`–`0x08001850` | `GDFog`: `m_FogFlags`, `m_Range`, `m_ConstRange`, `m_Condens`, `m_FogDensity`, **`m_FogStart`** (`…184D`), **`m_FogEnd`** (`…184E`), `m_FogType`, `m_Color` (2026-10-17) | float / uint32 |
+| `0x08001848`–`0x08001850` | `GDFog`: `m_FogFlags`, `m_Range`, `m_ConstRange`, `m_Condens`, `m_FogDensity`, **`m_FogStart`** (`…184D`), **`m_FogEnd`** (`…184E`), `m_FogType`, …; **fog colour** = `PROP 0x08001853` (`COLOR` r, g, b, a in 0–1; `FogAbove` in FISH = 0.561, 0.694, 0.788; found in the text-format dump 2026-11-25) (2026-10-17) | float / uint32 |
 | `0x08001873` | Mesh reference | 8 bytes: `[uint32 "GMDL" tag][uint32 mesh_resource_id]` |
 | `0x08001874` | `m_DynamicLights` | uint32 |
 | `0x08001875` | `m_StaticLights` (e.g. `0x1000009`; `0` on hidden render-layer companions) | uint32 |

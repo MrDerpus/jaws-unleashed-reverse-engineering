@@ -43,6 +43,13 @@ python3 -I scripts/gded_lineage.py compare A=GLOB B=GLOB     # class-name overla
 python3 -I scripts/gded_lineage.py fields A=GLOB B=GLOB      # per-class field differences
 python3 -I scripts/gded_lineage.py placed FILE [CLASS...]    # how often classes are placed in a level
 python3 -I scripts/gdrom_ls.py DISC_DIR [--extract OUT REGEX] # list a Dreamcast GD-ROM dump with dates and versions
+python3 -I scripts/dwarf1_classes.py ECCO.ELF [CLASS...|--list] # class layouts from Defender's DWARF v1 debug info → docs/ecco_defender_classes.txt
+# Name Jaws.exe functions from Defender's ECCO.ELF (docs/exe_analysis.md "Ecco: Defender debug symbols"):
+#   Ghidra: -postScript FuncRanges.java funcs.tsv (scripts/ghidra) and JawsFactories.java → jaws_objects.tsv
+python3 -I scripts/ecco_jaws_vtables.py ECCO.ELF game_binary/Jaws.exe jaws_objects.tsv OUTDIR   # vtable slots → OUTDIR/jaws_vnames.tsv
+python3 -I scripts/ecco_jaws_strings.py ECCO.ELF game_binary/Jaws.exe funcs.tsv strings.tsv      # shared strings/constants
+python3 -I scripts/ecco_jaws_callgraph.py --map 0.MAP ECCO.ELF game_binary/Jaws.exe funcs.tsv names.tsv OUTDIR/jaws_vnames.tsv strings.tsv
+#   → names.tsv (result: docs/jaws_function_names.tsv); apply with ApplyLabels.java (address<TAB>Class::name)
 ```
 
 `scripts/ghidra/` holds headless Ghidra helpers (decompile at an address, string references).
@@ -58,6 +65,7 @@ These share small libraries and take command-line arguments; run them from `scri
 | `strip_level.py IN OUT [--minimal\|--blank]` | blank base level: removes scenery, keeps the gameplay layer and anything it references; `--minimal` also removes NPCs, animals, missions and collectibles; `--blank` (the kit's base) also recentres on the origin and disables the stock exit |
 | `prune_level.py IN OUT` | drop resources nothing in the level uses (blank base 127 → 106 MB) |
 | `gdw_music.py IN OUT none\|DIR` | replace or silence a level's four music layers |
+| `gdw_to_text.py LEVEL.GDW jaws_gdfile_trace.bin OUT.GDW` | rewrite a level in the editor's GDED text format (it loads in-game). Make the trace first: create `jaws_gdfile_trace.on` in the game folder, start the game, load the level (F9), quit, delete the `.on` file. See `docs/exe_analysis.md` "GDED text format" |
 | `make_level_kit.py [--force]` | run from the project root: creates `levels/custom_fish/` (minimal base level + starter `.blend`) from your game files |
 | `redirect_stage.py IN OUT FROM TO` | make a level entrance load another `.GDW`; no longer needed for custom levels (mod F9) |
 | `add_trigger.py BASE OUT` | breakable-object trigger that removes target objects (edit its `CONFIG`) |

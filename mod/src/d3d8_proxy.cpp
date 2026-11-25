@@ -39,6 +39,7 @@
 #include "device_proxy.h"
 #include "levels.h"
 #include "debuglog.h"
+#include "gdtrace.h"
 
 static HMODULE g_dxvk = nullptr;
 
@@ -290,6 +291,7 @@ IDirect3D8* WINAPI Direct3DCreate8(UINT sdk_version)
     InstallTimeHooks();
     InstallLevelFileHooks();
     InstallDebugPrint();
+    InstallGdTrace();
 
     if (!g_dxvk) {
         /* Lazy-load DXVK's d3d8 via system32 path. For a 32-bit process,

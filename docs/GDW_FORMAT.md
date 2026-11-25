@@ -86,7 +86,7 @@ Source: an Appaloosa Dreamcast development-kit dump supplied by the user (a Kata
   - **`Ecco` folders:** 101 + 2 Defender levels, dated 2000-04-15 to 2000-11-09.
   - **`ecco2` folders (Sentinels):** the earliest files are 4 levels (`120_CReef_North`, `180_Atlantis`, plus `.Id_NN` duplicates) dated **2000-10-24/25**, still 2.1.12.1, i.e. Sentinels started on Defender's levels and format. Then `120_CReef_North` 2000-12-01 (2.1.12.1), then the 2.3.2.1 levels of 2001-02-16 to 2001-02-21.
   - **The two Sentinels discs** each hold `0.BIN` (the program, 2001-02-19), the 9 levels, `AUDIO64.DRV`, `DSP.FPB`, `DUMMY.DAT` and a `CONFIG.TXT` that picks the boot level (`#start` / `#gameover` / `#loader` / `#levels` sections). Disc 1 boots `000_Title`; disc 2 boots straight into `180_Atlantis`, its older 2.1.12.1 copy. The dev-kit folders have the same `config.txt` files.
-  - **The four Defender discs** (dated up to 2000-06-05 and 2000-11-09) hold 39–50 levels each, all 2.1.12.1. Two have separate `/DEBUGBIN/0.BIN` and `/RETAILBIN/0.BIN` program builds (2000-04-17 / 2000-06-01). A quick string scan found no readable source-file names; not examined further.
+  - **The four Defender discs** (dated up to 2000-06-05 and 2000-11-09) hold 39–50 levels each, all 2.1.12.1. Two have separate `/DEBUGBIN/0.BIN` and `/RETAILBIN/0.BIN` program builds (2000-04-17 / 2000-06-01). The `DEBUGBIN` build turned out to be cross-linked junk (512 KB of code + level data). **The `144 M` disc and the hard disk's `Z` folder carry an unstripped `ECCO.ELF` with `0.MAP`: 12,156 named functions and DWARF v1 class layouts** (2026-11-25, `docs/exe_analysis.md` "Ecco: Defender debug symbols").
   - **The Katana disk image** (4.55 GB, two partitions) has 147 `GDED` 2.1.12.1 and 5 2.3.2.1 preambles and no "Diesel" string.
 - **`Appaloosa Multimedia Kft`:** the Ecco *Defender* PS2 map files `TERKEP/242_PUMP.TKP` and `340HWGEN.TKP` contain the header `GD-DCK … gyozo … (C) 1999 Appaloosa Multimedia Kft` (*Kft* = Hungarian limited company; "gyozo" is probably a person's name). *Terkep* is Hungarian for "map".
 - **Timeline (user context, 2026-11-25):** *Jaws Unleashed* was made after *Sentinels of the Universe* was cancelled. With the data below, that means Appaloosa carried the cancelled sequel's code line (format 2.3, skeleton system, `MLHalRaj3`, the reworked Ecco classes) into Jaws, rather than going back to the shipped *Defender* code. The cancellation date isn't recorded here; the latest Sentinels files on hand are from 2001-02-21.
@@ -140,6 +140,22 @@ Source: an Appaloosa Dreamcast development-kit dump supplied by the user (a Kata
 ## Archive Structure
 
 **Engine version:** All 20 GDW files share the identical header `GDED BINARY FORMAT, VERSION 2.6.3.16` with an internal date of `20030626` (June 26, 2003), stored as a string in the `VERS` chunk (`Jaws.exe` holds the same string, next to `misc_core_open`). **Correction (2026-10-21):** this is the container format's version date, not an engine freeze. Individual block formats kept changing until December 2005 (see "Block format date stamps" below).
+
+### Text variant: `GDED TEXT FORMAT` (2026-11-25, loads in-game)
+
+The same container exists as text, the format the Game World Builder editor could save. Jaws can't write it (writer code is dead), but `GDLoadGame` still reads it: a full level converted to text loaded and played, and a hand-edited fog colour took effect (user-confirmed). Syntax, from the readers' text branches:
+
+```
+GDED TEXT FORMAT, VERSION 2.6.3.16.\r\n\r\n     (exactly these 4 raw bytes after the version)
+Chunk: PROP {                                    (chunk; sizes are implicit, "}" ends it)
+  CLASSID: 2131-1-8                              (bits 0-11, 12-23, 24-31 = PROP 0x08001853)
+  COLOR: 0.56, 0.69, 0.79, 1
+}
+INT: -5   SHORT: 3   REAL: 1.5   SET: ACD (bit n = 'A'+n, '-' = 0)   ResID: GTEX (0000 = 0)
+STRING: "name" ('-' = none)   VECTOR: x, y, z   MATRIX: 12 values   BUFFER: hex byte tokens
+```
+
+Labels are free (anything before `:`); arrays are one value per line. Limits: `FDIR`'s 24-byte names are read raw, the loading-screen sub-archives stay binary (appended, `FDIR` offsets absolute), NaN/Inf can't be expressed. The bytes of a binary GDW don't say which reader reads which value, so conversion uses a load trace from the mod (`scripts/gdw_to_text.py`). Size about 2.3× the binary, load about 20 s for a 105 MB level. Judged not practical for editing (user); kept as a curiosity. Engine side: `docs/exe_analysis.md` "GDED text format".
 
 ### Block format date stamps (found 2026-10-21)
 

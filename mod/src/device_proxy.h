@@ -73,7 +73,7 @@ public:
     void    __stdcall SetCursorPosition(int x,int y,DWORD f) override              { log_once("SetCursorPosition"); real_->SetCursorPosition(x,y,f); }
     BOOL    __stdcall ShowCursor(BOOL b) override                                  { log_once("ShowCursor"); return real_->ShowCursor(b); }
     HRESULT __stdcall CreateAdditionalSwapChain(D3DPRESENT_PARAMETERS* p,IDirect3DSwapChain8** s) override { log_once("CreateAdditionalSwapChain"); return real_->CreateAdditionalSwapChain(p,s); }
-    HRESULT __stdcall Present(const RECT* s,const RECT* d,HWND h,const RGNDATA* r) override { return real_->Present(s,d,h,r); }
+    HRESULT __stdcall Present(const RECT* s,const RECT* d,HWND h,const RGNDATA* r) override;
     HRESULT __stdcall GetBackBuffer(UINT i,DWORD t,IDirect3DSurface8** p) override { return real_->GetBackBuffer(i,t,p); }
     HRESULT __stdcall GetRasterStatus(void* p) override                            { return real_->GetRasterStatus(p); }
     void    __stdcall SetGammaRamp(DWORD f,const D3DGAMMARAMP* r) override         { real_->SetGammaRamp(f,r); }
@@ -224,6 +224,9 @@ private:
     float tp_target_[3]     = {};
     int   tp_verify_frames_ = 0;
     bool  endscene_logged_   = false;
+    bool  present_logged_      = false;
+    bool  present_skip_logged_ = false;
+    void  DrawHud();
     bool  beginscene_logged_ = false;
     int   call_count_        = 0;
     void  log_once(const char* method) {

@@ -10,14 +10,14 @@ Appaloosa made the game with its in-house **Game World Builder** editor (the `.G
 
 ## What works
 
-- **Archive format:** fully mapped, and files can be resized and rewritten safely. → [GDW format](docs/GDW_FORMAT.md)
+- **Archive format:** fully mapped, and files can be resized and rewritten safely. The editor's lost *text* variant still loads in the game: a level converted to text plays. → [GDW format](docs/GDW_FORMAT.md)
 - **Textures:** all decoded and extracted (4,923 + 2,787 across 20 levels), and new ones can be written. → [textures](docs/texture_format.md)
 - **Meshes and collision:** 11,948 meshes extracted with materials; meshes and collision can be written for new objects. → [resources](docs/rsrc_formats.md)
 - **Scene graph:** every placed object, transform and baked light, with a Blender importer; objects can be added or removed, and every property ID has its real name. → [scene graph](docs/scene_graph.md)
 - **Animation:** skeletons, skinning and all 754 clips of 150 rigs, exported to Blender. → [animation](docs/animation_system.md)
 - **Audio:** all sample types, 49 captioned cutscene lines, an audit of 48 never-played recordings, replaceable level music. → [audio](docs/audio_format.md)
 - **Custom levels:** build in Blender, play in the game. → [tutorial](docs/custom_level_tutorial.md)
-- **`Jaws.exe`:** decompiled in Ghidra: shark, stage loading, level scripting, messages, collision, controls. → [exe analysis](docs/exe_analysis.md)
+- **`Jaws.exe`:** decompiled in Ghidra: shark, stage loading, level scripting, messages, collision, controls; 812 functions named from *Ecco: Defender*'s debug symbols. → [exe analysis](docs/exe_analysis.md)
 - **Live mod:** a `d3d8.dll` proxy with an overlay, teleport, no-clip, invincibility, far view, custom-level loader, your own controls on every new game, and an Ecco mode. → [mod](mod/README.md)
 - **Cut content:** the cut *Hot Pursuit* stage (playable again), the Aurora rope fight, unused side challenges, characters and audio. → [cut content](docs/cut_content.md)
 - **Speedrun research:** timing, win conditions, skips, collision and level-edge barriers. → [speedrun](docs/speedrun_glitches.md)

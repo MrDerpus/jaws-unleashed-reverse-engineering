@@ -362,6 +362,7 @@ Longer view distance is a same-size float edit (no chunk resizing). Fields, the 
 | Node | Field | PROP | OPEN_S stock | Tested good |
 |---|---|---|---|---|
 | `SharkCamera` | `m_FarPlane` | `0x08001800` | 600 | 3000 |
+| `FogAbove` | fog colour (r, g, b, a floats 0–1) | `0x08001853` | FISH 0.561, 0.694, 0.788, 1 | 0.56, 0, 0.29 worked (text-level test 2026-11-25) |
 | `FogAbove` | `m_FogStart` / `m_FogEnd` | `0x0800184D` / `0x0800184E` | 40 / 1100 | 1000 / 2900 |
 | `NAWaterYCamera 1` (`ACTN`) | `m_fogbelowstartPC` / `EndPC` | `0x0800133A` / `0x0800133B` | 30 / 170 | 100 / 400 |
 | same | PS2 copies | `0x0800133C` / `0x0800133D` | 30 / 170 | changed to match (unused on PC) |

@@ -37,7 +37,36 @@
  *
  * Hooks are vtable slot swaps in .rdata, each checked against the stock
  * function first.
+ *
+ * Air swim (2026-11-25, user-confirmed): the water action sets three
+ * function pointers, all float cdecl f(const float* pos): 0x8B2E94 = wave
+ * surface height (197 call sites), 0x8B2E98 (3 sites, unknown), 0x8B2E9C =
+ * flat water level (107 sites); both return -2147483648.0 where there is no
+ * water. Every caller uses `call [ptr]`, so while no-clip is on the mod
+ * points 0x8B2E94 and 0x8B2E9C at wrappers that tell callers apart by
+ * return address:
+ *  - shark tick, wave surface: 0x66D6FB/0x66D70E (head/tail vs surface ->
+ *    airborne ctrl+0x4A0 and fraction out of water, i.e. air vs water
+ *    physics), 0x66D762 (near-surface ctrl+0x828), 0x66D2E4 (clears the
+ *    on-ground ctrl+0x5A8), 0x66E4A7 (surface swim anim, m_felszineny),
+ *    0x6703A7/0x6703EB (wake) -> surface 1000 units above the shark, also
+ *    where there is no water (AQUARIUM away from the pools);
+ *  - shark tick, flat level: 0x67031E/0x67033C (blocks the 0x40000 button
+ *    out of water) -> same lift;
+ *  - above-water camera 0x676AC0, site 0x676C3B (camera Y = water +
+ *    cfg[0xDC]) -> the camera's own planned Y when above the water, so it
+ *    rises with the shark instead of staying by the waves;
+ *  - everything else gets the real value. NOT lifted: 0x66DDC5/0x66DDFB =
+ *    m_maxdepth limit (keeps the shark at most m_maxdepth below the surface;
+ *    lifting it flung the shark up ~1000 units per frame).
+ * Re-installed every frame (the water action rewrites the pointers on level
+ * load), put back when no-clip goes off. AIRSWIM_DEBUG=1 logs callers near
+ * the shark to jaws_mod.log.
  */
 
 /* Installs the hooks once; returns false if any slot didn't match. */
 bool InstallNoclipGuards();
+
+/* Call once per frame: installs / removes the air-swim water-height wrapper
+ * to follow the F7 no-clip state. */
+void UpdateNoclipAirSwim();

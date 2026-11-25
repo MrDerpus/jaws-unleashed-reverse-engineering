@@ -33,6 +33,7 @@
 #include "noclip_guard.h"
 #include "sonar.h"
 #include "ecco.h"
+#include "gdtrace.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -420,6 +421,7 @@ HRESULT __stdcall DeviceProxy::EndScene()
         }
     }
     SetSharkNoClip(g_noclip);
+    UpdateNoclipAirSwim();   /* no-clip also swims in the air */
     {   /* no-clip also skips area triggers, buoy pushes and currents */
         static bool tried = false;
         if (!tried) {
@@ -487,6 +489,7 @@ HRESULT __stdcall DeviceProxy::EndScene()
         log_msg(g_fog_off ? "[jaws_mod] fog OFF" : "[jaws_mod] fog ON");
     }
     f4_prev_ = f4_now;
+    FlushGdTrace();
     UpdateModConfig();   /* jaws_config.txt: controls layout, start states */
     UpdateFarView();
 
@@ -677,6 +680,64 @@ HRESULT __stdcall DeviceProxy::EndScene()
         }
     }
 
+    /* Ecco sonar pulses (world space, main camera). The HUD itself is drawn
+     * in Present (see DrawHud), not here: EndScene also ends the game's
+     * render-to-texture scenes, so text drawn here leaked into the water
+     * reflection and onto some entities (fixed 2026-11-25). */
+    if (EccoEnabled() && have_view_ && have_proj_ && on_primary_target_)
+        SonarDraw(real_, main_view_, main_proj_);
+
+    return real_->EndScene();
+}
+
+/* ── Present — draw the HUD once per frame, on the back buffer only ─────── */
+
+HRESULT __stdcall DeviceProxy::Present(const RECT* s, const RECT* d, HWND h, const RGNDATA* r)
+{
+    if (!present_logged_) {
+        log_msg("[jaws_mod] Present firing — HUD drawn here");
+        present_logged_ = true;
+    }
+
+    /* Only draw when the current render target is the swap chain's back
+     * buffer, i.e. what Present is about to show. */
+    IDirect3DSurface8* rt = nullptr;
+    IDirect3DSurface8* bb = nullptr;
+    real_->GetRenderTarget(&rt);
+    real_->GetBackBuffer(0, 0, &bb);
+    bool on_bb = rt && rt == bb;
+    if (bb) {
+        if (on_bb && SUCCEEDED(real_->BeginScene())) {
+            /* Full-screen viewport and no pixel shader for the HUD quad; the
+             * game may have left either set from its last pass. */
+            D3DVIEWPORT8 saved_vp;
+            real_->GetViewport(&saved_vp);
+            D3DVIEWPORT8 vp = { 0, 0, vp_w_, vp_h_, 0.0f, 1.0f };
+            real_->SetViewport(&vp);
+            DWORD saved_ps = 0;
+            real_->GetPixelShader(&saved_ps);
+            real_->SetPixelShader(0);
+
+            DrawHud();
+
+            real_->SetPixelShader(saved_ps);
+            real_->SetViewport(&saved_vp);
+            real_->EndScene();
+        }
+        bb->Release();
+    }
+    if (rt) rt->Release();
+    if (!on_bb && !present_skip_logged_) {
+        log_msg("[jaws_mod] Present: render target is not the back buffer, HUD skipped this frame");
+        present_skip_logged_ = true;
+    }
+    return real_->Present(s, d, h, r);
+}
+
+/* ── HUD — gather state and draw the overlay ─────────────────────────────── */
+
+void DeviceProxy::DrawHud()
+{
     /* Draw HUD. Prefer the player shark's real world position (read from
      * game memory, see shark.h); fall back to the D3D camera-derived
      * position when the shark controller doesn't exist (menus, loading). */
@@ -722,12 +783,7 @@ HRESULT __stdcall DeviceProxy::EndScene()
     for (int i = 0; i < g_picker_count && i < MAX_CUSTOM_LEVELS; ++i)
         info.picker_names[i] = CustomLevelName(i);
     info.tp_msg    = (tp_msg_[0] && GetTickCount() < tp_msg_until_) ? tp_msg_ : nullptr;
-    /* Ecco sonar pulses (world space, main camera) under the overlay */
-    if (EccoEnabled() && have_view_ && have_proj_ && on_primary_target_)
-        SonarDraw(real_, main_view_, main_proj_);
     overlay_.Draw(real_, info);
-
-    return real_->EndScene();
 }
 
 /* ── Teleport text box (F8) ──────────────────────────────────────────────── */

@@ -24,6 +24,49 @@ The first time this project decompiled the game executable itself rather than on
 
 ---
 
+## Ecco: Defender debug symbols (`ecco.elf`, found 2026-11-25)
+
+The Appaloosa Dreamcast dev kit (`docs/GDW_FORMAT.md` "The dev kit") holds an **unstripped build of Ecco: Defender**: `ECCO.ELF` (13,166,002 bytes, 2000-06-01/02) plus its linker map `0.MAP` (`Link Map of "debug.elf"`, 25,755 lines). Identical copies sit on the `144 M` dev disc and in the recovered hard disk's `Z` build folder; the `269 M` disc has the same `0.MAP`. It is the build behind that date's `0.BIN`.
+
+- Renesas SH-4 ELF, little-endian, Hitachi/cfront-style mangled C++ (`_Execute__11NAWhirl2000Fv` = `NAWhirl2000::Execute()`).
+- **12,156 named functions**, ~180 source files (`gdbrick.cpp`, `gdres.cpp`, `gdtile.cpp`, `gdcamera.cpp`, `gdexec.cpp`, `NAWhirl.cpp`, `Shark_1.cpp`, `Dclasses.cpp`, …; full list via the map's `From file:` lines).
+- **`.debug` = DWARF version 1** (7.3 MB) with complete class layouts: 2,168 classes/structs with base classes, member names, types and offsets. `.line` holds line tables. readelf/objdump/Ghidra don't read DWARF v1, so `scripts/dwarf1_classes.py` parses it; the full dump is `docs/ecco_defender_classes.txt`.
+- **How it carries over to Jaws:** names do, offsets only partly. Jaws is a later code line (via Sentinels), x86 instead of SH-4.
+  - Class-specific fields mostly keep their order and spacing; only the base class in front of them grew. Comparing the Jaws reflection table (`dump_class_fields.py`) with the Defender layouts by field name gives one constant shift per class for `GDFog`, `GDSector`, `GDFont`, `GDRotSprite`, `NAWhirl2000`, `NAFade`, `MLParticle`, `MLOldParticle`, `MLModelParticle` and others; `GDModel`, `GDSprite`, `NAFlare`, `NAParticle2000` show 2–3 shifts (fields added in between).
+  - The core `GDBrick` was reorganised (table in "Scene Object (Brick) Memory Layout").
+  - The SH-4 code can't be matched to x86 byte for byte; functions have to be matched by strings, constants, field offsets and call structure.
+- **Jaws functions named from it (2026-11-25): 812**, applied to the Ghidra project (backup before: `~/tools/ghidra_projects/JAWS.rep.bak_preEccoNames`) and listed in `docs/jaws_function_names.tsv` (Jaws address, name, Defender symbol, how it was found). Three independent methods, each checked against the others:
+  - **Vtables (605):** `scripts/ecco_jaws_vtables.py`. 424 classes (object, `Props` and `Factory` vtables) exist in both games. Per family, Defender slots are aligned to Jaws slots by *which classes override them* (Defender: the slot's symbol belongs to the class; Jaws: the slot differs from the parent's). Jaws inserted virtuals early in `GDAct`/`GDBrick`: `GDAct` `GetFactory` 8 → 16, `Execute` 10 → **18** (the shark tick slot), `OnActivate`/`OnDeactivate` 12/13 → 20/21; `GDBrick` `GetFactory` 11 → 19, `Execute` 14 → **22** (the `NAWhirl2000` tick `0x63D100`). Destructor = slot 0 everywhere. The Jaws "factory vtable" is Defender's `<Class>Factory` (`GetClassName`, `Create`, `CreateProps`, `DeleteProps`, `GetBase`).
+  - **Strings and constants (128):** `scripts/ecco_jaws_strings.py`. Defender's compiler loads strings as *table base + offset* from the literal pool; both words are combined. Gives the whole `GDFile` text reader/writer (`ReadChunkID`, `ReadInt`, `WriteResID`…) and, through chunk tags and version stamps, the GDW loader: `GDLoadGame` (`0x693180`, `0x6C4E90`), `GDBrickProps::LoadTree` (`0x699360`), `GDObjWizard::LoadClasses` (`0x70C580`), `GDMesh::Load` (`0x6D15F0`), `GDMaterial::Load` (`0x6CE010`), `GDTexture::Load` (`0x7053C0`), `GDBoneData::Load`, `GDMeshRegions::Load` (`0x6E3CB0`), `GDTileMap::LoadWorldDim`, `GDMovie::Load`/`Play`.
+  - **Call graph and locality (79):** `scripts/ecco_jaws_callgraph.py` spreads names from known pairs to their callees/callers (order-independent voting, both sides must agree), and fills gaps between two named functions of the same Defender source file when both gaps hold the same number of functions (file from `0.MAP`). Found e.g. `GDBrick::CalcAbsMatrix` `0x696EA0`, `GDBrick::InvalidatePos` `0x6970B0`, `GDMatrix::Multiply` `0x6D0070`, `GDBase::GetObj` `0x692650`, and `NAWhirl2000::CalculateDisplacement` `0x63BD80` (already known as the current's force function: independent confirmation).
+  - **Precision check:** neighbouring named functions in Jaws should come from the same Defender source file. They do for 96% (vtables), 94% (strings) and 79% (call graph; some are file boundaries). Treat call-graph and locality names as likely, not certain.
+  - **Limits:** only code shared with Defender can be named (Jaws-only classes such as `MLSharkCtrl` get nothing). Most names are virtuals (destructors, `GetFactory`, `Execute`, `OnActivate`…); non-virtual engine code is reached only through the call graph, which stalls because the compilers inline differently. `0.MAP` is from a slightly different build (`debug.elf`), so its addresses don't match the ELF; it's only used for file membership.
+  - Pipeline: Ghidra `scripts/ghidra/FuncRanges.java` (function list) + the Jaws class → factory/object/props vtable table from the earlier `JawsFactories` Ghidra script (`~/tools/ghidra_scripts`), then the three scripts above; see `docs/scripts.md`.
+- **GDED text format: Jaws can read it, but nothing writes it (checked 2026-11-25).**
+  - `GDFile` (base vtable `0x7F5B2C`, abstract: slots 1–5/7/8 are `_purecall`) handles both encodings. Layout as in Defender, shifted by the vptr: `+0x04` `m_nMode`, `+0x08` `m_nType` (**0 = binary, 1 = text**), `+0x10` written tabs, `+0x14` chunk level. Every `Read*`/`Write*` branches on `m_nType`; in text mode the writers print `Name: value` lines indented by chunk level (`%s: "%s"`, `%s: %c%c%c%c ` for resource IDs, `%s: %d-%d-%d` for class IDs, keyword defaults such as `STRING`, `ResID`, `CHAR`), and the readers tokenise (errors "Bad integer value.", "Bad Chunk ID (included non ASCII characters).").
+  - **`ReadHeader` `0x6BBAC0`, called from `GDLoadGame` `0x693180`,** reads `GDED`, then `BINARY` → type 0 or **`TEXT` → type 1**, anything else fails, then `FORMAT, VERSION a.b.c.d`. So a level file starting `GDED TEXT FORMAT, VERSION …` passes the header check and the chunk loaders then read through the text tokenizer. Untested in-game; whether every loader copes (e.g. raw buffers via `ReadMemBuffer`) is unknown, and there is no text sample to start from.
+  - **The writer is unreachable.** `WriteHeader` (`0x6BA970`, slot 32: writes `GDED` + `TEXT`/`BINARY` + ` FORMAT, VERSION %d.%d.%d.%d.`) and all other `Write*` methods are referenced only from the four `GDFile` vtables, and:
+    - File classes (MSVC virtual inheritance): A `0x7F5C0C` (disk file of the PC file system), B `0x7F5CF4` = `GDMemFile` (mode 1 only allocates a growing 16 KB-step buffer; `Close` frees it, never writes to disk), C `0x7F5DDC` (wraps a stream, created by the stage loader `0x6C4382`/`0x6C5501`).
+    - File systems sit in a priority list at `0x920D00` (PC file system vtable `0x7FB5DC`: `GetFileSize` `0x727F90`, `OpenFile` `0x728170`, `CreateFile` `0x6C2240` at `+0x28`, `GetFileData` `0x728060`); the engine keeps the current one at `[0x920E24]+0x8C`. Every disk open passes mode 0 (read).
+    - The only `CreateFile` call (`0x6C4BBB`, async stage loader `0x6C4AB0`, state 2) opens the memory file in mode 0 and attaches the already loaded level data (`0x6C0D60`).
+    - No game code opens a file in mode 1; Defender's game build likewise has `Load(GDFile&)` for every class but no `Save`: saving lived in the editor (Game World Builder), and the writer primitives survive only because they are virtual.
+  - **Feasibility check (2026-11-25, static): a full text level looks loadable.**
+    - All 23 `GDFile` read helpers (`0x6BC240`–`0x6C08A0`) have a text branch (`m_nType == 1`). They tokenise on ` \r\n\t`, read a `label:` (delimiter `:`), then the value. Strings are quoted (`"`), and numbers go through `sscanf`.
+    - Chunks: `ReadChunkID` reads `Chunk: TAGN` (the writer prints `Chunk: %c%c%c%c %s%s%s {`, with an optional `/name/` comment) and returns end-of-chunk on `}`. The skip function `0x6C08A0` skips an unknown chunk by counting braces, ignoring any inside quotes.
+    - Raw buffers (`ReadMemBuffer` `0x6BFCE0`: texture pixels `TGAN`, `DXTF` data `0x703B90`, `BNCH`, sample data and so on) have a text form: label, then one `%x` hex token per byte. That roughly triples the size but works. Binary-only alignment padding is skipped in text mode.
+    - Of the 79 non-helper functions that read through `GDFile`, the only direct raw read (`vtable+0x1C`) is in the `FDIR`/`FSIZ` handler `0x6C3D90`: 24 raw bytes per `FDIR` name. That chunk is only needed for the embedded loading-screen sub-archives, so it can be left out (or written byte for byte). The other two hits (`0x690AD0`, `0x691030`) call an animation track object's own `Load`, not a file read.
+    - `GDLoadGame` calls `GetFileSize` (`+0x14`) only for the loading bar. A level without `BRTR` hangs forever ("Brick Tree not found").
+    - **In-game test PASSED (2026-11-25, user-confirmed):** `custom_levels/TXTMODE.GDW`, the pruned blank FISH base (105.6 MB binary) rewritten entirely in the text format (240 MB of text + the unchanged 14 MB loading-screen sub-archive appended, FDIR offsets and FSIZ patched), loads through F9 and plays normally; loading takes about 20 s (the game reads text one byte per virtual call). So Jaws still loads the editor's text format end to end.
+    - How the text was produced: the mod's GDFile trace (`mod/src/gdtrace.cpp`, switch file `jaws_gdfile_trace.on`) logs every raw read with its caller during a binary load; `scripts/gdw_to_text.py` maps each caller to its reader (int, real, string, vector, ...) and writes that value in the reader's text syntax. Return addresses used: chunk-end decision `Tell` `0x6C0375`, tag/size reads `0x6C03D1`/`0x6C03E7`, unknown-chunk skip seek `0x6C08C2`.
+    - **Text edit test PASSED (2026-11-25, user-confirmed):** changing `FogAbove`'s colour (`PROP 0x08001853`) in the text level to 0.56, 0, 0.29 changed the above-water fog in-game. Verdict (user): working, but not practical as an editing route compared with the binary tools; kept as a curiosity, no further work planned.
+    - **Editing rules (2026-11-25):** a text editor that saves the whole file breaks it: the header must end in raw `\r\n\r\n` (read as 4 raw bytes; converted to `\n\n` the load hangs), and the raw `FDIR` name plus the binary loading-screen sub-archive after the text get re-encoded (user's editor grew the file by 7 MB). Also the `FDIR` offsets (and `FSIZ`) are absolute, so an edit must keep the byte length (pad a shortened line with trailing spaces; the reader skips them) or the offsets must be recomputed. Safe ways: `sed`/a script on the file, or an editor that keeps binary bytes and CRLF untouched.
+    - Text cannot hold NaN/Inf (`atof`): the only ones in stock data are 3,293 uninitialised weights of unused bone slots (index −1) in `WGHT`, written as 0.
+    - The trace needs a load of the *same* file; one trace converts one level. Example `TXTBASE` load: 1.68 M reads, 76,762 chunks (1,763 skipped by the loader as unknown).
+  - Side effect: Jaws `GDFile` slot 33 is `WriteChar` (default keyword `"CHAR"`); the string matcher had paired it with `NAGeneralAct::FireIceNeedles` (dropped, not applied).
+- **`/DEBUGBIN/0.BIN` is not usable** (2,919,116 bytes, 2000-04-17; same bytes on the `132 M` and `144 M` discs and the hard disk). Only the first 0x80000 bytes are program code; the rest is GDE level data (it matches part of the hard disk's `330_MHQ.gde` but not the disc's newer `330_MHQ.GDE`). The file was already cross-linked when it was burned in 2000. No strings, no symbols.
+
+---
+
 ## Reflection Field Registration (class → field table)
 
 Every reflected class field is registered by a tiny static-initializer stub, all calling one recorder function, **`0x70B6A0`** (6,457 call sites):
@@ -68,6 +111,21 @@ From the engine's world-matrix updater **`0x696EA0`** (called before any world-s
 The updater recurses up the parent chain first if the parent is also stale. This matches the BRTR-side finding that nested `CHBR` transforms are local to their parent.
 
 The base brick class's field registration (descriptor `0x91DAF0`) lists `m_Name`, `m_nFlags`, `mtx`, `m_ExecFilter`, `m_CameraFilter`, `m_Viewport`, `m_CreatorDistance`, `m_RoomMask`, in the same order BRTR stores name → flags → transform. Its strings sit next to the `(%.0f %.0f %.0f) [%.0f %.0f %.0f]` and `GDStdBrick` strings, so this is very likely `GDStdBrick`.
+
+**Compared with Ecco: Defender's `GDBrick` (2026-11-25, from `ecco.elf` debug info, see "Ecco: Defender debug symbols" below).** Jaws' `0x696EA0` is Defender's `GDBrick::CalcAbsMatrix`, same logic. The names carry over but the layout was reorganised. Jaws offsets below come from decompiling `0x696EA0`, `0x696F40`, `0x696580`, `0x695F30` (collision pair test) and `0x6974B0` (`SetAbsMatrix`-like: sets `0x40420`, then walks children).
+
+| Defender field | Defender | Jaws | Jaws evidence |
+|---|---|---|---|
+| `m_nFlags` value (`GDPropFlags.i`) | `+0x08` | `+0x0C` | flags `0x20` stale, `0x400` inverse dirty, `0x40000`, `0x20000000` absolute |
+| `m_pParent` | `+0x14` | `+0x14` | parent composition |
+| `m_pChild` / sibling `m_pNext` | `+0x70` / `+0x18` | first child `+0x1C`, next sibling `+0x10` | `0x6974B0` loop `[+0x1C]` → `[+0x10]` |
+| `m_PrimAttacks` / `m_PrimSensors` | `+0xB4` / `+0xB8` | `+0x3C` / `+0x40` | `0x695F30`: `mask & a[+0x3C] & b[+0x40]` |
+| `mtx` (`GDPropMatrix`: 4-byte header + `GDMatrix`) | `+0x24` | `+0x4C` (matrix `+0x50`) | |
+| `m_CurMtx` (world) | `+0x80` | `+0x84` | |
+| inverse world matrix | (none) | `+0xB4` | rebuilt by `0x6D0370` when flag `0x400` is set; new in Jaws |
+| `m_pOldMtx` (previous-frame matrix) | `+0xB0` | probably `+0xE4` | compared with `+0x84` to detect movement |
+
+`GDMatrix` = `GDMatrix3` (`_11`…`_33`, 9 floats) + `GDVect t`, which is why world translation sits at `+0x84 + 0x24 = +0xA8`. Not mapped yet: Jaws `+0x18` (pointer whose `+0xD8` is used as a fallback collision list), `+0xE8`, `+0xF0`, `+0xF4`.
 
 ---
 
@@ -124,7 +182,7 @@ Found with a hardware write-watch trace on the shark's position fields (mod `Shi
 - **`FUN_00671AB0`** (next slot, `0x7F2960`) handles object contacts (mask `0xC00`: boats, debris; `Jaws.ImpactObject` sound, hit reactions, `autocolli hit shark`), with its own push-out loop (4 tries). It ignores `+0x810`, so no-clip still collides with those.
 - `FUN_004E50D0` is the same push-out loop used by other actor classes (boats, NPCs).
 
-**No-clip** = hold `ctrl+0x810` = 1 (mod F7). User-tested 2026-10-12: passes through the ground and most solid objects, still limited to the water, F8 teleports into geometry stay put.
+**No-clip** = hold `ctrl+0x810` = 1 (mod F7). User-tested 2026-10-12: passes through the ground and most solid objects, F8 teleports into geometry stay put. (Then limited to the water; air swim added 2026-11-25, see "Water height functions, full picture".)
 
 ### State setter and every death path
 
@@ -190,6 +248,31 @@ first if the flag is already set, as the stock tick does.
 **Water height.** Function pointer at **`0x8B2E9C`**: `float cdecl f(const float* pos)`, returns the water surface height at a
 position, or `-2147483648.0` (`0x7D388C`) when the level has no water. The water action sets it to `0x633260`/`0x633320`, which
 return the water brick's world Y (`[0x902EA4]+0xAC`), i.e. a flat plane.
+
+**Water height functions, full picture (2026-11-25, air-swim work, user-tested).** The water action (`0x630DC0`/`0x630E70`/`0x631A..`)
+sets three pointers together, all `float cdecl f(const float* pos)`, all returning `-2147483648.0` where there is no water:
+`0x8B2E94` = **wave surface** height (`0x6331E0`/`0x633280`/`0x6331D0`; 197 call sites), `0x8B2E98` (`0x633390`/`0x633400`/`0x633370`;
+3 sites, not identified), `0x8B2E9C` = flat water level (107 sites). Every call site is `call [ptr]`, so a wrapper can identify the
+caller from its return address (site + 6). (Earlier notes took `0x8B2E94` for ground height; it is the water surface: `0x66E4A7`
+adds `SharkConfig.m_felszineny` "surface Y" to it.)
+- **Shark airborne physics uses the wave surface:** `0x66D6FB`/`0x66D70E` measure two body points against it; both above →
+  `ctrl+0x4A0` = 1 (airborne; jump states 2/0x18/0x1B/0x29/10), one above → fraction out of water blends air and water physics.
+  `0x66D762` sets the near-surface flag `ctrl+0x828`; `0x66D2E4` clears `ctrl+0x5A8` (on-ground state) once Y ≤ surface;
+  `0x6703A7`/`0x6703EB` the surface wake.
+- **Shark, flat level:** `0x67031E`/`0x67033C` set bit `0x40000` in the previous-buttons word at `[ctrl+0x58]+0x38` when out of
+  the water, i.e. block the `0x40000` (charge/jump) button press edge in the air (the pad words `[buttons][prev]` are also at
+  `[[0x920E24]+0x88]+8`). `0x66DDC5`/`0x66DDFB` = **max depth**: when `SharkConfig.m_depthvizsg` (`+0xE4C`) is on, the brick's local Y
+  is raised to at least `water − m_maxdepth` (`+0xE54`). `0x669CA2` gates a wave-surface snap that didn't run in testing.
+  `0x6607DC` (state setter) places a splash at the surface.
+- **Shark-follow camera** = object at global `0x90BC10`, vtable `0x7F29E4` (ctor `0x6752A0`, created at `0x55ABE4`), tick
+  `0x678230`; nearly all of its code in `0x675000`–`0x680000` plus `0x6643D0`/`0x664520` reads the flat level. `cam+0xB4` =
+  above/below-water mode. The above-water placement `0x676AC0` puts the camera at `water + camcfg[0xDC]` (site `0x676C3B`) and
+  aims at `sharkY + camcfg[0xEC]` (at least `water + camcfg[0xE4]`), so in a jump the camera stays by the waves looking up.
+- Other readers: `0x48DF10` (vtable `0x7D7464`) puts an object on the wave surface above a brick (fin/wake marker); the
+  `0x4F3920`–`0x5166F0` group (one vtable each) are other swimmers/boats.
+- The mod's F7 air swim lifts the surface for the shark sites above (not the max-depth pair) and gives `0x676C3B` the camera's
+  own height (`mod/src/noclip_guard.{h,cpp}`).
+- Global `0x90BC08` = shark brick, `0x90BC0C` = effects/message object (`FUN_00694860(0x2E, …)` spawns splashes).
 
 **Shark clip animator** at **`ctrl+0xBC`**:
 - `PlayClip` `0x65E610` → `0x4DCF70` (a two-slot cross-fader). Per-tick update **`0x4DD250`** (thiscall `(animator, int
