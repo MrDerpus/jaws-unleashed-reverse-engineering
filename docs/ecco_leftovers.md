@@ -354,6 +354,18 @@ Csorda = herd.
 | `TRLODAct` | 4/5 | `m_SpriteID` |
 | `TRSplash` | 27/30 | `m_Sound1`, `m_Sound2`, `m_Sound3` |
 
+## Cut Defender levels in the Feb 2000 prototype (2026-11-26)
+
+The *Defender of the Future* Dreamcast prototype of 17 February 2000 (Hidden Palace release; `MK-0000 V0.800` office sample disc, GWB 2.1.12.1; see `docs/GDW_FORMAT.md`) has a level-select list `LEVELS.TXT` (2000-02-16, 37 entries, `START.TXT` = `000_Title.gde`) and three levels that are in no later build (not in the April 2000 prototype, the PAL master or the US master):
+
+| List name | File | Size | Content |
+|---|---|---|---|
+| Top Middle Low Lakes | `160_TOPMIDLOW.GDE` (2000-02-17) | 9.5 MB | full level: 1,171 `GMDL`, 922 `GMAT`, 514 `GTEX`, 89 `MREG` collision regions, 69 `GSFX`, 2 skeletons; ~590 placed models, ~330 lights, 70 sounds, 61 `TRMacroModel` |
+| Pumping Station 1 | `241_PUMP.GDE` (2000-02-17) | 12.4 MB | full level: 315 `GMDL`, 189 `MREG`, 3 skeletons, 74 `GSFX`; ~1,600 placed models, ~140 `NAGlowAct`, 63 bubble generators; textures shared with the shipped pumping stations (`PSVenti`, `monitoroldal`, `iriszpupilla…`). The shipped game keeps "Pumping Station 2/3" as `242_Pump`/`243_Pump` |
+| HWG Movie | `HWGM.GDE` (2000-02-15) | 12.2 MB | in-engine cutscene for the Hanging Water Generator: a `GMOV` (movie) resource, 7 skeletons with `GDSkeletonAnim`, 523 `GMDL`, 49 `NAVertexWave`, landscape textures (`hegy…` = mountain, `fualap` = grass base) |
+
+Also in the prototype: `FOCI.GDE` (2000-01-24, 1.7 MB, 34 meshes), an early small form of the shipped `470_FOCI` (which the US master expanded again), and `002_DEMO.GDE` (also in the April build, gone at release). Not checked in-game; whether the prototype can load them from its level select wasn't tested. Counts come from the `RSRC` walk and `gded_lineage.py placed` (heuristic).
+
 ## Appaloosa Mermaid tech demo (2001-01-05)
 
 *Added 2026-10-20.* Two videos the user supplied, titled "Appaloosa Mermaid techdemo, 2001.01.05" (41.6 s and
@@ -374,14 +386,67 @@ of the Future (2000). Seen from frames pulled with ffmpeg (no audio reviewed):
 `MBMedusaFieldRef`. Together with the ball-shaped fish schools (like Ecco's `MLHalRaj`), this suggests the
 demo ran on the same Appaloosa engine and Ecco-derived code, between Ecco (2000) and Sole Predator / Jaws.
 **What doesn't survive:** no "Giant Medusa", "Snake Fighter" or mermaid text is in `Jaws.exe`, the PS2
-`SLUS_210.62` or the Ecco files in `~/Projects/ECCO`, and Ecco's files contain no mermaid at all. The demo's
-own content (character, enemies, HUD) left no trace found in Jaws.
+`SLUS_210.62` or the Ecco files in `~/Projects/ECCO`. The demo's own content (character, enemies, HUD) left
+no trace found in Jaws.
+
+**Correction (2026-11-26): the editor knew a mermaid class by mid-2000.** The US *Defender* Dreamcast master
+(`MK-51033 V1.000`, 2000-06/07; `docs/GDW_FORMAT.md` "European vs US Dreamcast masters") lists **`MBMermaid`**
+in its levels' class registry, together with `MBMissile`, `MBCameraAct`, `MBLovedek` (*lövedék* = projectile),
+`MLCamAct`, `MLSmooth`, `NAHair` and `DDPaintBall`. None of them is placed in Defender (except one
+`DDPaintBall`); they're listed because the editor build that exported the US files had them registered. So the
+older statement "Ecco's files contain no mermaid at all" holds for content, not for the class registry. Reading
+(inference): the mermaid project existed in Game World Builder about six months before the demo videos (dated
+2001-01-05), so the demo was very likely built with GWB; the missile/projectile classes fit a demo where the
+mermaid fights a "Giant Medusa" and a "Snake Fighter". It may also be the first use of the `MB` prefix that
+Jaws' mission classes use: `MBLovedek` reaches Jaws, `MBMermaid` doesn't (it's in neither Sentinels nor Jaws).
+The PAL master (May 2000) and the Feb/Apr 2000 prototypes don't have these classes.
 
 **Stray "MermaidR" bytes (not demo evidence):** the pelican skeleton (`SKEL` with clips `Pelican_*`, 262
 vertices; WRACK 1198, TITLE 894, OPEN_S 2476, plus PS2 OPEN_S/TITLE/WRACK/OPEN_NE) has the text `MermaidR` in
 the unused slots of its `WGHT` table, which hold leftover memory. The pelican was likely exported in a tool
 session that also had a "MermaidR…" object loaded, most plausibly the Jaws Gauntlet mermaid's rig. Nothing
 dates it to the demo.
+
+## Cancelled Appaloosa projects (user information, 2026-11-26)
+
+Per the user, Appaloosa had at least three cancelled projects besides *Sentinels of the Universe*:
+
+| Project | What's known | Evidence on hand |
+|---|---|---|
+| **Mermaid tech demo** | Reused assets from *Defender of the Future* and showcased new features; no public build exists | two videos dated 2001-01-05 (section above); `MBMermaid` in the US Defender master's class registry (mid-2000) |
+| **Parrot demo** | Planned as a first-person, possibly shooter-type game; per the user it never left the design stage | none (no files expected) |
+| **Smurfs** (©2002) | Video of an early but very polished-looking build exists; cancelled, no public build | a 15.5-minute 1080p video in the user's Downloads ("Appaloosa Smurfs ©2002"); see "Smurfs video (2002)" below |
+
+## After Appaloosa: Twofish and *SmartyAnts* (2010) (checked 2026-11-26)
+
+Per the user, after Appaloosa shut down its people founded **Twofish**, which kept making games, so Game World Builder / Diesel Power might have lived on. The user found two *SmartyAnts* installers (Wayback Machine downloads, in `download-check/`); both were unpacked read-only, nothing run except the Windows installer by the user under Proton:
+
+- **Windows `installer.exe`** (57 MB, "SmartyAnts Installer" 1.0.0.1, © 2010 SmartyAnts Inc., built `Dec 5 2010 18:32:32`, company string "Twofish"). The payload (a gzip resource) is Twofish's own archive format (`CHHD` header, `CHFE` entries; header value `0x20041020`, which reads like a YYYYMMDD stamp, cf. GWB's format stamps; suggestive only) holding nothing but Microsoft's DirectX redistributable (64 cabinets, 2005–2007). Every message is in English and Hungarian. It checks the CPU and Windows version (knows up to Windows 7; Proton's default Windows 10 gives "Unknown Windows OS", Proton 3.7 reporting Windows 7 SP1 passes) and Direct3D 9 (`Direct3DCreate9`, `d3dx9_`), then downloads `launcher.exe`, `updater.exe`, `SmartyAnts.start.pack`, `dx.pack`, `contentState.txt` and a manifest from `http://s3.amazonaws.com/SA_boot/` or `http://smartyants.com.nefficient.co.kr/SA_boot/`. Options `-variant`/`-var`, `-dir`, `-nolaunch`; string `krus` (likely Korean/US variants); writes `installer.log`. Under Proton it stops at "Downloading SmartyAnts Launcher… [1003]" (servers gone).
+- **Mac `SmartyAnts.zip`** (280 KB, app bundle dated 2010-10-26/11-08): a Java bootstrapper `loadapp.jar`, package `hu.twofish.app.loadapp` (bundle id `hu.twofish.app.loadapp.MainFrame`). It downloads `SmartyAnts-Launcher.jar` from `http://s3.amazonaws.com/SA_boot` with variant `macus` (also `mactest`) and runs `hu.twofish.app.prolod.GuiMain`; it handles Windows, Mac and Linux.
+
+- **Build details of the Windows installer:** debug-symbol path **`c:\Torque\anttools\release\installer.pdb`**; Visual Studio 2005 (linker 8.0, Rich header build 50727), MFC; PE timestamp 2010-12-05 17:32:52 UTC. Code-signed by **"Smarty Ants, Inc.", Burlingame, California, US** (Thawte Code Signing CA - G2). Registers the file type `.smartyants` and the web content type `application/smartyants` ("Play SmartyAnts"; i.e. the website started the game by handing the browser a `.smartyants` file), settings under `Software\<company>\<product>\Params`.
+- **Build details of the Mac launcher:** `Created-By: 1.6.0_21 (Sun Microsystems Inc.)`, classes compiled for Java 5 (class version 49); installs under the user's home `Library`.
+
+**Result:** Twofish (Hungarian, `hu.twofish`) built *SmartyAnts* for the US company Smarty Ants, Inc. (Burlingame, CA; Korean partner site `smartyants.co.kr`), delivered online-only through launchers; the game data was never in the installers, and the user couldn't find the server files on the Wayback Machine. **The engine was probably GarageGames' Torque, not Diesel Power:** the SmartyAnts tools (`anttools`) were built inside a `c:\Torque\` tree, which fits the Direct3D 9 renderer and the Mac/Linux support (both Torque traits) and the 2010 date. So the Appaloosa → Twofish line most likely switched to a licensed engine after Jaws, and Diesel Power / Game World Builder may have ended with Jaws (2006). Not proven (only the installers were seen, not the game); GWB use inside *SmartyAnts* is now unlikely rather than unknown. URLs to try if they ever surface: `docs/open_problems.md` lineage item 8.
+
+## Smurfs video (2002) (reviewed 2026-11-26)
+
+Video "Appaloosa Smurfs ©2002" (15 min 29 s, 1080p, uploader's caption "Cancelled Project · All Rights Reserved"; kept in the user's Downloads, not in the repo). Frames were sampled every 20 s plus every second of the first minute (ffmpeg contact sheets; audio not reviewed).
+
+- **Platform: PlayStation 2.** Menus show PS2 button glyphs (△ back, ✕ select, d-pad arrows); 4:3 picture.
+- **Developer front end, not a retail menu:** "THE SMURFS" title over the village with the options **ANIM VIEWER**, **CHARACTERS**, **LEVELS**.
+- **Anim viewer:** "SMURF: … / ANIMATION: …" with ◀/▶ = Smurf, ▲/▼ = animation. Characters: Papa Smurf, Handy, Smurfette, Brainy, Harmony, Hefty, Farmer Smurf. Clips: Neutral, Idle, Idle 2, Walk, Run, Jump, Throw, Hello, Kick, "Do it!", Climb, Duck. So skinned characters with a shared clip set (as in Jaws, where humans share `GlobalSkeletonAnim`'s clips; not proof of the same system).
+- **Gameplay:** third-person, Papa Smurf leads a party of followers; a portrait in the bottom-right corner shows the selected helper (Harmony with trumpet, Farmer, Smurfette, a gift-box icon for Jokey). Helpers react with speech/thought bubbles ("Hey!", a gear icon near a broken water wheel). Puzzles: a sparkling boulder with a number over it (how many Smurfs are needed to push it), a water wheel to repair, a caged Smurf, a Smurf trapped in a pink bubble. A mushroom counter top right (12 → 21 → 31 → 37) = collectibles. Enemies: spiders; a green dragon boss in a lava cave.
+- **Levels seen:** Smurf village (mushroom houses, well, vegetable garden), forest/river trail with rocks and spider webs, giant toadstool platforms, a lava cave.
+
+**Sparkle particles (user observation, checked 2026-11-26).** The user noticed that the yellow-and-white sparkles in *Smurfs* look like those in Jaws when the shark head-butts a diving cage. In *Smurfs* (11:21–11:24 in the video), a gift-bomb blows up a boulder: grey rock chunks plus a spray of small four-pointed yellow/white star sparks. In Jaws the cage effect is the node **`CageHitEffect`** (KATATAMA nodes 3347/3424, children of the cage frames `Cage Keret`/`Cage Keret 1`). It is an `NAParticle2004` emitter (`m_` field `0x080010CE` = `GMAT 0x5A5`) whose texture is **`0x1DA`**: a 64×64 white starburst (four long rays plus thin diagonal rays) stored in the alpha channel and tinted yellow by the emitter's colour keys (RGBA ≈ (1.00, 0.96, 0.16) → (0.94, 0.80, 0.31)). Comparison with *Defender* PS2 (all 4,310 decodable 32–128 px textures, correlation against the Jaws alpha):
+- best matches are Defender's **`csillag` ("star") sprites**: `csillag.tga`, `csillag-feher` (white), `csillag-sarga` (yellow), `-piros`/`-kek`/`-zold` (32×32, 16-bit), score 0.90–0.93; also `sarga_flare` (yellow flare), `fehercsillanas` (white sparkle);
+- no exact copy (an identical image would score ~0.99). So the Jaws sparkle is a newer, larger redraw of the same four-pointed-star sparkle idea, not Defender's file.
+- *Sentinels* (Feb 2001, 1,808 Dreamcast PVR textures, decoded with a scratch PVR decoder) and *Defender* PAL Dreamcast (5,413 textures) checked the same way: best Sentinels matches `piros01.tga` (64×64 many-rayed starburst, 0.905) and `Textures\Resources\Effects\FeherCsillanas.tga` ("white sparkle", 64×64, 0.90); best Dreamcast Defender match `iszkred`/`iszkblue` (0.89). The `csillag-*` star set is PS2-only (Defender PS2 gallery level). **No exact copy in any Ecco build**, so the exact Jaws sparkle image was made after Feb 2001 (Smurfs-era or later). The *style* is older: Defender Dreamcast already has thin-rayed starbursts like it (`kekcsillog` blue sparkle, `eff3`, `fenyudvar2` light halo, `piros01`), Defender PS2 adds the four-pointed `csillag` set. Dreamcast textures are PVR images (twiddled, VQ and small-VQ, optionally mipmapped; in a mipmapped VQ texture the full-size index block starts after the codebook + the smaller levels, 1 + Σ(s/2)² bytes, and is followed by 10 padding bytes; small VQ uses a shorter codebook); decoded with `scripts/pvr_decode.py`. Comparison images (not in the repo; extracted assets): `particle_compare/` in the project folder.
+
+Reading: yellow/white star sparkles were already Appaloosa's house style in *Defender* (2000–2002); *Smurfs* (2002) sits between, so the look plausibly runs Defender → Smurfs → Jaws, but the video's resolution doesn't allow the *Smurfs* texture to be identified, and Jaws's emitter class is the newer `NAParticle2004` (cf. Defender's `NAParticle2000`, the year-named rewrite convention also seen in `NAWater2004`), so the system that draws it in Jaws postdates *Smurfs*. Not proof of carry-over from *Smurfs* specifically; consistent with it.
+
+**Link to the GWB lineage: none visible.** Nothing on screen (fonts, HUD layout, effects, water) is distinctive enough to tie it to Game World Builder or the Defender/Jaws engine; there's no debug overlay or file name. What fits: Appaloosa, 2002, PS2, the same period and platform as the *Defender* PS2 port (2001–2002), when the engine evidently had a PS2 branch. Whether *Smurfs* used GWB stays unknown without game files.
 
 ## Open questions
 
@@ -390,6 +455,7 @@ dates it to the demo.
   offsets), and `jaws_labels.tsv` there has suggested names for those Jaws functions.
 - ~~What Jaws's rewritten `DDGameState` holds now~~ **Answered 2026-11-25:** 5 fields `m_angry`, `m_csonakdied` (boat died), `m_darabnum` (piece count), `m_enemyrange`, `m_koteldied` (rope died). It was rewritten twice: Sentinels cut Ecco's 18 fields to 3 (`m_fustemit`, `m_monocam`, `m_sidecam`), then Jaws replaced those.
 - Whether the 30 never-placed classes are reachable from code at all (spawned by name, or dead).
+- Cancelled projects: whether the Mermaid demo and *Smurfs* were GWB titles, and whether Jaws's cage sparkle (`0x1DA`) came from *Smurfs*; both need files that aren't public (`docs/open_problems.md` lineage item 8).
 
 ---
 

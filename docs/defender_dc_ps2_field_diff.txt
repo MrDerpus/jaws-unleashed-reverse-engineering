@@ -1,0 +1,691 @@
+# Field-level diff: Ecco: Defender Dreamcast (retail PAL MK-51033-50 V1.003 + US master MK-51033 V1.000, 2000) vs Defender PS2 (US SLUS_203.94, 2001-2002); all 2.1.12.1
+# Generated 2026-11-26 by: python3 -I scripts/gded_lineage.py fields DC=<PAL+US Dreamcast levels> PS2=<PS2 US DATA levels>
+# Source: each level's CLAS PRIM field table (union per platform). See docs/GDW_FORMAT.md "Defender: retail Dreamcast vs PS2".
+
+DC: 92 files, 585 classes, 4792 fields
+PS2: 48 files, 682 classes, 5292 fields
+classes in all: 574, identical fields in all: 538
+
+DDBarriAct: DC 13 / PS2 14
+   DC->PS2: +m_nyugszik  -
+
+DDDozerAct: DC 16 / PS2 17
+   DC->PS2: +m_maparea  -
+
+DDGenStarterAct: DC 4 / PS2 5
+   DC->PS2: +m_load  -
+
+DDJelzoAjto: DC 3 / PS2 4
+   DC->PS2: +m_tasknum  -
+
+DDLegKalapacsAct: DC 25 / PS2 27
+   DC->PS2: +m_sensorid m_sensorid1 m_sensorid2 m_sensorid3  -m_pbox m_targetgroup
+
+DDPaintBall: DC 1 / PS2 2
+   DC->PS2: +m_mysw  -
+
+DDStageDetentAct: DC 6 / PS2 8
+   DC->PS2: +m_belsoterkep m_kulsoterkep  -
+
+DDTBMoveTo: DC 2 / PS2 3
+   DC->PS2: +physicrate  -
+
+DDTextModel: DC 43 / PS2 45
+   DC->PS2: +aliasprocess shadowfactor  -
+
+DDUnloader: DC 9 / PS2 10
+   DC->PS2: +m_detect  -
+
+EccoAutoMove: DC 4 / PS2 5
+   DC->PS2: +ammovie  -
+
+GD3dSprite: DC 8 / PS2 9
+   DC->PS2: +m_ExtRenderSetting  -
+
+GDFollow: DC 6 / PS2 7
+   DC->PS2: +m_RotSpeed  -
+
+GDModel: DC 9 / PS2 10
+   DC->PS2: +m_ExtRenderSetting  -
+
+LanguageSetRender: DC 4 / PS2 5
+   DC->PS2: +m_Italiano  -
+
+MFBuble: DC 15 / PS2 16
+   DC->PS2: +patch1  -
+
+MLCpanel: DC 30 / PS2 32
+   DC->PS2: +elozolist ezlist  -
+
+MLSnakeAct: DC 12 / PS2 10
+   DC->PS2: +  -basephase maxangles
+
+MLTurnToTarget: DC 2 / PS2 5
+   DC->PS2: +needrate2 starttarget turnrate2  -
+
+MorphEffect: DC 22 / PS2 24
+   DC->PS2: +m_FakeMorph m_No_Force_Z_NO_SORT_PS2  -
+
+NAFlare: DC 32 / PS2 33
+   DC->PS2: +m_fixedsizepower  -
+
+NAGlowAct: DC 16 / PS2 17
+   DC->PS2: +m_ExtRenderSetting  -
+
+NARingAct: DC 27 / PS2 28
+   DC->PS2: +m_ExtRenderSetting  -
+
+NAWhirlAct: DC 7 / PS2 8
+   DC->PS2: +m_extrastr  -
+
+PExitHandler: DC 4 / PS2 7
+   DC->PS2: +m_AutoSaveOffSprite m_NotSameCard m_SaveOk  -
+
+PGameOver: DC 33 / PS2 38
+   DC->PS2: +m_HintBack m_LeftArrow m_RightArrow m_Text10 m_TextCollector  -
+
+PHeartExplosion: DC 40 / PS2 41
+   DC->PS2: +m_DamageActions  -
+
+PMove: DC 8 / PS2 9
+   DC->PS2: +m_Loop  -
+
+Shark_1: DC 43 / PS2 44
+   DC->PS2: +m_ToDeactivate  -
+
+TRActivate: DC 3 / PS2 4
+   DC->PS2: +m_NeedExec  -
+
+TREelAct: DC 29 / PS2 30
+   DC->PS2: +m_idZLamp  -
+
+TRFishCtrl: DC 13 / PS2 14
+   DC->PS2: +m_tasknum  -
+
+TRFoeLake: DC 11 / PS2 10
+   DC->PS2: +  -m_IsStartedMusic
+
+TRGift: DC 5 / PS2 6
+   DC->PS2: +m_tasknum  -
+
+TRModModAct: DC 9 / PS2 10
+   DC->PS2: +m_HotWater  -
+
+TRSpinnerDolphin: DC 20 / PS2 22
+   DC->PS2: +m_VGlifOff m_VGlifOn  -
+
+=== classes in DC and PS2 only (574)
+ATActivate: DC 19 / PS2 19
+AcolyteDialog: DC 4 / PS2 4
+ActivateInLine: DC 3 / PS2 3
+AtlantisGateDialog: DC 3 / PS2 3
+BabyWhaleDialog: DC 5 / PS2 5
+ChangeFov: DC 4 / PS2 4
+ChangeFreq: DC 1 / PS2 1
+CheckCollision: DC 2 / PS2 2
+CrystalBayAction: DC 9 / PS2 9
+DBFishAct: DC 15 / PS2 15
+DBFishAnim: DC 9 / PS2 9
+DCInputPlay: DC 2 / PS2 2
+DCInputRec: DC 2 / PS2 2
+DCPuruPuru: DC 1 / PS2 1
+DCShadow: DC 9 / PS2 9
+DDAjtoNyitAct: DC 2 / PS2 2
+DDArea: DC 1 / PS2 1
+DDAreaClone: DC 7 / PS2 7
+DDBalnaAct: DC 1 / PS2 1
+DDBarriAct: DC 13 / PS2 14  +m_nyugszik  -
+DDBeszeloAct: DC 2 / PS2 2
+DDBombAct: DC 7 / PS2 7
+DDBrandingShellAct: DC 13 / PS2 13
+DDBrickWatchAct: DC 3 / PS2 3
+DDCRContAct: DC 4 / PS2 4
+DDCamexcAct: DC 3 / PS2 3
+DDClone: DC 11 / PS2 11
+DDContainerAct: DC 1 / PS2 1
+DDCrabAct: DC 11 / PS2 11
+DDCraneAct: DC 12 / PS2 12
+DDCrocodile: DC 21 / PS2 21
+DDCrystal2Act: DC 8 / PS2 8
+DDCrystalAct: DC 3 / PS2 3
+DDCrystalModel: DC 1 / PS2 1
+DDCsapAct: DC 14 / PS2 14
+DDCseppko: DC 4 / PS2 4
+DDCsigaAct: DC 2 / PS2 2
+DDDialogAct: DC 21 / PS2 21
+DDDialogParams: DC 11 / PS2 11
+DDDiscoLight: DC 2 / PS2 2
+DDDoboloAct: DC 4 / PS2 4
+DDDozerAct: DC 16 / PS2 17  +m_maparea  -
+DDDuzzadoSzivacsAct: DC 10 / PS2 10
+DDElectr: DC 10 / PS2 10
+DDElesztAct: DC 1 / PS2 1
+DDEnemyAct: DC 10 / PS2 10
+DDEnemyAnim: DC 11 / PS2 11
+DDEnergyBeamAct: DC 10 / PS2 10
+DDEnyvAct: DC 4 / PS2 4
+DDFadeModel: DC 7 / PS2 7
+DDFajoizeAct: DC 9 / PS2 9
+DDFakedWallAct: DC 11 / PS2 11
+DDFeregAct: DC 23 / PS2 23
+DDFieldAct: DC 13 / PS2 13
+DDFishEnemy: DC 9 / PS2 9
+DDFishEnemyGen: DC 7 / PS2 7
+DDFixLight: DC 7 / PS2 7
+DDFlashLight: DC 12 / PS2 12
+DDFogAct: DC 19 / PS2 19
+DDFuroAct: DC 6 / PS2 6
+DDGameState: DC 18 / PS2 18
+DDGazAct: DC 5 / PS2 5
+DDGenStarterAct: DC 4 / PS2 5  +m_load  -
+DDGlyphAct: DC 5 / PS2 5
+DDGoskeletonAct: DC 6 / PS2 6
+DDGrinderAct: DC 7 / PS2 7
+DDHWGkapcsAct: DC 6 / PS2 6
+DDHWGventkapcsAct: DC 3 / PS2 3
+DDHalorAct: DC 9 / PS2 9
+DDHamAct: DC 4 / PS2 4
+DDHermitAct: DC 17 / PS2 17
+DDHullamAct: DC 13 / PS2 13
+DDIriszAct: DC 2 / PS2 2
+DDIszapAct: DC 3 / PS2 3
+DDJelzoAjto: DC 3 / PS2 4  +m_tasknum  -
+DDKLakatAct: DC 4 / PS2 4
+DDKalmarAct: DC 15 / PS2 15
+DDKisBhalAct: DC 8 / PS2 8
+DDKlonAct: DC 1 / PS2 1
+DDKoponovenyAct: DC 6 / PS2 6
+DDLYDoorAct: DC 3 / PS2 3
+DDLaserCsapAct: DC 4 / PS2 4
+DDLegKalapacsAct: DC 25 / PS2 27  +m_sensorid m_sensorid1 m_sensorid2 m_sensorid3  -m_pbox m_targetgroup
+DDLianAct: DC 1 / PS2 1
+DDLibegAct: DC 7 / PS2 7
+DDLiftAct: DC 12 / PS2 12
+DDLightPuls: DC 7 / PS2 7
+DDLissaAct: DC 6 / PS2 6
+DDLoad: DC 1 / PS2 1
+DDMTXDoorAct: DC 15 / PS2 15
+DDMapParams: DC 1 / PS2 1
+DDMedusaAct: DC 16 / PS2 16
+DDMhqMainAct: DC 1 / PS2 1
+DDMhqSwitcherWatch: DC 1 / PS2 1
+DDModelAnimAct: DC 5 / PS2 5
+DDMonolitAct: DC 1 / PS2 1
+DDMsgAct: DC 5 / PS2 5
+DDMurenaAct: DC 13 / PS2 13
+DDNAWhirl2000ToszogatoAct: DC 1 / PS2 1
+DDPaintBall: DC 1 / PS2 2  +m_mysw  -
+DDPerformanceMeter: DC 1 / PS2 1
+DDProjColliSpheres: DC 4 / PS2 4
+DDPropellerAct: DC 3 / PS2 3
+DDPumpPropAct: DC 1 / PS2 1
+DDPupillaAct: DC 2 / PS2 2
+DDRadarMap: DC 31 / PS2 31
+DDRadarMapConv: DC 2 / PS2 2
+DDResistAct: DC 18 / PS2 18
+DDRezgetoAct: DC 8 / PS2 8
+DDRotAct: DC 4 / PS2 4
+DDSaveMySoul: DC 1 / PS2 1
+DDSchoolFish: DC 17 / PS2 17
+DDSharkAct: DC 20 / PS2 20
+DDSplineMoveAct: DC 13 / PS2 13
+DDStageDetentAct: DC 6 / PS2 8  +m_belsoterkep m_kulsoterkep  -
+DDStageFociAct: DC 6 / PS2 6
+DDStageMcountryAct: DC 3 / PS2 3
+DDStageMeetingAct: DC 3 / PS2 3
+DDStageTempleAct: DC 1 / PS2 1
+DDSwitchKAct: DC 3 / PS2 3
+DDSwitchKristalyAct: DC 4 / PS2 4
+DDSwitcherAct: DC 13 / PS2 13
+DDSzalagosAct: DC 21 / PS2 21
+DDTBMoveTo: DC 2 / PS2 3  +physicrate  -
+DDTDoorAct: DC 8 / PS2 8
+DDTeleportAct: DC 1 / PS2 1
+DDTextAnim: DC 4 / PS2 4
+DDTextModel: DC 43 / PS2 45  +aliasprocess shadowfactor  -
+DDThrow: DC 19 / PS2 19
+DDTolhatoValami: DC 3 / PS2 3
+DDTorCsigAct: DC 2 / PS2 2
+DDTractorSonarAct: DC 2 / PS2 2
+DDTubeCurrentAct: DC 5 / PS2 5
+DDUborkaAct: DC 8 / PS2 8
+DDUnderAct: DC 35 / PS2 35
+DDUnloader: DC 9 / PS2 10  +m_detect  -
+DDVictimAct: DC 20 / PS2 20
+DDVictimAutomoveAct: DC 8 / PS2 8
+DDVilagitoSzivacsAct: DC 7 / PS2 7
+DDVizibombAct: DC 4 / PS2 4
+DDWaterAct: DC 5 / PS2 5
+DDWaveAct: DC 10 / PS2 10
+DDWaveAndFadeOFF: DC 4 / PS2 4
+DDWaveAndFadeON: DC 14 / PS2 14
+DDZaroko: DC 8 / PS2 8
+DelfinAnim: DC 38 / PS2 38
+DelfinMtx: DC 6 / PS2 6
+DelfinMtxChangeAnim: DC 8 / PS2 8
+DolphConfig: DC 118 / PS2 118
+DolphCtrl: DC 1 / PS2 1
+DolphCtrl2: DC 5 / PS2 5
+DolphCtrl3: DC 8 / PS2 8
+EccoAutoMove: DC 4 / PS2 5  +ammovie  -
+EccoAutoMoveEffect: DC 1 / PS2 1
+EccoControlOnOff: DC 3 / PS2 3
+EccoMirror: DC 2 / PS2 2
+ExhibitorDialog: DC 5 / PS2 5
+FBTest: DC 14 / PS2 14
+FDCube: DC 6 / PS2 6
+FFGameCoach: DC 11 / PS2 11
+FFGameFisher: DC 9 / PS2 9
+FamilyDialog: DC 3 / PS2 3
+FeedAction: DC 6 / PS2 6
+Field: DC 3 / PS2 3
+FieldControlNA: DC 1 / PS2 1
+FoeExpl: DC 2 / PS2 2
+GD3dSprite: DC 8 / PS2 9  +m_ExtRenderSetting  -
+GDAct: DC 5 / PS2 5
+GDActivate: DC 14 / PS2 14
+GDActor: DC 1 / PS2 1
+GDAddAlpha: DC 2 / PS2 2
+GDAlarm: DC 4 / PS2 4
+GDBrick: DC 12 / PS2 12
+GDCalculate: DC 9 / PS2 9
+GDCamera: DC 7 / PS2 7
+GDCheckDist: DC 6 / PS2 6
+GDCheckGround: DC 5 / PS2 5
+GDCheckHitMe: DC 7 / PS2 7
+GDCheckRunTo: DC 7 / PS2 7
+GDCheckSkipMovie: DC 1 / PS2 1
+GDClone: DC 7 / PS2 7
+GDCompMorph: DC 6 / PS2 6
+GDConeCreator: DC 2 / PS2 2
+GDConeLevelCrt: DC 4 / PS2 4
+GDCount: DC 4 / PS2 4
+GDCounter: DC 4 / PS2 4
+GDCreate: DC 2 / PS2 2
+GDCreator: DC 2 / PS2 2
+GDDialog: DC 12 / PS2 12
+GDDiffMorph: DC 9 / PS2 9
+GDEtalon: DC 1 / PS2 1
+GDFixedBrick: DC 4 / PS2 4
+GDFog: DC 11 / PS2 11
+GDFollow: DC 6 / PS2 7  +m_RotSpeed  -
+GDFollowBox: DC 3 / PS2 3
+GDFollowXYZ: DC 7 / PS2 7
+GDFont: DC 5 / PS2 5
+GDFromNow: DC 4 / PS2 4
+GDGoPath: DC 6 / PS2 6
+GDGoSpline: DC 7 / PS2 7
+GDGoSplinePlus: DC 8 / PS2 8
+GDHarmonic: DC 9 / PS2 9
+GDHotSpot: DC 2 / PS2 2
+GDInclude: DC 1 / PS2 1
+GDIncludedef: DC 1 / PS2 1
+GDLanguageGroup: DC 1 / PS2 1
+GDLanguageSelector: DC 1 / PS2 1
+GDLight: DC 9 / PS2 9
+GDLink: DC 1 / PS2 1
+GDLoad: DC 1 / PS2 1
+GDLockedModel: DC 4 / PS2 4
+GDLod: DC 1 / PS2 1
+GDLookAt: DC 1 / PS2 1
+GDMacrodef: DC 2 / PS2 2
+GDMacroref: DC 2 / PS2 2
+GDMatAnim: DC 6 / PS2 6
+GDModel: DC 9 / PS2 10  +m_ExtRenderSetting  -
+GDModelAppear: DC 8 / PS2 8
+GDMorphAnim: DC 7 / PS2 7
+GDMorphSnake: DC 5 / PS2 5
+GDMovingModel: DC 1 / PS2 1
+GDMtxAnim: DC 7 / PS2 7
+GDMusic: DC 1 / PS2 1
+GDNextChild: DC 5 / PS2 5
+GDPatchProp: DC 1 / PS2 1
+GDPath: DC 4 / PS2 4
+GDPhysicDef: DC 6 / PS2 6
+GDPlayCDTrack: DC 2 / PS2 2
+GDPlayMovie: DC 5 / PS2 5
+GDPlaySfx: DC 2 / PS2 2
+GDPlaySound: DC 1 / PS2 1
+GDPptFont: DC 2 / PS2 2
+GDPptTextSprite: DC 2 / PS2 2
+GDPrim: DC 5 / PS2 5
+GDPrimBox: DC 1 / PS2 1
+GDPrimFaces: DC 2 / PS2 2
+GDPrimPoint: DC 1 / PS2 1
+GDPrimRegions: DC 3 / PS2 3
+GDPrimSection: DC 2 / PS2 2
+GDPrimSphere: DC 3 / PS2 3
+GDPrimTriangle: DC 3 / PS2 3
+GDRadarMap: DC 1 / PS2 1
+GDRandom: DC 5 / PS2 5
+GDRecolor: DC 13 / PS2 13
+GDReference: DC 1 / PS2 1
+GDRestore: DC 1 / PS2 1
+GDRotSprite: DC 9 / PS2 9
+GDSector: DC 6 / PS2 6
+GDSetFlag: DC 2 / PS2 2
+GDSetMovie: DC 1 / PS2 1
+GDSetStorage: DC 3 / PS2 3
+GDSkeletonAnim: DC 6 / PS2 6
+GDSkeletonModel: DC 2 / PS2 2
+GDSound: DC 3 / PS2 3
+GDSpline: DC 1 / PS2 1
+GDSprite: DC 9 / PS2 9
+GDStrip: DC 2 / PS2 2
+GDTestStorage: DC 4 / PS2 4
+GDTexAnimate: DC 6 / PS2 6
+GDTextSprite: DC 2 / PS2 2
+GDThrow: DC 17 / PS2 17
+GDTie: DC 11 / PS2 11
+GDTime: DC 4 / PS2 4
+GDViewport: DC 10 / PS2 10
+GDWait: DC 3 / PS2 3
+GDWorld: DC 5 / PS2 5
+GDWorldModel: DC 1 / PS2 1
+GrasshopperFoe: DC 7 / PS2 7
+Hatch2: DC 11 / PS2 11
+Hatch_egg: DC 36 / PS2 36
+HatcheryBin: DC 9 / PS2 9
+HatcheryHead: DC 87 / PS2 87
+HatcheryRewardEgg: DC 6 / PS2 6
+HatcherySwitch: DC 10 / PS2 10
+HatcheryUszo: DC 11 / PS2 11
+Is60HzSupported: DC 2 / PS2 2
+LODeActivate: DC 10 / PS2 10
+LanguageSetRender: DC 4 / PS2 5  +m_Italiano  -
+LoLightAct: DC 5 / PS2 5
+LoOctopusCloseAct: DC 2 / PS2 2
+LoRandomAct: DC 6 / PS2 6
+LoSpeedRingAct: DC 3 / PS2 3
+LoTempleProjectorAct: DC 11 / PS2 11
+LoTerrariumAct: DC 7 / PS2 7
+LoThrow: DC 10 / PS2 10
+MFBuble: DC 15 / PS2 16  +patch1  -
+MFKisBalna: DC 1 / PS2 1
+MFLookAt: DC 4 / PS2 4
+MFRot: DC 3 / PS2 3
+MLActivate: DC 1 / PS2 1
+MLAndrasnakKellMasraNemJo: DC 2 / PS2 2
+MLBogyoVisszaAllitoBerendezes: DC 7 / PS2 7
+MLBogyovillanto: DC 7 / PS2 7
+MLCameraAct: DC 7 / PS2 7
+MLChain: DC 4 / PS2 4
+MLColorize: DC 13 / PS2 13
+MLCpanel: DC 30 / PS2 32  +elozolist ezlist  -
+MLCraddleFish: DC 10 / PS2 10
+MLEnemy: DC 6 / PS2 6
+MLEnvModel: DC 4 / PS2 4
+MLEnvSkeletonModel: DC 4 / PS2 4
+MLGriff: DC 10 / PS2 10
+MLGriffStatic: DC 3 / PS2 3
+MLGyorsito: DC 8 / PS2 8
+MLHalRaj: DC 23 / PS2 23
+MLKalmar: DC 11 / PS2 11
+MLLibegAct: DC 6 / PS2 6
+MLLissaAct: DC 6 / PS2 6
+MLMadarRaj: DC 11 / PS2 11
+MLMcsiga: DC 8 / PS2 8
+MLMhqGepSwitch: DC 3 / PS2 3
+MLMhqLian: DC 6 / PS2 6
+MLModelParticle: DC 25 / PS2 25
+MLMurena: DC 11 / PS2 11
+MLOldParticle: DC 36 / PS2 36
+MLPTest: DC 2 / PS2 2
+MLParticle: DC 39 / PS2 39
+MLPump3Racs: DC 9 / PS2 9
+MLPumpWater: DC 5 / PS2 5
+MLRepHal2: DC 13 / PS2 13
+MLScreenFadeModel: DC 1 / PS2 1
+MLShowMatrix: DC 3 / PS2 3
+MLSnakeAct: DC 12 / PS2 10  +  -basephase maxangles
+MLSphereAct: DC 1 / PS2 1
+MLSzro: DC 3 / PS2 3
+MLTurnToTarget: DC 2 / PS2 5  +needrate2 starttarget turnrate2  -
+MLTuzHal: DC 3 / PS2 3
+MLVirtualChain: DC 6 / PS2 6
+MLWorm: DC 40 / PS2 40
+MapIconChange: DC 2 / PS2 2
+MorphEffect: DC 22 / PS2 24  +m_FakeMorph m_No_Force_Z_NO_SORT_PS2  -
+MotherWhaleDialog: DC 5 / PS2 5
+NAAbyss: DC 1 / PS2 1
+NAActivator: DC 7 / PS2 7
+NABubble2000: DC 45 / PS2 45
+NABubble3dSprite: DC 1 / PS2 1
+NABubbleCarrierGenAct: DC 8 / PS2 8
+NABubbleGenAct: DC 35 / PS2 35
+NABubbleSplashAct: DC 9 / PS2 9
+NACamShow: DC 23 / PS2 23
+NAColorize: DC 17 / PS2 17
+NADestructorClonerAct: DC 3 / PS2 3
+NADetachAct: DC 25 / PS2 25
+NADoomsCrystalAct: DC 9 / PS2 9
+NADoomsCrystalGenAct: DC 6 / PS2 6
+NADoomsDayAct: DC 6 / PS2 6
+NADustGenAct: DC 34 / PS2 34
+NAEdgeFade: DC 1 / PS2 1
+NAFade: DC 4 / PS2 4
+NAFlare: DC 32 / PS2 33  +m_fixedsizepower  -
+NAFov: DC 1 / PS2 1
+NAGeneralAct: DC 12 / PS2 12
+NAGeneralissimoAct: DC 4 / PS2 4
+NAGeneralsBombAct: DC 1 / PS2 1
+NAGlobalResources: DC 1 / PS2 1
+NAGlowAct: DC 16 / PS2 17  +m_ExtRenderSetting  -
+NAHangingEccoAct: DC 5 / PS2 5
+NAHangingWaterSwitch: DC 6 / PS2 6
+NAHideBehind: DC 1 / PS2 1
+NAJumpingBubbleAct: DC 2 / PS2 2
+NALightning: DC 9 / PS2 9
+NALocalSfx: DC 2 / PS2 2
+NAMatAnim: DC 6 / PS2 6
+NAMidGeneralAct: DC 5 / PS2 5
+NAMidGeneralBombContainerGeneratorAct: DC 2 / PS2 2
+NAModModAct: DC 7 / PS2 7
+NAModelPatch: DC 2 / PS2 2
+NAMutaDizzy: DC 2 / PS2 2
+NAOrigoAct: DC 1 / PS2 1
+NAParticle2000: DC 63 / PS2 63
+NAPlayLocalSfx: DC 10 / PS2 10
+NARingAct: DC 27 / PS2 28  +m_ExtRenderSetting  -
+NAShoreWave: DC 7 / PS2 7
+NASplineMoveAct: DC 17 / PS2 17
+NASprite: DC 7 / PS2 7
+NAStageProcess: DC 25 / PS2 25
+NAStateCheck: DC 9 / PS2 9
+NATeleportEcco: DC 1 / PS2 1
+NATentacleAct: DC 2 / PS2 2
+NATestAct: DC 4 / PS2 4
+NATraceLineAct: DC 30 / PS2 30
+NAUnderlingAct: DC 1 / PS2 1
+NAVertexWave: DC 13 / PS2 13
+NAVirtualModel: DC 1 / PS2 1
+NAWaterTubeFall: DC 2 / PS2 2
+NAWhirl2000: DC 11 / PS2 11
+NAWhirlAct: DC 7 / PS2 8  +m_extrastr  -
+NAWhirlBrick: DC 2 / PS2 2
+NAWhirlBubblesAct: DC 3 / PS2 3
+NAWhirlModell: DC 2 / PS2 2
+ObsidianAct: DC 12 / PS2 12
+Octopus: DC 39 / PS2 39
+PAlphaChain: DC 4 / PS2 4
+PCTRLFirstCheck: DC 1 / PS2 1
+PCameraExplosion: DC 8 / PS2 8
+PChuteAmoeba: DC 21 / PS2 21
+PChuteEgg: DC 33 / PS2 33
+PChuteFoe1: DC 7 / PS2 7
+PChuteFoe3: DC 8 / PS2 8
+PChutePoe: DC 9 / PS2 9
+PExitHandler: DC 4 / PS2 7  +m_AutoSaveOffSprite m_NotSameCard m_SaveOk  -
+PFreqMenu: DC 9 / PS2 9
+PGameControllerWarning: DC 2 / PS2 2
+PGameOver: DC 33 / PS2 38  +m_HintBack m_LeftArrow m_RightArrow m_Text10 m_TextCollector  -
+PHeartExplosion: DC 40 / PS2 41  +m_DamageActions  -
+PHeartPoe: DC 12 / PS2 12
+PHeartShield: DC 3 / PS2 3
+PHeartSound: DC 2 / PS2 2
+PLCD: DC 3 / PS2 3
+PMZXScale: DC 9 / PS2 9
+PMenuController: DC 4 / PS2 4
+PMenuIdle: DC 4 / PS2 4
+PMenuLoop: DC 9 / PS2 9
+PModelAlphaChain: DC 4 / PS2 4
+PMove: DC 8 / PS2 9  +m_Loop  -
+PNewMenu: DC 168 / PS2 168
+POnRenderAlphaChain: DC 4 / PS2 4
+POnRenderSpriteRGBChain: DC 6 / PS2 6
+PPoisonEcco: DC 2 / PS2 2
+PSetModelAlpha: DC 1 / PS2 1
+PSinUVScroll: DC 6 / PS2 6
+PSpriteRGBChain: DC 6 / PS2 6
+PTestCounter: DC 2 / PS2 2
+SFish: DC 8 / PS2 8
+SendSonarAction: DC 1 / PS2 1
+SetGD3DSprite: DC 4 / PS2 4
+SetPos2Props: DC 1 / PS2 1
+SetTargetPos: DC 1 / PS2 1
+SharkTrap: DC 55 / PS2 55
+Shark_1: DC 43 / PS2 44  +m_ToDeactivate  -
+ShowMorphAbility: DC 9 / PS2 9
+SideCam: DC 7 / PS2 7
+SmallWhaleFree: DC 8 / PS2 8
+SmallWhaleRock: DC 3 / PS2 3
+Sonarmap: DC 6 / PS2 6
+StgPump1MainAct: DC 4 / PS2 4
+StoreInput: DC 4 / PS2 4
+TAGeneralissimoAct: DC 3 / PS2 3
+TBCristalAct: DC 1 / PS2 1
+TBModel: DC 1 / PS2 1
+TR3dSprite: DC 15 / PS2 15
+TRActEaten: DC 11 / PS2 11
+TRActInSector: DC 5 / PS2 5
+TRActivate: DC 3 / PS2 4  +m_NeedExec  -
+TRActivatorSphere: DC 3 / PS2 3
+TRActor: DC 7 / PS2 7
+TRAnimal: DC 5 / PS2 5
+TRAsteriod: DC 3 / PS2 3
+TRAttacher: DC 5 / PS2 5
+TRAutoSector: DC 6 / PS2 6
+TRBabyDolphin: DC 7 / PS2 7
+TRBabyTurtle: DC 6 / PS2 6
+TRBarracuda: DC 3 / PS2 3
+TRCamDrawPoint: DC 8 / PS2 8
+TRCamTeleport: DC 10 / PS2 10
+TRCheckButton: DC 2 / PS2 2
+TRCheckMovingPartSate: DC 1 / PS2 1
+TRCheckPoint: DC 3 / PS2 3
+TRCheckPoison: DC 1 / PS2 1
+TRClearOnactivate: DC 2 / PS2 2
+TRCoconut: DC 17 / PS2 17
+TRColGen: DC 6 / PS2 6
+TRCrazyFish: DC 9 / PS2 9
+TRCurrentOff: DC 3 / PS2 3
+TRCut: DC 3 / PS2 3
+TRDescent: DC 2 / PS2 2
+TRDialog: DC 1 / PS2 1
+TRDialogChangeActor: DC 4 / PS2 4
+TRDialogList: DC 2 / PS2 2
+TRDialogTest: DC 3 / PS2 3
+TRDolphinCamera: DC 25 / PS2 25
+TREelAct: DC 29 / PS2 30  +m_idZLamp  -
+TREelAnim: DC 12 / PS2 12
+TREmitter: DC 2 / PS2 2
+TREmitterBox: DC 6 / PS2 6
+TREntry: DC 8 / PS2 8
+TREntryPoint: DC 4 / PS2 4
+TREnvirDef: DC 9 / PS2 9
+TREnvirFX: DC 2 / PS2 2
+TRFade: DC 3 / PS2 3
+TRFadeModel: DC 10 / PS2 10
+TRFallBreak: DC 11 / PS2 11
+TRFallBreakReference: DC 1 / PS2 1
+TRFishAct: DC 8 / PS2 8
+TRFishCtrl: DC 13 / PS2 14  +m_tasknum  -
+TRFishMove: DC 14 / PS2 14
+TRFishReference: DC 3 / PS2 3
+TRFisherDolphin: DC 5 / PS2 5
+TRFlag: DC 4 / PS2 4
+TRFlash: DC 5 / PS2 5
+TRFly: DC 1 / PS2 1
+TRFoeHead: DC 48 / PS2 48
+TRFoeLake: DC 11 / PS2 10  +  -m_IsStartedMusic
+TRGeneralReward: DC 4 / PS2 4
+TRGift: DC 5 / PS2 6  +m_tasknum  -
+TRGiveBuble: DC 10 / PS2 10
+TRGroupCheckDist: DC 3 / PS2 3
+TRHelperDolphin: DC 8 / PS2 8
+TRHide1Dolphin: DC 3 / PS2 3
+TRHide2Dolphin: DC 4 / PS2 4
+TRHide3Dolphin: DC 6 / PS2 6
+TRHomeReference: DC 3 / PS2 3
+TRInertia: DC 9 / PS2 9
+TRJellyCtrl: DC 11 / PS2 11
+TRJellyMove: DC 14 / PS2 14
+TRKillCreator: DC 1 / PS2 1
+TRKillCreatorAct: DC 2 / PS2 2
+TRKillSharks: DC 1 / PS2 1
+TRLODAct: DC 5 / PS2 5
+TRLightFlash: DC 3 / PS2 3
+TRLink: DC 2 / PS2 2
+TRLoad: DC 2 / PS2 2
+TRLobsterAct: DC 10 / PS2 10
+TRMacro: DC 6 / PS2 6
+TRMacroModel: DC 16 / PS2 16
+TRMantaCtrl: DC 14 / PS2 14
+TRMazeAlbinoDolphin: DC 2 / PS2 2
+TRMicroModel: DC 15 / PS2 15
+TRModModAct: DC 9 / PS2 10  +m_HotWater  -
+TRModel: DC 6 / PS2 6
+TRMorray: DC 8 / PS2 8
+TRMultiLODAct: DC 1 / PS2 1
+TRMultiModel: DC 11 / PS2 11
+TRMultiReference: DC 3 / PS2 3
+TRMultiplicator: DC 1 / PS2 1
+TRNaggingDolphin: DC 3 / PS2 3
+TRParentToBone: DC 2 / PS2 2
+TRParticle: DC 2 / PS2 2
+TRParticleMove: DC 9 / PS2 9
+TRPhysicDef: DC 5 / PS2 5
+TRPilot: DC 3 / PS2 3
+TRPlancton: DC 12 / PS2 12
+TRPlayer: DC 3 / PS2 3
+TRRangedMusic: DC 2 / PS2 2
+TRRayCtrl: DC 15 / PS2 15
+TRRayMove: DC 15 / PS2 15
+TRRayPU: DC 1 / PS2 1
+TRRemap: DC 4 / PS2 4
+TRRewardReference: DC 4 / PS2 4
+TRRockCheck: DC 2 / PS2 2
+TRScaleEcco: DC 1 / PS2 1
+TRSetPos: DC 4 / PS2 4
+TRSetSong: DC 1 / PS2 1
+TRSetSongBit: DC 1 / PS2 1
+TRShakeDolphCam: DC 5 / PS2 5
+TRSharkDolphin: DC 4 / PS2 4
+TRSharkHintDolphin: DC 4 / PS2 4
+TRSharkTank: DC 5 / PS2 5
+TRSideDiag: DC 6 / PS2 6
+TRSideModel: DC 4 / PS2 4
+TRSidePath: DC 8 / PS2 8
+TRSongDeact: DC 2 / PS2 2
+TRSpinnerDolphin: DC 20 / PS2 22  +m_VGlifOff m_VGlifOn  -
+TRSplash: DC 30 / PS2 30
+TRStartExcept: DC 10 / PS2 10
+TRStartRand: DC 8 / PS2 8
+TRSurf: DC 11 / PS2 11
+TRSurfModel: DC 3 / PS2 3
+TRSwimerFoe2000: DC 15 / PS2 15
+TRTmpMicroModel: DC 2 / PS2 2
+TRToTransparent: DC 2 / PS2 2
+TRTongueAct: DC 8 / PS2 8
+TRTracerBullet: DC 5 / PS2 5
+TRTurtleCtrl: DC 9 / PS2 9
+TRVolleyCam: DC 4 / PS2 4
+TRWaitFPS: DC 1 / PS2 1
+TRWideScreen: DC 2 / PS2 2
+TRWorld: DC 9 / PS2 9
+TRWormFoe: DC 12 / PS2 12
+TRZLamp: DC 4 / PS2 4
+TRZoneMusic: DC 2 / PS2 2
+TeacherAction: DC 6 / PS2 6
+TurtleScare: DC 1 / PS2 1
+VolumeFadeDown: DC 1 / PS2 1

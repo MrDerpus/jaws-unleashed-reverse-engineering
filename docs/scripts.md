@@ -43,6 +43,7 @@ python3 -I scripts/gded_lineage.py compare A=GLOB B=GLOB     # class-name overla
 python3 -I scripts/gded_lineage.py fields A=GLOB B=GLOB      # per-class field differences
 python3 -I scripts/gded_lineage.py placed FILE [CLASS...]    # how often classes are placed in a level
 python3 -I scripts/gdrom_ls.py DISC_DIR [--extract OUT REGEX] # list a Dreamcast GD-ROM dump with dates and versions
+python3 -I scripts/pvr_decode.py LEVEL.GDE OUTDIR [REGEX]     # Dreamcast PVR textures (Ecco Defender DC, Sentinels) -> PNG; also a library (decode, gde_textures)
 python3 -I scripts/dwarf1_classes.py ECCO.ELF [CLASS...|--list] # class layouts from Defender's DWARF v1 debug info → docs/ecco_defender_classes.txt
 # Name Jaws.exe functions from Defender's ECCO.ELF (docs/exe_analysis.md "Ecco: Defender debug symbols"):
 #   Ghidra: -postScript FuncRanges.java funcs.tsv (scripts/ghidra) and JawsFactories.java → jaws_objects.tsv
@@ -52,7 +53,7 @@ python3 -I scripts/ecco_jaws_callgraph.py --map 0.MAP ECCO.ELF game_binary/Jaws.
 #   → names.tsv (result: docs/jaws_function_names.tsv); apply with ApplyLabels.java (address<TAB>Class::name)
 ```
 
-`scripts/ghidra/` holds headless Ghidra helpers (decompile at an address, string references).
+`scripts/ghidra/` holds headless Ghidra helpers (decompile at an address, string references, functions referencing an address: `RefsDecomp.java`).
 
 ## Level editing
 

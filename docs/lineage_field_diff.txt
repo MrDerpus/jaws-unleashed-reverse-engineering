@@ -1,6 +1,8 @@
 # Field-level diff: Ecco: Defender (2.1.12.1) / Ecco: Sentinels of the Universe (2.3.2.1) / Jaws Unleashed (2.6.3.16)
 # Generated 2026-11-25 by: python3 -I scripts/gded_lineage.py fields Def=<Defender DC 2000-04 + PS2 US levels> Sent=<Sentinels levels>@2.3 Jaws=GAME_GDWs/*.GDW
 # Source: each level's CLAS PRIM field table (union over all levels of each game). See docs/GDW_FORMAT.md.
+# Note (2026-11-26): the Def column merges Dreamcast and PS2. Split by platform (docs/defender_dc_ps2_field_diff.txt), m_ExtRenderSetting and GDPropExtRenderSet are PS2-port additions,
+# not in Defender Dreamcast, so the GDModel 'Def->Sent: -m_ExtRenderSetting' entry reflects the PS2 port, not a Sentinels removal.
 
 Def: 89 files, 769 classes, 6106 fields
 Sent: 8 files, 455 classes, 4101 fields
