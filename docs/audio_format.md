@@ -1,103 +1,287 @@
-# Audio formats: GSMP, SMPB, SMPC, GSFX, unused-audio audit, WMV movies
+# Audio formats
 
-Moved word for word from the root `CLAUDE.md` on 2026-11-25 to keep that file short. Where this disagrees with older docs, this text is the newer one.
+**In short:** game sounds are `GSMP` blocks of raw 16-bit PCM. Two variants carry voice: `SMPB` (short barks) and `SMPC` (cutscene dialogue with captions). `GSFX` blocks link a trigger to a sample. Sounds are always requested by name (`Group.Name`) through sound-bank nodes. Level music is four layers mixed by volume. The pre-rendered movies are separate `.WMV` files.
 
-## Audio System
+Related docs: `docs/cutscene_dialogue.md` (the 49 dialogue lines), `docs/audio_leads.md` (unused-audio findings).
 
-Two audio chunk types are fully extracted. All scripts output to `audio/`.
+Rewritten for readability on 2026-11-27. Old version: `docs/archive/audio_format_old_2026-11-27.md`.
 
-### GSMP (Game Sample) — `scripts/rip_gsmp.py`
+---
 
-> **Note (2026-10-03):** `scripts/rip_gsmp.py` is not present in the repo (only its output in `audio/` and the sibling `rip_smpb.py` exist). The format below is enough to rewrite it.
-Raw PCM audio blocks. Header (24 bytes after the 8-byte chunk header):
+## Contents
+
+1. [Plain samples (GSMP)](#1-plain-samples-gsmp)
+2. [Level music](#2-level-music)
+3. [Voice barks (SMPB)](#3-voice-barks-smpb)
+4. [Triggers (GSFX)](#4-triggers-gsfx)
+5. [Cutscene dialogue (SMPC)](#5-cutscene-dialogue-smpc)
+6. [How a sound gets played](#6-how-a-sound-gets-played)
+7. [Unused-audio audit](#7-unused-audio-audit)
+8. [WMV movies](#8-wmv-movies)
+9. [Old mistakes](#9-old-mistakes)
+
+---
+
+## 1. Plain samples (GSMP)
+
+**Layout**, after the 8-byte chunk header:
 
 ```
 [uint32 sample_id][uint32 flags][uint32 hash][uint32 category][uint32 sample_rate][uint32 byte_count]
+[PCM: byte_count bytes, signed 16-bit]
+[uint32 loop start frame][uint32 loop end frame]   (+2 zero bytes when byte_count % 4 == 2)
 ```
 
-Audio data (signed 16-bit PCM mono) follows immediately. Flags vary by GDW package but a consistent bit pattern holds across all levels:
+**Category:**
 
-| flags bit | meaning |
+| Value | Kind | Typical |
+|---|---|---|
+| 2 | Sound effects | Under 5 s, 11,025 Hz |
+| 3 | Music | 2–3.5 min loops, 22,050 Hz |
+| 6 | Ambient | Under 5 s, 11,025 Hz |
+
+**Flags:**
+- `0x01` or `0x81`: a plain sample.
+- The same with `| 0x20`: an `SMPB` sample (§3).
+
+**Loop points:** music loops from 0 to frames − 1; sound effects have 0, 0.
+
+**Extraction:**
+- About 2,873 files across all 20 levels, in `audio/<NAME>/`.
+- Names: `{STEM}_id{id:04d}_cat{cat}_{rate}hz_{dur:.2f}s.wav`.
+- The extractor `scripts/rip_gsmp.py` is missing from the repo; only its output exists. The layout above is enough to rewrite it.
+
+---
+
+## 2. Level music
+
+**In short:** each level has four music tracks that play together as layers. The game fades them in and out by volume.
+
+| Track | When it's loud |
 |---|---|
-| base (0x01 or 0x81) | raw PCM audio block |
-| base \| 0x20 | SMPB-type block (see below) |
-| 0x44 | GSFX property block — NOT audio (contains volume float 0.8 + GSMP ID reference) |
+| `Calm_aw` | Calm, above water |
+| `Calm_uw` | Calm, underwater |
+| `Susp` | Suspense |
+| `Act` | Action |
 
-Category field values: `2` (SFX), `3` (music, long loops), `6` (ambient). Music tracks (cat3) are 2–3.5 minutes at 22050 Hz; SFX and ambient are typically <5s at 11025 Hz.
+**In the level file:**
+- A sound-bank node with group name `Music` (`PROP 0x08001939`; FISH's is `SndMusic`).
+- Its track names: `PROP 0x0800193A`.
+- A matching list of `['GSFX'][id]` (`PROP 0x0800193B`), each pointing to one sample.
 
-**Level music, decoded 2026-10-04 (`scripts/gdw_music.py`):** a sound bank node with group name `Music` (`PROP 0x08001939`; FISH node `SndMusic`) names four tracks (`0x0800193A`): `Calm_aw` (calm, above water), `Calm_uw` (calm, underwater), `Susp`, `Act`, with a parallel `['GSFX'][id]` list (`0x0800193B`) → GSFX → one GSMP each. FISH's are **16-bit stereo** 22,050 Hz, 117.1 s each, all exactly the same length (likely synced layers). The PCM is followed by **`[uint32 loop start frame][uint32 loop end frame]`** (music: 0 and frames − 1; SFX: 0, 0; 2 extra zero bytes when the byte count is ≡ 2 mod 4). Rebuilding a stock music block from its PCM is byte-identical. Replacing all four with test tones works in-game (user-confirmed 2026-10-04: calm above/under switch; suspense and action audible once made loud and harsh, since they're mixed in as layers, in stock FISH/OPEN_NE with test tones). **Engine side (2026-10-04, `Jaws.exe`):** the four tracks are **layers played together** and mixed by volume. The sound player `FUN_006fbc60` maps a `Music.<track>` name to slot 0–3 (`Calm_aw`, `Calm_uw`, `Susp`, `Act`, strings at `0x8BB7C8/C0/B8/B4`) and keeps per-slot handles/volumes at `+0xF814`/`+0xF824`; `FUN_006fbfb0` = SetMusicVolumes(float[4]) (via the audio object's vtable `0x7FB138` slot `+0x100`, method `0x715C50`). The music director is `FUN_004982e0` (vtable `0x7D8E24`, slot `+0x48`): calm layer from the underwater flag `DAT_008b2e7c`, suspense/action targets from a 4×4 float table (`+0x44`) row picked by a state number at `+0x4C` (0–2), faded per tick. What sets that state is not traced yet (the class is not named; candidates `GDPlayMusic`/`GDPropMusic`).
+**FISH's tracks:** 16-bit stereo, 22,050 Hz, all exactly 117.1 s, so they stay in sync.
 
-Output filename: `{STEM}_id{id:04d}_cat{cat}_{rate}hz_{dur:.2f}s.wav`
+**Replacing music works.**
+- Tool: `scripts/gdw_music.py IN OUT none|DIR`.
+- Rebuilding a stock music block from its PCM gives identical bytes.
+- Tested with test tones in FISH and OPEN_NE (user-confirmed 2026-10-04): calm switches above and below water. Suspense and action were only audible once made loud and harsh, because they're mixed in as layers.
 
-**Extracted: ~2873 files across all 20 GDWs.**
+### In the game code
 
-### GSMP+SMPB (Embedded Sample Block) — `scripts/rip_smpb.py`
-A variant of GSMP where the `hash` and `category` fields are replaced by an `OBPR` sub-chunk. These blocks are identified by `data[pos+16:pos+20] == b'OBPR'`.
+- The sound player `0x6FBC60` maps `Music.<track>` to slots 0–3. Strings at `0x8BB7C8`/`C0`/`B8`/`B4`.
+- Per-slot handles and volumes: `+0xF814` / `+0xF824`.
+- Set volumes: `0x6FBFB0` (float[4]), through the audio object's vtable `0x7FB138` slot `+0x100` (`0x715C50`).
+- **The music director** is `0x4982E0` (vtable `0x7D8E24`, slot `+0x48`):
+  - the calm layer follows the underwater flag `0x8B2E7C`;
+  - suspense and action come from a 4×4 float table (`+0x44`), with the row picked by a state number at `+0x4C` (0–2);
+  - volumes fade each tick.
+- **Open:** what sets that state number. The class isn't named; candidates are `GDPlayMusic` and `GDPropMusic`.
 
-Structure:
+---
+
+## 3. Voice barks (SMPB)
+
+**In short:** short NPC voice reactions, 0.3–7 s: panic, screams, cheers. They are all used.
+
+**Layout:** like `GSMP`, but the hash and category are replaced by an `OBPR` sub-chunk.
+
 ```
 GSMP [block_size]
   [uint32 sample_id]
   [uint32 flags]
   OBPR [size=20]
-    PROP [size=12]
-      prop_id=0x04000030  value="SMPB" (type tag)
-  [secondary header 16 bytes: magic, field, sample_rate, byte_count]
-  [raw PCM audio: byte_count bytes, signed 16-bit mono]
-  [uint32 loop start][uint32 loop end] (+2 pad bytes when byte_count % 4 == 2), as plain GSMP
+    PROP [size=12]  prop_id=0x04000030  value="SMPB"
+  [16-byte header: magic, field, sample_rate, byte_count]
+  [PCM: byte_count bytes, signed 16-bit mono]
+  [uint32 loop start][uint32 loop end]   (+2 pad bytes when byte_count % 4 == 2)
 ```
 
-The "category" field read at the standard offset is actually the OBPR size (20), not a real category. Sample rate and byte count come from the secondary header at `pos + 16 + 8 + obpr_size`. **Corrected 2026-11-23:** the header is 16 bytes, not 20; the old "pad" word was the first 2 PCM samples, so `rip_smpb.py` (and `rip_smpc.py`, same mistake on its caption header) started 2 samples late. Both fixed (verified: after the PCM exactly the 8 loop bytes, or 10 with padding, remain in every block) and all 1,128 SMPB + 49 SMPC files re-extracted; SMPB copies now match their plain-GSMP twins byte for byte.
+- Recognise one by `data[pos+16:pos+20] == b'OBPR'`.
+- The second header sits at `pos + 16 + 8 + obpr_size`.
 
-**Content:** NPC voice lines (short barks/reactions, 0.3–7s — durations and skeleton clip names like `BeingDevouredLegs`, `PanicRun`, `FrightenedRun`, `StandCheer3x` suggest crowd-panic/reaction audio, not full mission dialogue).
+**Extraction:**
+- `scripts/rip_smpb.py`, 1,128 files.
+- Names: `{STEM}_smpb_id{id:04d}_{rate}hz_{dur:.2f}s.wav`.
+- SMPB copies match their plain-GSMP twins byte for byte.
 
-**Correction (2026-07-29) — these are NOT unused/cut content.** Previous docs claimed SMPB samples were "present but not triggered." This is wrong. Every SMPB sample is wired to a `GSFX` trigger block exactly like regular gameplay SFX — verified exhaustively on `START.GDW`: all 70/70 extracted SMPB sample IDs are referenced by a `GSFX` block's embedded sample-reference field (as are all 214/214 of that GDW's regular raw-PCM `GSMP` samples; only 3 of 287 total GSFX references in the file are dangling). See the `GSFX` decode note below — the old "unused" label was never verified against actual trigger data, just guessed from the format looking unusual.
+---
 
-Output filename: `{STEM}_smpb_id{id:04d}_{rate}hz_{dur:.2f}s.wav`
+## 4. Triggers (GSFX)
 
-**Extracted: 1128 files across all GDWs.**
+**In short:** a `GSFX` block links one sound event to one sample. It's the layer between game logic and the audio.
 
-### GSFX — Sound Effect Trigger Blocks (decoded 2026-07-29)
-
-`GSFX` is a real, distinct top-level RSRC tag (not literally a `GSMP` flags variant as earlier docs implied — that was an artifact of naive byte-pattern scanning landing mid-block). Fixed 68-byte payload, standard `[tag][uint32 size][payload]` framing (`size` = payload-only, consistent with the rest of the format):
+**Layout:** a top-level `RSRC` resource with a fixed 68-byte payload.
 
 ```
 GSFX [uint32 size=68]
-  [uint32 event/instance id]
+  [uint32 event id]
   [uint32 flags = 0x21]
-  OBPR [uint32 obpr_size = 0]
-  [40 bytes, mostly zero — one float32 near offset+20, observed range 0.8–1.0, likely playback volume]
+  OBPR [uint32 size = 0]
+  [40 bytes, mostly zero; one float near +20, 0.8–1.0, probably volume]
   [uint32 = 1]
-  ['GSMP' 4-byte ASCII type discriminator — same embedded-tag-as-marker pattern as PROP 0x08001873's 'GMDL']
-  [uint32 referenced_sample_id]   ← the GSMP/SMPB sample_id this event plays
+  ['GSMP']
+  [uint32 sample_id]      ← the sample this event plays
 ```
-This is the actual sound-trigger layer sitting between gameplay/AI logic and the raw audio resources: every `GSFX` block's `referenced_sample_id` was confirmed to resolve to either a regular `GSMP` sample or an `SMPB` sample (never both), never dangling except 3/287 stragglers in the one file checked. Use this to determine whether *any* given audio resource ID is actually triggered in-game, and (with more work — not yet done) to trace which gameplay object/quest fires it, by locating the `GSFX` block's containing `GMOA`/`GSQD`/`CHBR` context.
 
-### GSMP+SMPC — cutscene dialogue with captions (FOUND 2026-10-03) — `scripts/rip_smpc.py`
+- The `'GSMP'` tag is a type marker, like `'GMDL'` in mesh references.
+- **Checked on START:** every sample (all 214 plain, all 70 SMPB) has a `GSFX`. Only 3 of 287 `GSFX` references dangle.
 
-**The in-engine cutscene voice acting is in `GSMP` blocks of a third variant, `SMPC` ("sample with caption")**, each carrying its own subtitle text. **49 lines in 12 GDWs** (Mayor Vaughn, Brody, Shaw, Cruz, Ruddock, Martin, Horace, reporter, fishermen, crew), extracted to `audio/<NAME>/<NAME>_smpc_*.wav` plus a transcript, `audio/<NAME>/<NAME>_captions.txt`. `rip_smpb.py` had silently skipped them (odd-sized `OBPR`, extra caption header). Cutscenes play sounds by `Group.Name` (e.g. `Movie2.Mayor3`), either through a sound-event action that a control starts (`ACTN` `0x0201C01B`, `PROP 0x08001936`) or through a sound object node that a control adds (class `0x0100E00D`, `PROP 0x0800192B`). A sound-bank node (`PROP 0x08001939` group, `0x0800193A` names, `0x0800193B/C` `GSFX` lists) maps names to `GSFX` triggers and then to samples. **One line is unused:** TOWN 388, an alternate take of the crew's "Something's happening out at the pond" by a different voice actor (user-identified). Full format, naming chain and the 49-line catalogue: **`docs/cutscene_dialogue.md`**. The older cat2 "long samples" lead (`docs/audio_leads.md`) is superseded.
+---
 
-### Unused-audio audit — `scripts/audit_audio.py` (2026-10-15)
+## 5. Cutscene dialogue (SMPC)
 
-Read-only. Sounds are only ever played by name: a request for `Group.Name` (hardcoded in `Jaws.exe`, ~200 names, or a level PROP string: `0x0800192B` sound object, `0x08001920`/`0x08001936` sound-event actions, or any other PROP holding a bank name) → sound bank (`0x08001939` group, `0x0800193A` names, repeated names = random variants, `0x0800193B`/`0x0800193C` = above/under-water `GSFX` lists) → `GSFX` → sample. The script walks that chain backwards for every file in `audio/<NAME>/` and writes `audio/audio_audit.csv` (status, bank names, who requests it: exe string VA or level node/action) and `audio/audio_audit.txt` (the non-used list). Statuses: `used`, `unrequested` (in a bank, nothing asks for the name: likely unused), `no_bank`, `no_gsfx`. First run: **3,677 used, 373 unrequested, 0 no_bank, 0 no_gsfx** (every sample has a trigger and a bank). **Recording check (2026-11-23):** columns `recording`/`copy_of` compare PCM exactly; 194 of the 373 are copies of recordings used elsewhere, **179 files = 48 distinct recordings are never heard** (list in `docs/audio_leads.md` "Recording check"). Correctly flags the known unused TOWN 388. **Corrected 2026-11-23:** the exe does build some names: three creature-AI init functions (`0x508380`, near `0x512F3D`, `0x514F46`) cut the creature's first clip name at `_` (`Mermaid_Swim` → `Mermaid`) and sprintf `%s.Idle`/`%s.Hurt`/`%s.Die`. Checked: no unrequested bank name matches a skeleton prefix in its level, so the results stand. Limits: a request only proves the sound *can* be asked for (the requesting object may never run), and "unrequested" is unconfirmed until heard or checked in Ghidra. Notable unrequested: shared `Camera.AboveWater/UnderWater`, `Jaws.ImpactWood/Metal/Glass/WindowUnbreak`, `Jaws.GrabBody`, `HumanFemale.Panic`, `HHShark.Attack` (12–18 levels each); DEEPSEA `Mine.EngineFutoszalag`/`Servo01–03` (conveyor belts are 42 static models with no actions, no servo object; PS2 same) and DEEPSEA2 `Generator.Slow` (destroy script goes straight to `Stop`), checked 2026-11-23; AQUARIUM `Orca.Threatening/Alarm` (565/566, unique; boss class `MSOrca` only requests Die/Hurt/Idle, PS2 same; user: not heard in the boss fight; OPEN_S's Orca Revenge orcas run `MSNarwhal` AI, which requests `Narwhal.*`, and no level has a `Narwhal` or OPEN_S an `Orca` bank, so they're voiceless; checked 2026-11-23); TOWN `Bell.Alarm` (TOWN-only bank, never requested PC/PS2, user: sounds like a boat/lifeguard warning bell); DEEPSEA2 `Squid.Hurt/Die/Attack` (boss is real, only `Squid.Idle` is requested, and only by the entrance cutscene's sound objects `szkvidordit`/`csapvegighuz`; checked 2026-11-23: `NASquidBoss` has no sound fields or sound strings, the reef squids build `LittleSquid.*` and the boss rig's clips are `BossSquidBody_*`, so nothing ever requests the `Squid` group's Attack/Hurt/Die: recorded, never wired up; user-confirmed not heard in-game); START `Movie.VoiceBrody3/4` (samples 470/471, uncaptioned plain `GSMP`, unique recordings, never played on PC or PS2; user-transcribed 2026-11-23: 470 "Gottem! Hold tight, he's gonna try and break free!", 471 "Oh my God it's a Great White! Make sure he's fully restrained and let's get him to the research center ASAP" = **the cut Aurora rope fight's dialogue** (hook, then capture); the bank's other 10 unrequested names are mostly copies of stock gameplay sounds (`HumanMaleFear` = `Human.Cry`, `SpearGun` = `SpearGun.Fire`, engines, splashes, growl; `SquidHurt` ≈ DEEPSEA2 `Squid.Attack`), only `FootstepsGuard` (footsteps on wood, user: never heard in-game, unused) and `EngineSeaSeeker` are unique; (`rip_smpb.py`/`rip_smpc.py` read PCM 2 samples late; fixed and re-extracted 2026-11-23, copies now hash-match); content needs listening; checked 2026-11-23, `docs/audio_leads.md` "START `Movie.VoiceBrody3/4` checked"). Details: `docs/audio_leads.md` "Unused-audio audit".
+**In short:** the in-engine cutscene voice acting is a third `GSMP` variant, `SMPC` ("sample with caption"). Each block carries its own subtitle.
 
-### WMV Cutscene Videos — `audio/wmv/`
-Pre-rendered cutscenes in Windows Media Video format, stored in `movie/` in the game install directory. Audio extracted via ffmpeg to `audio/wmv/`. All files are WMA2 stereo 48000 Hz. Notable files:
+- **49 lines in 12 levels.** Speakers: Mayor Vaughn, Brody, Shaw, Cruz, Ruddock, Martin, Horace, a reporter, fishermen and crew.
+- Extracted by `scripts/rip_smpc.py` to `audio/<NAME>/<NAME>_smpc_*.wav`, with a transcript in `audio/<NAME>/<NAME>_captions.txt`.
+- `rip_smpb.py` used to skip them: odd-sized `OBPR` and an extra caption header.
+- **One line is unused:** TOWN 388, a different voice actor's take of the crew's "Something's happening out at the pond" (user-identified).
 
-| File | Duration | Content |
+Full format, the naming chain and the 49-line list: `docs/cutscene_dialogue.md`.
+
+---
+
+## 6. How a sound gets played
+
+Sounds are only ever played by name. The chain:
+
+1. **A request for `Group.Name`.** It comes from either:
+   - `Jaws.exe`, about 200 hardcoded names; or
+   - a level property: `0x0800192B` (sound object), `0x08001920` or `0x08001936` (sound-event actions), or any other property holding a bank name.
+2. **A sound bank** in the level:
+   - `0x08001939` = group;
+   - `0x0800193A` = names (a repeated name = random variants);
+   - `0x0800193B` / `0x0800193C` = the above-water / underwater `GSFX` lists.
+3. **The `GSFX`** (§4).
+4. **The sample.**
+
+**Cutscenes** use the same chain, e.g. `Movie2.Mayor3`. The name comes from:
+- a sound-event action started by a control (`ACTN` `0x0201C01B`, `PROP 0x08001936`); or
+- a sound-object node added by a control (class `0x0100E00D`, `PROP 0x0800192B`).
+
+**Names the exe builds:** three creature-AI setup functions (`0x508380`, near `0x512F3D`, `0x514F46`) cut the creature's first clip name at `_` (`Mermaid_Swim` → `Mermaid`) and add `.Idle`, `.Hurt` or `.Die`.
+
+---
+
+## 7. Unused-audio audit
+
+**In short:** `scripts/audit_audio.py` walks the chain in §6 backwards for every extracted file. Every sample has a trigger and a bank, but **373 files are never requested**. After removing copies, **48 distinct recordings are never heard**.
+
+### The script
+
+- Read-only.
+- Writes:
+  - `audio/audio_audit.csv`: status, bank names, and who requests it (exe address or level node/action);
+  - `audio/audio_audit.txt`: the unused list.
+- **Statuses:**
+
+  | Status | Meaning | Count |
+  |---|---|---|
+  | `used` | Something requests it | 3,677 |
+  | `unrequested` | In a bank, but nothing asks for the name | 373 |
+  | `no_bank` | No bank | 0 |
+  | `no_gsfx` | No trigger | 0 |
+
+- **Recording check (2026-11-23):** the `recording` and `copy_of` columns compare PCM exactly.
+  - 194 of the 373 are copies of recordings used elsewhere.
+  - **179 files = 48 distinct recordings are never heard.** List: `docs/audio_leads.md` "Recording check".
+- The built names from §6 were checked: no unrequested bank name matches a skeleton prefix in its level, so the results stand.
+
+**Limits:**
+- A request only proves the sound *can* be asked for. The object asking may never run.
+- "Unrequested" is unconfirmed until heard, or checked in Ghidra.
+
+### Notable unrequested sounds
+
+| Sound | Level | What's known |
 |---|---|---|
-| `INTRO.WMV` | 43s | Game intro cinematic |
-| `SHARK.WMV` | 79s | Shark story intro |
-| `OUTSCENE.WMV` | 53s | Outro sequence |
-| `PSYCHO.WMV` | 157s | Psycho mode cinematic |
-| `JAWSC4/7/8/9/10/11.WMV` | 37–188s | Unlockable 1975 Jaws film clips |
-| `FLUX.WMV` | 27s | Cross-promo trailer for *Æon Flux* (2005 Majesco-published PS2/Xbox game), viewable from the Jaws Unleashed main menu (user-confirmed 2026-08-02). Not Jaws content — publisher cross-promotion. Not referenced by name anywhere in `Jaws.exe` or any GDW — presumably hardcoded into a menu trailer-list, not data-driven. |
-| `INF.WMV` | 63s | Cross-promo trailer for *Infected* (2005 Majesco-published PSP game), viewable from the Jaws Unleashed main menu (user-confirmed 2026-08-02). Not Jaws content — publisher cross-promotion. Same wiring caveats as `FLUX.WMV` above. |
+| `Camera.AboveWater` / `UnderWater`, `Jaws.ImpactWood` / `Metal` / `Glass` / `WindowUnbreak`, `Jaws.GrabBody`, `HumanFemale.Panic`, `HHShark.Attack` | 12–18 levels each | Shared pool |
+| `Mine.EngineFutoszalag`, `Servo01–03` | DEEPSEA | The conveyor belts are 42 static models with no actions and no servo object. Same on PS2. |
+| `Generator.Slow` | DEEPSEA2 | The destroy script goes straight to `Stop` |
+| `Orca.Threatening` / `Alarm` (565/566) | AQUARIUM | The boss class `MSOrca` only requests Die/Hurt/Idle; same on PS2. User: not heard in the fight. |
+| `Bell.Alarm` | TOWN | TOWN-only bank, never requested on PC or PS2. User: sounds like a warning bell. |
+| `Squid.Hurt` / `Die` / `Attack` | DEEPSEA2 | Recorded, never wired up (below) |
+| `Movie.VoiceBrody3` / `4` (470/471) | START | **The cut Aurora rope fight's dialogue** (below) |
 
-**How movies are requested (2026-10-16):** the exe plays `movie\<name>.WMV` through DirectShow (`FUN_007221E0`) and holds none of the names. They come from `PROP 0x080005E6` on movie-play actions in the levels: TITLE `INTRO`/`SHARK` (`PC MPEG Demo 1 Loader`), `Movie Scene 1–6` = `JAWSC4/10/7/11/8/9`, `Trailers Page 0` `FLUX`/`PSYCHO`/`INF`, CHASE `OUTSCENE` (`MPGPlay 3_pc`). All 12 requests match the 12 shipped files, so nothing requested is missing. The `JAWSC` numbering gaps (1–3, 5, 6) aren't referenced anywhere; possibly the film's scene/chapter numbers, unverified, not evidence of cut content. Details: `docs/exe_analysis.md` "Movie playback".
+**Orca Revenge's orcas are voiceless.** In OPEN_S they run `MSNarwhal` AI, which requests `Narwhal.*`. No level has a `Narwhal` bank, and OPEN_S has no `Orca` bank.
 
-**Source for the two previously-undocumented files above (2026-08-02):** `game_binary/unins000.exe` + `unins000.dat` (the original Inno Setup uninstaller pair, added to `game_binary/` by the user) contain a complete installer file manifest — confirmed our 20 extracted `.GDW` files exactly match the shipped set (nothing missing/extra), and surfaced `FLUX.WMV`/`INF.WMV` as shipped `movie\` files not previously in this table. Their audio (`audio/wmv/FLUX.wav`, `INF.wav`) was already extracted, just unlabeled/uncatalogued until now.
+**The squid boss:**
+- It's real, but only `Squid.Idle` is requested, and only by the entrance cutscene's sound objects (`szkvidordit`, `csapvegighuz`).
+- `NASquidBoss` has no sound fields or strings.
+- The reef squids build `LittleSquid.*`, and the boss's clips are `BossSquidBody_*`.
+- So nothing requests the boss's Attack/Hurt/Die. User-confirmed not heard in-game.
 
-### ~~Missing: In-Game Cutscene Voice Acting~~ — found (2026-10-03)
+**START's Brody lines:**
+- Samples 470 and 471: plain `GSMP`, no caption, unique recordings, never played on PC or PS2.
+- Transcribed by the user (2026-11-23):
+  - 470: "Gottem! Hold tight, he's gonna try and break free!"
+  - 471: "Oh my God it's a Great White! Make sure he's fully restrained and let's get him to the research center ASAP"
+- That's the hook and the capture of the cut rope fight (`docs/cut_content.md` §3).
+- The same bank has 10 more unrequested names. Most are copies of stock sounds:
+  - `HumanMaleFear` = `Human.Cry`, `SpearGun` = `SpearGun.Fire`, engines, splashes, a growl;
+  - `SquidHurt` ≈ DEEPSEA2 `Squid.Attack`.
+- Only two are unique:
+  - `FootstepsGuard` (footsteps on wood; user: never heard, unused);
+  - `EngineSeaSeeker`.
 
-Resolved: see "GSMP+SMPC" above and `docs/cutscene_dialogue.md`. The pre-rendered WMV cinematics have their own audio (`audio/wmv/`); the in-engine `NACutScene` sequences use the `SMPC` voice lines.
+Details: `docs/audio_leads.md` "Unused-audio audit" and "START `Movie.VoiceBrody3/4` checked".
+
+---
+
+## 8. WMV movies
+
+**In short:** the pre-rendered cutscenes are `.WMV` files in the install's `movie/` folder. All 12 requested names match the 12 shipped files, so nothing is missing.
+
+Their audio is extracted with ffmpeg to `audio/wmv/` (WMA2 stereo, 48,000 Hz).
+
+| File | Length | Content |
+|---|---|---|
+| `INTRO.WMV` | 43 s | Game intro |
+| `SHARK.WMV` | 79 s | Shark story intro |
+| `OUTSCENE.WMV` | 53 s | Ending |
+| `PSYCHO.WMV` | 157 s | Psycho mode |
+| `JAWSC4/7/8/9/10/11.WMV` | 37–188 s | Unlockable clips from the 1975 film |
+| `FLUX.WMV` | 27 s | Trailer for *Æon Flux* (Majesco, 2005), from the main menu |
+| `INF.WMV` | 63 s | Trailer for *Infected* (Majesco, 2005, PSP), from the main menu |
+
+### How movies are requested
+
+- The exe plays `movie\<name>.WMV` through DirectShow (`0x7221E0`) and holds none of the names.
+- The names come from `PROP 0x080005E6` on movie-play actions in the levels:
+
+  | Level | Action | Movies |
+  |---|---|---|
+  | TITLE | `PC MPEG Demo 1 Loader` | `INTRO`, `SHARK` |
+  | TITLE | `Movie Scene 1–6` | `JAWSC4/10/7/11/8/9` |
+  | TITLE | `Trailers Page 0` | `FLUX`, `PSYCHO`, `INF` |
+  | CHASE | `MPGPlay 3_pc` | `OUTSCENE` |
+
+- The missing `JAWSC` numbers (1–3, 5, 6) aren't referenced anywhere. Maybe the film's chapter numbers; unverified, not evidence of cut content.
+- Details: `docs/exe_analysis.md` "Movie playback".
+- On Linux the movies need GE-Proton; Valve's Proton has no WMV2/WMA2 decoder for non-Steam games (`CLAUDE.md`).
+
+### Evidence
+
+- The installer manifest in `game_binary/unins000.exe` + `unins000.dat` (Inno Setup) lists every shipped file. It matches our 20 level files exactly and lists `FLUX.WMV` and `INF.WMV`.
+- Both trailers user-confirmed on the main menu, 2026-08-02.
+
+---
+
+## 9. Old mistakes
+
+| Old claim | Now |
+|---|---|
+| SMPB voice samples are "present but never triggered" | All are wired to `GSFX` triggers (checked on START, 2026-07-29). It was a guess from the unusual format. |
+| `GSFX` is a flag variant of `GSMP` | A separate resource type; the old reading came from byte scans landing mid-block |
+| The SMPB/SMPC second header is 20 bytes | 16 bytes. The extra "pad" word was the first 2 PCM samples, so files started 2 samples late. Fixed and re-extracted 2026-11-23. |
+| The in-engine cutscene voice acting is missing | Found 2026-10-03: the `SMPC` blocks (§5). The long category-2 samples lead in `docs/audio_leads.md` is superseded. |

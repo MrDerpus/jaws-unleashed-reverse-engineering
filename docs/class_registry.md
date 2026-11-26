@@ -1,234 +1,243 @@
-# Class Registry — Jaws Unleashed Engine
+# Class registry
 
-> **Note (2026-07-17):** this doc dates from June 2025; `/CLAUDE.md` at the project root is the actively-maintained, current source of truth for format/mission findings. Checked this file's content against today's corrections (FDIR/SCRT/SKIP/BRTR structure, PROP alignment, mission cut-content list) — nothing here touches those topics incorrectly; the mission-class mappings below (`MSHatchMission`, `ANSideMission25`, `OrcaExplorationMission`, `KillthemallMission`, etc.) are consistent with CLAUDE.md's current cut-content and mission-mapping sections. No corrections needed this pass.
+**In short:** every level's `CLAS` chunk lists the names of all the engine's classes and their fields as plain text, so the engine largely documents itself. This doc is a catalogue of the notable classes, grouped by area.
+- The prefix of a class name tells you its area (§1).
+- **Field layouts** come from the exe: `scripts/dump_class_fields.py` lists all 6,457 registered fields of 691 class descriptors (`docs/exe_analysis.md` §4).
+- **What a `PROP` ID means:** `scripts/gded_lineage.py prop LEVEL ID` (`docs/GDW_FORMAT.md`).
+- Purposes below come from class and field names unless another doc confirmed them.
 
-> **Update (2026-10-01):** the exe has now been decompiled (see `docs/exe_analysis.md`). Every reflected field is registered by a stub calling `0x70B6A0`, and `scripts/dump_class_fields.py` dumps all 6,457 of them (691 class descriptors) with their registration integers, which hint at in-object offsets (meaning not fully settled; confirm against code).
-
-The `CLAS` chunk in every GDW file contains the engine's full reflection database, serialized as length-prefixed strings:
-
-```
-[uint32 length][class or property name string]
-```
-
-This means the engine self-documents. Class names, property names, and component definitions are all readable as plain text. No decompilation needed for high-level architecture discovery.
+Rewritten for readability on 2026-11-27. Old version: `docs/archive/class_registry_old_2026-11-27.md`.
 
 ---
 
-## Namespace Conventions
+## Contents
 
-| Prefix | Domain |
-|---|---|
-| `GD` | Generic engine / rendering (GDModel, GDLight, GDFog) |
-| `NA` | Gameplay / shark systems (NABiteTarget, NAWayPoint; `NAPredator` is the predator-vision effect — see below) |
-| `MB` | Mission / boat systems (MBMissionBrick) |
-| `MS` | Menu / spawn / scenario (MSMissionGenerator, MSKatatamaMission) |
-| `ML` | Lighting / effects |
-| `mc` | Mesh collections (mcMeshCollection) |
-| `X` | Skeleton / bone (XSkeletonModel, XBone) |
-| `AN` | Action nodes / AI zone volumes |
-| `JT` | Gameplay interaction objects |
-| `BG` | Background / persistent mission state |
+1. [Name prefixes](#1-name-prefixes)
+2. [Models and scene objects](#2-models-and-scene-objects)
+3. [Lighting and effects](#3-lighting-and-effects)
+4. [Water and terrain](#4-water-and-terrain)
+5. [UI and sprites](#5-ui-and-sprites)
+6. [Camera and world](#6-camera-and-world)
+7. [Shark and gameplay](#7-shark-and-gameplay)
+8. [Vehicles](#8-vehicles)
+9. [Skeletons and animation](#9-skeletons-and-animation)
+10. [AI areas, triggers and spawners](#10-ai-areas-triggers-and-spawners)
+11. [Missions](#11-missions)
+12. [Audio](#12-audio)
+13. [Engine utilities](#13-engine-utilities)
+14. [Notes](#14-notes)
 
 ---
 
-## Rendering / Models
+## 1. Name prefixes
 
-| Class | Purpose |
+| Prefix | Area | Examples |
+|---|---|---|
+| `GD` | Generic engine, rendering | `GDModel`, `GDLight`, `GDFog`, `GDControl` |
+| `NA` | Gameplay and creature systems | `NABiteTarget`, `NAWayPoint` |
+| `MB` | Missions, boats | `MBMissionBrick` |
+| `MS` | Menus, spawning, scenarios | `MSMissionGenerator`, `MSKatatamaMission` |
+| `ML` | Lighting, effects, controllers | `MLSharkCtrl`, `MLHalRaj` |
+| `mc` | Mesh collections | `mcMeshCollection` |
+| `X` | Skeletons, bones | `XSkeletonModel`, `XBone` |
+| `AN` | Action nodes, AI areas, markers | `ANPosition`, `ANSideMission21` |
+| `JT` | Interactive objects | `JTMineWhirl` |
+| `BG` | Persistent mission state | `BGSetMissionCompleted` |
+
+Note: `NAPredator` is the predator-vision screen effect, not the shark (§7).
+
+---
+
+## 2. Models and scene objects
+
+| Class | Probably |
 |---|---|
-| `GDModel` | 3D model component; references geometry via `m_3dModelID` |
-| `GDStripModel` | Triangle strip geometry model |
-| `GDMovingModel` | Animated/moving model |
-| `GDSkeletonModel` | Skeletal mesh model |
-| `XSkeletonModel` | Extended skeleton model |
-| `XExtendedSkeletonModel` | Further extended skeleton model |
-| `NALODSkeleton` | LOD skeleton system |
-| `MLEnvSkeletonModel` | Environment skeleton model |
-| `NAPredatorModel` | Shark-specific model |
-| `NAMorphModel` | Morph animation model |
+| `GDBrick` | Base scene object (layout: `docs/exe_analysis.md` §5) |
+| `GDFixedBrick` | Static world object |
+| `GDLibBrick` | Library / prefab object |
+| `GDModel` | 3D model; mesh in `m_3dModelID` |
+| `GDStripModel` | Triangle-strip model |
+| `GDMovingModel` | Moving model |
+| `GDSkeletonModel`, `XSkeletonModel`, `XExtendedSkeletonModel` | Skinned models |
+| `NALODSkeleton` | Level-of-detail skeleton |
+| `MLEnvSkeletonModel` | Skinned model attached to the environment |
+| `NAPredatorModel` | Added with Defender PS2 (`docs/gwb_lineage.md`) |
+| `NAMorphModel` | Morph (vertex) animation |
 | `NAVirtualModel` | Virtual / proxy model |
 | `NAShadowModel` | Shadow mesh |
 | `NAStencilVolume` | Stencil shadow volume |
-| `mcMeshCollection` | Mesh resource container |
-| `GDBrick` | Base engine object |
-| `GDFixedBrick` | Static world object |
-| `GDLibBrick` | Library/prefab object |
+| `mcMeshCollection` | Mesh container |
 
 ---
 
-## Lighting / FX
+## 3. Lighting and effects
 
-| Class | Purpose |
+| Class | Probably |
 |---|---|
-| `GDLight` | Dynamic lighting |
-| `GDExtendedLight` | Extended light properties |
-| `GDFog` | Fog system |
-| `NAParticle2004` | Particle system |
-| `GDParticleTest` | Particle test component |
+| `GDLight`, `GDExtendedLight` | Lights |
+| `GDFog` | Fog (confirmed: `docs/rendering_system.md` §5) |
+| `NAParticle2004` | Particles |
+| `GDParticleTest` | Particle test |
 | `NAMotionBlur` | Motion blur |
 | `GDMatAnim` | Material animation |
 | `GDMorphAnim` | Morph animation |
 
 ---
 
-## Water / Terrain
+## 4. Water and terrain
 
-| Class | Purpose |
+| Class | Probably |
 |---|---|
-| `NAWater2004` | Primary water system (used in OPEN_ files) |
-| `NAWater2003` | Earlier water version |
-| `NAWaterGrid2000` | Original water grid (Ecco lineage) |
-| `NASlideWater2004` | Sliding/shallow water |
-| `NATextureGeneratorGrid` | Procedural water texture generation |
-| `NATerrain` | Terrain system |
-| `NAGrid` | Grid system |
+| `NAWater2004` | The shipping water (confirmed; `docs/water_system.md`) |
+| `NAWater2003` | An earlier version |
+| `NAWaterGrid2000` | The original, from Ecco |
+| `NASlideWater2004` | Shallow, sliding water |
+| `NATextureGeneratorGrid` | Generated water textures |
+| `NAWaterYCamera` | Above/below-water switch (confirmed; `docs/water_system.md` §2) |
+| `NATerrain`, `NAGrid` | Terrain and grids; use not checked |
 
 ---
 
-## UI / Sprites
+## 5. UI and sprites
 
-| Class | Purpose |
+| Class | Probably |
 |---|---|
-| `GDSprite` | Sprite object |
-| `GDRotSprite` / `GDRotSpriteEX` | Rotating sprite |
-| `GDFont` / `GDPptFont` | Font rendering |
-| `GDTextSprite` / `GDPptTextSprite` | Text sprite |
+| `GDSprite` | Sprite |
+| `GDRotSprite`, `GDRotSpriteEX` | Rotating sprite |
+| `GDFont`, `GDPptFont` | Fonts |
+| `GDTextSprite`, `GDPptTextSprite` | Text |
 | `GDShowSprite` | Display sprite |
-| `GDScreen` / `GDViewport` | Screen and viewport |
-| `GDTileMap` / `GDTile` | Tile-based map (minimap) |
+| `GDScreen`, `GDViewport` | Screen and viewport |
+| `GDTileMap`, `GDTile` | Tile map (the minimap) |
 
 ---
 
-## Camera / World
+## 6. Camera and world
 
-| Class | Purpose |
+| Class | Probably |
 |---|---|
-| `GDCamera` | Camera |
-| `MBSharkCamera` | Shark-follow camera |
-| `GDWorld` | World root object |
-| `SharkWorld` | Shark-specific world root (layered on GDWorld) |
+| `GDCamera` | Camera (confirmed: far plane, `docs/rendering_system.md` §5) |
+| `MLSharkCamera` | The follow camera and minimap (confirmed: `docs/exe_analysis.md` §7) |
+| `MBSharkCamera` | Another shark camera class; not looked at |
+| `GDWorld` | World root |
+| `SharkWorld` | Jaws's world root on top of `GDWorld` (holds `m_teleportlist`) |
 | `GDGraph` | Render graph |
 | `GDNewMat` | Material |
 
 ---
 
-## Gameplay / Shark Systems
+## 7. Shark and gameplay
 
-| Class | Purpose |
+| Class | What |
 |---|---|
-| `NAPredator` | **Predator-vision screen effect, not the shark** (corrected 2026-10-01 — fields `m_magnification`, `m_power`, `m_freqpower`, `m_strength`, `m_smoothrate`). The player shark is driven by `MLSharkCtrl` + `SharkConfig`; see `docs/exe_analysis.md`. |
-| `NABiteTarget` | Bite interaction component (see bite_system.md) |
-| `NAChewingToy` | Physics-enabled prey/bait |
-| `NAWayPoint` | AI navigation node |
-| `NAMessenger` | Event/trigger messaging |
-| `NATimeControl` | Time dilation / motion blur |
-| `NAWhirl2000` | Whirlpool system |
-| `JTMineWhirl` | Mine whirlpool interaction |
+| `MLSharkCtrl` + `SharkConfig` | **The player shark** (controller and tuning; `docs/exe_analysis.md` §6) |
+| `NAPredator` | **The predator-vision screen effect, not the shark.** Fields `m_magnification`, `m_power`, `m_freqpower`, `m_strength`, `m_smoothrate`. |
+| `NABiteTarget` | Something the shark can bite (`docs/bite_system.md`) |
+| `NAChewingToy` | Physics prey / bait |
+| `NAWayPoint` | AI navigation point |
+| `NAMessenger` | Event messaging |
+| `NATimeControl` | Slow motion, motion blur |
+| `NAWhirl2000` | Currents (confirmed: push barriers, `docs/exe_analysis.md` §14) |
+| `JTMineWhirl` | Mine-site current |
+| `GDControl` | Level scripting (confirmed: `docs/exe_analysis.md` §8) |
 
 ---
 
-## Vehicles
+## 8. Vehicles
 
-| Class | Purpose |
-|---|---|
-| `TKSub` | Miniature attack submersible — speed/turn/strafe (`m_faster`/`m_slower`/`m_maxyturn`/`m_turnaccel`/`m_crab`), hover bob (`m_libegamp`), damage thresholds by weapon type (`m_MaxScooter`/`m_MaxDiver`/`m_MaxTorpedo`), torpedo firing points (`m_ShotPosID`/`m_ShotPos2ID`), carries a pilot diver (`m_DiverID`/`m_DiverPosID`), destructible rudder + propeller-blows-off-on-death FX chain. Found 2026-07-30 investigating a stuck non-moving "drone" under the BEACH.GDW bridge. **Correction (2026-10-03):** that drone is a SeaSeeker (`ANSeekerRef`), not a `TKSub`; see `docs/cut_content.md` "Resolution (2026-10-03)". |
-| `MSScooter` | Generic vehicle-mount handler; single-ID references to `m_ScooterID` (player's seascooter), `m_SubID` (`TKSub`), `m_RomboloID` ("Rombolo" = Hungarian for Destroyer ship), and `m_TesztID` ("Teszt" = Hungarian "Test") — the literal "Test ID" field alongside the others suggests this group was a dev-time vehicle-mount test harness, not a uniformly-shipped system. |
+**`TKSub`:** a small attack submarine.
+- Movement: `m_faster`, `m_slower`, `m_maxyturn`, `m_turnaccel`, `m_crab` (sideways).
+- Hover bob: `m_libegamp`.
+- Damage thresholds per weapon: `m_MaxScooter`, `m_MaxDiver`, `m_MaxTorpedo`.
+- Torpedo points: `m_ShotPosID`, `m_ShotPos2ID`.
+- A pilot diver: `m_DiverID`, `m_DiverPosID`.
+- A destructible rudder, and a propeller that blows off on death.
 
----
-
-## Skeleton / Animation
-
-| Class | Purpose |
-|---|---|
-| `XBone` | Skeleton bone |
-| `XAnimation` | Animation clip |
-| `XAnimationNames` | Animation name table |
-| `XAnimationSet` | Animation set container |
+**`MSScooter`:** a vehicle-mount handler with single IDs:
+- `m_ScooterID` (the sea scooter);
+- `m_SubID` (a `TKSub`);
+- `m_RomboloID` (*romboló* = destroyer ship);
+- `m_TesztID` (*teszt* = test). A "test" ID next to the others suggests a development test harness.
 
 ---
 
-## Mission / AI Areas
+## 9. Skeletons and animation
 
-| Class | Purpose |
+| Class | Probably |
 |---|---|
-| `MBMissionBrick` | Mission system object |
-| `MBAramlat` | Mission brick variant |
-| `ANLaw` | AI law/rule zone |
+| `XBone` | A bone |
+| `XAnimation` | A clip |
+| `XAnimationNames` | Clip name table |
+| `XAnimationSet` | A set of clips |
+
+The data format is in `docs/animation_system.md`.
+
+---
+
+## 10. AI areas, triggers and spawners
+
+| Class | What |
+|---|---|
+| `ANLaw` | AI rule zone |
 | `ANBlock` | AI blocking volume |
-| `ANPolyArea` | AI polygon area |
-| `ANPolyArena` | AI arena zone |
-| `ANUnitRef` / `ANHeliRef` / `ANSeekerRef` | AI unit references. `ANSeekerRef` (class `0x0109C09B`, 74 fields): PROP ID = `0x080002E9` + field index; 0 = inherit template value, booleans tri-state 0 inherit / 1 off / 2 on. Field table and the BEACH stationary-seeker example in `docs/cut_content.md` "Resolution (2026-10-03)". |
-| `ANPosition` | AI position marker |
-| *(area trigger, class `0x01134132`)* | Level entrance/exit zone: fires `m_enter_act`/`m_leave_act` when `m_target` (the shark) crosses a circle of `m_radius` (fields `0x0800028D`–`0x08000296`). FISH's exit, the open-ocean entrances, DEEPSEA's room checks. See `docs/brtr_editing.md` "Area triggers and level exits". |
-| *(LoadChecker action, `0x0217B17A`)* | `OssLoadChecker`: shows the enter/leave prompt (message slot 598) and starts `m_toact` on OK. |
-| *(GDLoad action, `0x02038036`/`0x02038037`)* | Loads a stage; name in `PROP 0x08001839`. |
-| *(creature generator action, `0x02129128`)* | `MarlinGenAct`, `MantarayGen`, …: spawns ambient wildlife from a creature template (`PROP 0x08000A78`), count `0x08000A79`, area `0x08000A82`. |
-| `ANSideMission15` | SC14 Undertow — `KILL THE WATER SKIERS WHILE THEY ARE JUMPING OFF OF THE RAMPS!` |
-| `ANSideMission21` | SC20 Losing Your Head — drag banana boat to piers, knock riders off, kill them |
-| `ANSideMission22` | SC21 Scavenge — `COLLECT %d TIRES IN UNDER %d SECONDS.`; seekers + Coast Guard raft obstacles |
-| `ANSideMission25` | SC24 Catamaran Jam — `FLIP OVER %d CATAMARANS IN %d SECONDS.` |
-| `ANSideMission33` | SC29 Thar She Blows — `BLOW UP %d BOATS IN %d SECONDS.` using explosive canisters |
-| `BarrelsOfFunMission` | SC01 Barrels of Fun — ship + buoys; `m_BuoyIDEasy/Medium/Hard` |
-| `SealWhipMission` | SC02 Seal Whip — kill seals; `m_SealList`, `m_CrewList` |
-| `BayPatrolBloodBathMission` | SC03 Bay Patrol Blood Bath — kill lifeguards |
-| `MSDolphinSightseeingMission` | SC04 Dolphin Sightseeing Junket — stop dolphins escaping |
-| `MSDogGoneMission` | SC05 Dog Gone — kill dog + NPC + surfer before surface timer |
-| `FlipTheBirdMission` | SC06 Flip the Bird — destroy helicopter by biting the rescue ladder |
-| `BGSideMission8` | SC07 Reality TV — kill bungee jumpers, South Amity Cliffs |
-| `BGSideMission9` | SC08 Row Your Boat — destroy rowboat weaving through fences |
-| `MBSideMission10` | SC09 Sheebang! — grab swimmer, smash into yellow buoy |
-| `TheBendsMission` | SC10 The Bends — kill divers before any reach the surface |
-| `MBSideMission12` | SC11 The Best Laid Plans — destroy shark cages + kill divers |
-| `TroubleAndStrifeMission` | SC12 Trouble and Strife — kill TV crew in time; offensive boats |
-| `MSKillKillerMission` | SC13 To Kill a Killer — narwhal challenge; `m_NarwhalsID` |
-| `UpACreekMission` | SC15 Up a Creek — Grand Occasus Canals; fight the current |
-| `MBSideMission17` | SC16 Head Rush — throw swimmers at beach tents/citizens |
-| `MSMineAllMineMission` | SC17 Mine All Mine — defend whale carcass from attacking sharks; `m_WhaleID`, `m_SharksID` |
-| `BGSideMission19` | SC18 Return to Sender — throw barrels at Environplus houses; kill executives |
-| `GetMrStripMission` | SC19 Get Mr. Stripes — chase and kill injured fish through minefield |
-| `TheGauntletMission` | SC22 The Gauntlet — race through underwater caves, start→end box; jellyfish/viperfish/thermals |
-| `BGSideMission24` | SC23 Manic Maze — kill swimmers inside shark-proof net maze |
-| `MSKatatamaMission` | SC24 Catamaran Jam (outer MS wrapper; `ANSideMission25` runs gameplay) |
-| `OhPuppyMission` | SC25 Oh Puppy — kill white seal pups before they reach Seal Island; avoid black seals |
-| `MBSideMissionAQ` | SC26 Orca Revenge — kill the orca at the Aquarium in time (rematch of M02 boss) |
-| `FrenzyMission` | SC27 Shark Frenzy + SC28 Dolphin Frenzy — shared class; kill %d sharks or dolphins in 60s |
-| `BGSideMission31` | SC31 Lights Out — destroy guard tower spotlights in Grand Occasus Harbor using barrels |
-| `MSHatchMission` | **CUT** — "Down the Hatch"; `SWALLOW %d COLLECTABLES WITHIN %d SECONDS.`; not placed in any GDW |
-| `OrcaExplorationMission` | Likely M02 aquarium story logic or cut challenge — boats, police, scuba, cages; distinct from SC26 |
-| `KillthemallMission` | **CUT** — kill all targets in an area; Hungarian visual targeting fields; not in shipped SC list |
+| `ANPolyArea`, `ANPolyArena` | AI polygon area / arena |
+| `ANUnitRef`, `ANHeliRef` | AI unit references |
+| `ANSeekerRef` | A SeaSeeker placement (class `0x0109C09B`, 74 fields). PROP = `0x080002E9` + field index. 0 = use the template's value; booleans: 0 inherit, 1 off, 2 on. Example: `docs/cut_content.md` §9 (the BEACH "submarine"). |
+| `ANPosition` | Boat marker (98 fields; `docs/exe_analysis.md` §10) |
+| `ANTol` | Buoy push (`docs/exe_analysis.md` §14) |
+| Area trigger (class `0x01134132`, `ANSphereCheck`) | Entrance/exit zone: runs `m_enter_act`/`m_leave_act` when `m_target` (the shark) crosses a circle of `m_radius` (fields `0x0800028D`–`0x08000296`). FISH's exit, the open-ocean entrances, DEEPSEA's room checks. `docs/brtr_editing.md` §11 "Area triggers and level exits". |
+| `OssLoadChecker` (action `0x0217B17A`) | Shows the enter/leave prompt (message 598) and starts `m_toact` on OK |
+| `GDLoad` (action `0x02038036`/`0x02038037`) | Loads a stage; name in `PROP 0x08001839` |
+| Creature generator (action `0x02129128`) | `MarlinGenAct`, `MantarayGen`, …: spawns wildlife from a template (`PROP 0x08000A78`), count `0x08000A79`, area `0x08000A82` |
 
 ---
 
-## Audio
+## 11. Missions
 
-| Class | Purpose |
+**All side-challenge classes** (SC01–SC32, with titles and goals): `docs/mission_system.md` §3.
+
+**Other mission classes** (`MBMissionBrick`, `MBAramlat`, `Stage…Quest`, `OrcaExplorationMission`, `KillthemallMission`, `MSHatchMission`, `MSKatatamaMission`): `docs/mission_system.md` §7.
+
+**Class numbers vs displayed numbers** (e.g. `ANSideMission21` = SC20): `docs/mission_system.md` §4.
+
+**Cut ones:** `MSHatchMission` (*Down the Hatch*), `StagePursuitQuest`/`2` (*Hot Pursuit*): `docs/cut_content.md`.
+
+---
+
+## 12. Audio
+
+| Class | Probably |
 |---|---|
 | `GDSound` | Sound object |
-| `GDSoundEvent2D` / `GDSoundEvent3D` | 2D/3D positional sound events |
-| `GDSoundEventScope` / `GDSoundEvent3DB` | Sound event variants |
-| `GDPlaySound` / `GDStopSound` | Sound control |
+| `GDSoundEvent2D`, `GDSoundEvent3D` | 2D/3D sound events |
+| `GDSoundEventScope`, `GDSoundEvent3DB` | Sound event variants (`m_AW_Resource`/`m_UW_Resource` = above/underwater) |
+| `GDPlaySound`, `GDStopSound` | Sound control |
 | `SoundManager` | Audio manager |
 
+How sounds are requested: `docs/audio_format.md`.
+
 ---
 
-## Engine / Export / Utility
+## 13. Engine utilities
 
-| Class | Purpose |
+| Class | Probably |
 |---|---|
-| `GDPath` / `GDGoPath` | Spline/path movement |
-| `GDSpline` | Spline object |
+| `GDPath`, `GDGoPath` | Paths and path movement (boat routes are `GDPath`) |
+| `GDSpline` | Spline |
 | `GDEtalon` | Engine utility |
-| `GDFolder` | Object grouping/folder |
-| `GDPlayMovie` | Cutscene/movie playback (`MPGPlay` / `StreamPlay`) |
+| `GDFolder` | Grouping |
+| `GDPlayMovie` | Movie playback (`MPGPlay` / `StreamPlay`; `docs/exe_analysis.md` §13) |
 | `NACutScene` | In-engine cutscene driver |
 | `GDPhysicDef` | Physics |
-| `GDTestBrick` | Debug/test object |
-| `PS2ExportSettings` | PS2 export config — confirms `.GDE` files are PS2 builds |
+| `GDTestBrick` | Debug / test object |
+| `PS2ExportSettings` | PS2 export settings |
 
 ---
 
-## Notes
+## 14. Notes
 
-- `SharkWorld` sits alongside `GDWorld` — shark-specific code was layered on top of the generic engine rather than integrated into it.
-- `PS2ExportSettings` in the class registry confirms the PS2 port was planned from the start, not added late.
-- `TITLE0.GDW` contains the most complete class list as it carries the full engine type database with no level content.
-- The reflection system preserves property names like `m_hp`, `m_radius`, `m_damagemultiplier` directly in the binary — no decompilation needed to understand what each component does.
+- **`SharkWorld` sits on top of `GDWorld`:** Jaws-specific code was layered over the generic engine.
+- **`PS2ExportSettings`** is in the PC files. The engine exported to PS2 throughout; Defender already shipped on PS2 (`docs/gwb_lineage.md`).
+- **`TITLE0` has a different field table** from the other 19 levels (from entry 979 on), so fixed `PROP` IDs don't work there (`docs/GDW_FORMAT.md`).
+- **PC vs PS2:** PC has 311 classes, PS2 302. The 9 extra are PC settings menus; PS2 has no class the PC lacks (`docs/ps2_cut_content_findings.md` §6).
+- Field names like `m_hp`, `m_radius`, `m_damagemultiplier` are readable straight from the files.

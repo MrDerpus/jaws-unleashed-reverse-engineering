@@ -1,75 +1,113 @@
-# PS2 Executable Disassembly Notes
+# PS2 exe: disassembly notes
 
-Documents the disassembly toolchain setup and findings for `GAME_GDWs/ps2/SLUS_210.62`, and what did/didn't work when trying to trace data cross-references. Read alongside `ps2_cut_content_findings.md`, which documents what the string-level and struct-level analysis found.
+**In short:** how `GAME_GDWs/ps2/SLUS_210.62` was disassembled without Ghidra, using Python and Capstone, and what that approach could and couldn't do.
+- It found the stage-name table by following a pointer.
+- It could not find which code uses that table: tracing addresses through MIPS code needs real function analysis.
+
+For the PS2 *Ecco: Defender* exe, a Ghidra project was used instead (`docs/ecco_dolphin_controller.md`). Findings from this exe: `docs/ps2_cut_content_findings.md`.
+
+Rewritten for readability on 2026-11-27. Old version: `docs/archive/ps2_disassembly_notes_old_2026-11-27.md`.
 
 ---
 
-## Toolchain
+## Contents
 
-No MIPS-capable disassembler was preinstalled (`objdump` had no MIPS support compiled in; no `capstone` module). `python3-pip` isn't usable directly on this system (externally-managed Python, `sudo apt-get install` needs an interactive password not available in this environment). Worked around with a user-space venv:
+1. [Tools](#1-tools)
+2. [ELF sections](#2-elf-sections)
+3. [Capstone settings](#3-capstone-settings)
+4. [Proof the decode works](#4-proof-the-decode-works)
+5. [Finding the stage-name table](#5-finding-the-stage-name-table)
+6. [What didn't work: finding the table's user](#6-what-didnt-work-finding-the-tables-user)
+7. [String sweep](#7-string-sweep)
+
+---
+
+## 1. Tools
+
+- No MIPS disassembler was installed: `objdump` lacked MIPS, and there was no `capstone` Python module.
+- System pip can't install packages (externally managed Python; `sudo apt-get` needs a password).
+- **Workaround:** a user-space virtual environment.
 
 ```bash
 python3 -m venv <scratchpad>/venv
-<scratchpad>/venv/bin/pip install capstone   # installed 5.0.7, no sudo needed
+<scratchpad>/venv/bin/pip install capstone      # 5.0.7, no sudo needed
 ```
 
-## ELF Details (`readelf -h` / `-S`)
+---
 
-```
-Class: ELF32, Machine: "MIPS R3000" (generic readelf label; actual target below)
-Flags: 0x20924001 -- noreorder, 5900, eabi64, mips3
-Entry point: 0x00100008
-.text:   vaddr 0x00100000  file-off 0x001000  size 0x3c1258
-.data:   vaddr 0x004c1500  file-off 0x3c2500  size 0x1ad410
-.rodata: vaddr 0x00675e00  file-off 0x576e00  size 0x02bcd8
-.sdata:  vaddr 0x006a4e00  file-off 0x5a5e00  size 0x0043b8
-```
+## 2. ELF sections
 
-The `5900`/`eabi64`/`mips3` flags confirm this targets the PS2 Emotion Engine (R5900), not literal MIPS R3000 (that's the PS2's I/O co-processor, not the main CPU that runs this binary) — `readelf`'s machine-type string is just a generic fallback label for an ISA it doesn't specifically recognize.
+From `readelf -h` / `-S`:
 
-## Capstone Mode Selection
+| Section | Address | File offset | Size |
+|---|---|---|---|
+| `.text` | `0x00100000` | `0x001000` | `0x3C1258` |
+| `.data` | `0x004C1500` | `0x3C2500` | `0x1AD410` |
+| `.rodata` | `0x00675E00` | `0x576E00` | `0x02BCD8` |
+| `.sdata` | `0x006A4E00` | `0x5A5E00` | `0x0043B8` |
 
-Tested three MIPS modes on the first 500,000 bytes of `.text` (with `md.skipdata = True` to push through unrecognized opcodes):
+- Entry point `0x00100008`.
+- `readelf` says "MIPS R3000", a generic label. The flags (`5900`, `eabi64`, `mips3`) mean the Emotion Engine (R5900). The real R3000 in a PS2 is the I/O processor, which doesn't run this program.
 
-| Mode | Decoded as instructions | Decoded as `.byte` (unrecognized) |
+---
+
+## 3. Capstone settings
+
+Three modes tested on the first 500,000 bytes of `.text` (with `skipdata` on):
+
+| Mode | Decoded | Not recognised |
 |---|---|---|
-| `CS_MODE_MIPS32` | 382,258 | 117,742 (23.5%) |
-| `CS_MODE_MIPS3` | 1,028 | 498,972 (99.8% — effectively broken) |
-| `CS_MODE_MIPS64` | 492,279 | 7,721 (1.5%) |
+| `CS_MODE_MIPS32` | 382,258 | 117,742 (23.5 %) |
+| `CS_MODE_MIPS3` | 1,028 | 498,972 (99.8 %, broken) |
+| **`CS_MODE_MIPS64`** | **492,279** | **7,721 (1.5 %)** |
 
-**`CS_MODE_MIPS64 + CS_MODE_LITTLE_ENDIAN` is the correct mode** — matches the ELF's `eabi64` flag. Full `.text` section: 984,214 of ~992K possible instruction words decode cleanly. The remaining ~1.5% are R5900-specific multimedia (MMI) instructions no generic MIPS decoder models — expected, not a bug in the setup.
+- **Use `CS_MODE_MIPS64 + CS_MODE_LITTLE_ENDIAN`.** It matches the `eabi64` flag.
+- Over the whole `.text`, 984,214 of ~992 K words decode. The rest are R5900 multimedia (MMI) instructions that generic MIPS decoders don't know. Expected.
+- **Set both `md.detail = True` and `md.skipdata = True`.** With only one, `md.disasm()` silently stops at the first unknown opcode. That first looked like total failure (2 instructions returned).
 
-**Both `md.detail = True` and `md.skipdata = True` must be set together** — with only one, `md.disasm()` silently stops at the first unrecognized opcode instead of skipping past it, which looked like total decode failure (2 instructions returned) before this was caught.
+---
 
-## Entry Point Disassembly (Proof of Correct Decode)
+## 4. Proof the decode works
 
 ```
-0x00100008 - 0x0010007c:  raw R5900 boot instructions, unrecognized by capstone (shown as .byte)
-                            -- almost certainly EE cache/scratchpad setup, standard for PS2 crt0
-0x0010007c:  mthi   $zero
-0x00100080:  v3mulu $zero, $zero, $zero      -- R5900 MMI instruction, decoded correctly
-0x00100084:  mtlo   $zero
-0x00100090:  mtc1   $zero, $f0
-0x00100094:  mtc1   $zero, $f1
-   ... (repeats through $f15)
+0x00100008 – 0x0010007c   raw R5900 boot code, not recognised (.byte)
+                          probably cache/scratchpad setup, standard PS2 startup
+0x0010007c   mthi   $zero
+0x00100080   v3mulu $zero, $zero, $zero     an R5900 MMI instruction, decoded correctly
+0x00100084   mtlo   $zero
+0x00100090   mtc1   $zero, $f0
+0x00100094   mtc1   $zero, $f1
+   … through $f15
 ```
 
-The `mtc1 $zero, $fN` ×16 sequence is the standard FPU-register-zeroing block that runs in C runtime startup before `main()` — correctly decoded, confirming the toolchain works.
+The 16 × `mtc1 $zero, $fN` block zeroes the FPU registers before `main()`, standard C startup.
 
-## Locating and Decoding the Mission-Name Table
+---
 
-Full method documented here since it doesn't fit `ps2_cut_content_findings.md`'s findings-focused format:
+## 5. Finding the stage-name table
 
-1. Found the string `"Hot Pursuit"` in `.rodata` at file offset `0x57fd70` → vaddr `0x0067ed70`.
-2. Searched the whole file for that vaddr as a raw little-endian `uint32` (a pointer-table entry referencing it) → found exactly one hit, at file offset `0x4cd95c` (which sits inside `.data`).
-3. Walked backward/forward from that offset in fixed 12-byte strides, resolving each stride's first field as a `.rodata` string pointer, until hitting an unresolvable entry (table boundary) → recovered the full table (see `ps2_cut_content_findings.md` for the decoded contents and the `flag`-field finding).
+1. The string `"Hot Pursuit"` is in `.rodata` at file offset `0x57FD70` → address `0x0067ED70`.
+2. Searching the whole file for that address as a little-endian uint32 gives **exactly one hit**, at file offset `0x4CD95C` (in `.data`).
+3. Walking back and forward from there in 12-byte steps, reading each step's first word as a string pointer, until one no longer resolves, recovers the whole table.
 
-## What Didn't Work: Tracing the Table's Caller
+The table's contents: `docs/ps2_cut_content_findings.md` §1.
 
-Tried to find what function loads the table's base address (`0x004cd8d8`) via the standard MIPS `lui`/`addiu` address-formation idiom: track each register's `lui` immediate as instructions are scanned linearly, and flag any `addiu`/`ori`/`daddiu` that combines with a tracked register to reconstruct the target address (handling the sign-extension adjustment `addiu` requires when combining with `lui`).
+---
 
-**Result: zero hits**, both for the table's exact string address and for its base address. Likely cause: a simple linear "last `lui` per register name" model breaks down across real MIPS control flow — the same physical register gets reloaded by unrelated `lui`s at other call sites, and branches mean the "last `lui` seen in linear scan order" isn't necessarily the one that executes before the paired `addiu` at runtime. Reliably finding this would need actual function-boundary/basic-block analysis (e.g. a real CFG, or a tool like Ghidra/IDA that does this natively) rather than a flat linear scan — not attempted this pass.
+## 6. What didn't work: finding the table's user
 
-## Other Strings-Sweep Method Note
+**The attempt:** find the code that loads the table's base (`0x004CD8D8`) through the usual MIPS `lui` + `addiu` pair.
+- Track each register's last `lui` value while scanning linearly.
+- Flag any `addiu`/`ori`/`daddiu` that combines with it into the target address (adjusting for `addiu`'s sign extension).
 
-A full `strings -n 5 -t x` dump (12,917 lines) was taken and grepped for dev/debug-marker patterns (`debug`, `todo`, `unused`, `removed`, `placeholder`, etc.) in addition to the targeted keyword searches used in earlier sessions — this is what surfaced the dev-only strings catalogued in `ps2_cut_content_findings.md`. Worth repeating with different keyword sets if more cut-content investigation is done later; this pass wasn't exhaustive.
+**Result: no hits**, for either the table's base or the string's address.
+
+**Probable reason:** "last `lui` per register in scan order" breaks with real control flow. The same register is reloaded by unrelated `lui`s elsewhere, and branches mean the last one in file order isn't necessarily the one that runs before the `addiu`. Doing it properly needs function and basic-block analysis (Ghidra or IDA). Not attempted.
+
+---
+
+## 7. String sweep
+
+- A full `strings -n 5 -t x` dump (12,917 lines) was searched for developer markers (`debug`, `todo`, `unused`, `removed`, `placeholder`…), on top of targeted keyword searches.
+- That's what found the developer-only strings in `docs/ps2_cut_content_findings.md` §5.
+- Not exhaustive. Worth repeating with other keywords.

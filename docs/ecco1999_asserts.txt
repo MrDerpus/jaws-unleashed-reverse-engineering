@@ -1,0 +1,72 @@
+# GDASSERT call sites in the May 1999 Ecco: Defender E3 demo program (1ST_READ.BIN, 1999-05-08, load 0x8C010000).
+# Columns: source file, line number, address of the format-string load, asserted expression (as written in the source).
+# Made with scripts/sh4_asserts.py; '*' = line read from the call's DAT_ constant in Ghidra (project ECCO99) because the
+# scanner couldn't pin it; 'None' = still unknown. The May 6 "Ecco 3D" file viewer has the same asserts; line numbers differ
+# only in ctrl.cpp, dcfile.cpp, dcrender.cpp, gdcommon.cpp, gdgame.cpp (see docs/GDW_FORMAT.md).
+GDTxAni.h          56  8C1B3064  (phnum>=0) &&(phnum<m_TexRefNum)
+ctrl.cpp         1213  8C03ADBE  m_nfFrame<=stop && m_nlFrame>=stop
+ctrl.cpp         1224  8C03AE14  m_nf2Frame<=stop && m_nl2Frame>=stop
+ctrl.cpp         4503  8C048CE2  EFBPI[k*4]!=-1
+ctrl.cpp         4622  8C04A00C  m_iPI[BRPFi[i]]>=0
+ctrl.cpp         4633  8C04A1CA  m_iPI[BRPRi[i]]>=0
+dcfile.cpp        239  8C1660F2  nBytes >= 0
+dcfile.cpp        254  8C166132  m_filepos >= m_bufbeg
+dcfile.cpp       1024  8C165CB0  sbinit_executed
+dcpad.cpp          24  8C1662B8  sbinit_executed
+dcrender.cpp      184  8C16702E  allvert < 2048
+dcrender.cpp      598  8C168C0A  curstrptr[ssb->slen-1] == -1
+dolphin.cpp       140  8C0AD8C4  pMorph->GetType() == TRMorphDolph::Factory()->GetType()
+dolphin.cpp       276  8C0ADCAE  pModel->IsModel()
+dolphin.cpp       396  8C0AB83A  pSPath->GetType() == TRSidePath::Factory()->GetType()
+dolphin.cpp       688  8C0AB85C  pSPath->m_Points.num>1
+envirfx.cpp      None  8C0C3D88  pMesh
+envirfx.cpp       104  8C0C3E60  m_pPeriodic
+fxki.cpp          136  8C0D4B44  nVert < 3000
+fxki.cpp          144  8C0D4EA8  nTri < 6000
+fxki.cpp          172  8C0D2B42  m_pTxtClone
+fxki.cpp          677  8C0D2D7E  m_pBrick
+gd3dspr.cpp       332  8C16E470  m_SpriteType >= 0 && m_SpriteType <= 2
+gdact.cpp        None  8C170228  pActProps
+gdact.cpp        410*  8C170660  pAct
+gdact.cpp         301  8C17040A  m_OnActivate == 0 || m_OnActivate != GetID()
+gdact.cpp         319  8C1704AE  m_OnDeactivate == 0 || m_OnDeactivate != GetID()
+gdbase.cpp        162  8C171956  m_nID
+gdbase.cpp        508  8C171E4E  m_nID
+gdbase.cpp        539  8C171F14  pInfo
+gdbase.cpp        541  8C171F38  pProp
+gdbrick.cpp      1148  8C1758EC  pRootProps
+gdbrick.cpp      1971  8C17625C  pRoot
+gdcommon.cpp     1023  8C181AE0  0
+gdcommon.cpp     1027  8C181B04  0
+gdcommon.cpp     1130  8C1821C8  0
+gdgame.cpp        144  8C188CD8  GDMap::gMapList
+gdgame.cpp        469  8C1893C2  GetFlags() & 1
+gdgame.cpp        674  8C1898A8  GetFlags() & 1
+gdgame.cpp        776  8C189B2E  pLight->GetProps()
+gdgame.cpp        895  8C189D72  pBrick
+gdgame.cpp        931  8C189E08  pBrick
+gdgame.cpp        973  8C189EF2  pBrick
+gdgame.cpp       1206  8C18A304  pBrick
+gdmap.cpp         120  8C18E86E  brick
+gdmap.cpp         132  8C18E8E6  brick
+gdmap.cpp         151  8C18E9BA  brick
+gdmap.cpp         152  8C18E9E8  brick->GetType()==GDCamera::Factory()->GetType()
+gdmap.cpp         172  8C18EAEC  pCamera
+gdmap.cpp         173  8C18EB1C  pCamera->GetType()==GDCamera::Factory()->GetType()
+gdprim.cpp       138*  8C1A0602  pInfo
+gdprim.cpp       140*  8C1A0628  pProp
+gdprim.cpp        236  8C1A0702  0
+gdscoli.cpp        79  8C1A779A  0
+gdskel.cpp        120  8C1AAA4E  time>=keyf && time<(keyl+1)
+gdsprite.cpp      212  8C1AE380  pMat
+gdsprite.cpp      212  8C1AE5E4  pMat
+gdsprite.cpp      236  8C1AE3C8  pTex
+gdsprite.cpp      236  8C1AE62C  pTex
+gdtex.cpp         680  8C1AFC68  (void*)tga
+gdtile.cpp         76  8C1B19BC  m_nNextMapEntry < 65536
+gdtxtspr.cpp      212  8C1B492C  pMat
+gdtxtspr.cpp      236  8C1B4974  pTex
+particle.cpp      332  8C13095A  m_SpriteType >= 0 && m_SpriteType <= 1
+particle.cpp      589  8C132350  pAct->IsDerivedFrom(TRParticleMove::Factory()->GetType())
+trutil.cpp       327*  8C15E420  m_ActListNum < 1024
+trutil.cpp        279  8C15E212  m_pActList

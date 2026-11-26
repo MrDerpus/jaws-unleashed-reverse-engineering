@@ -54,7 +54,7 @@ Still unsolved: [`docs/open_problems.md`](docs/open_problems.md).
 | The mod | [`mod/README.md`](mod/README.md) |
 | Scripts | [`docs/scripts.md`](docs/scripts.md) |
 | Open problems | [`docs/open_problems.md`](docs/open_problems.md) |
-| Historical notes (early research, superseded) | `docs/ai-notes.md`, `docs/context.md`, `docs/_findings.md`, `docs/findings_updated.md` |
+| Historical notes (early research, superseded) | `docs/archive/` (`ai-notes.md`, `context.md`, `_findings.md`, `findings_updated.md`, plus the pre-2026-11-27 versions of every doc) |
 
 [`CLAUDE.md`](CLAUDE.md) is a compact index of the essentials and the working rules used while researching.
 

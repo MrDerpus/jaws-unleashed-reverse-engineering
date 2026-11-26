@@ -1,37 +1,210 @@
 # Open problems
 
-Moved word for word from the root `CLAUDE.md` on 2026-11-25 to keep that file short. Where this disagrees with older docs, this text is the newer one.
+**In short:** what's still unknown or unfinished, by topic. Each item links to the doc with the details. Solved items are listed briefly at the end.
 
-## Open Problems
+Rewritten for readability on 2026-11-27. Old version: `docs/archive/open_problems_old_2026-11-27.md`.
 
-- **Resolved** (details live in their sections): FISH whale position (mission relocation), scene `mesh_idx` mismatch, static terrain (it's in BRTR), skeletal animation, parent-child hierarchy, `SCRT`, `SKIP`, texture–mesh linkage, Blender mirroring (handedness), BRTR false-positive tag offset; and on 2026-10-03: brand-new node insertion, `PRIM` (collision link), `STRI`/BVH layout, "GTEXT" (not a tag), custom meshes/collision/textures/transparency, Blender scene export, blank base level, in-game stage reload (mod F10), field-registration integers (props/runtime offsets), `GDControl` scripting, custom scripted triggers (`add_trigger.py`), cutscene voice acting (`SMPC`, `rip_smpc.py`). Also 2026-10-03: the BEACH/BEACHPST "cut objective" (not cut; stationary SeaSeeker + unfinished canyon stub, see its section). 2026-10-04: truly empty base level (`--minimal`, creature generators), large-object fading (tiling), area triggers / custom exit zones, the stage redirect as a script, on-screen message tables (mod overrides), a reproducible custom-level kit + tutorial (`docs/custom_level_tutorial.md`), custom levels as their own stage via the mod (F9, `custom_levels/`, no edited game files), a true blank template (`strip_level.py --blank`: recentred, no exit, `jaws_spawn`), unused-resource pruning (`prune_level.py`), and class ID → name (low 12 bits index `CLAS` `BRCM`/`ACCM`).
-- **`GDControl` / trigger leftovers** (scripting decoded and custom triggers working 2026-10-03; suspend, hide or clearing `0x10`/`0x40` each fully remove an object, kill alone leaves it solid (user-tested); the engine code that instantiates group-node actions at load isn't traced): the node flag `0x400000` (ops `0x2000`/`0x4000`), why kill keeps collision, spawn modes 3 vs 4, how quest code starts controls that no other control starts, and whether the dangling `missing#` target IDs are deleted objects or runtime-created ones.
-- **Skeletal animation leftovers** — solved 2026-10-03 apart from bone names, how bodies bind to the shared human clip skeleton at runtime, playback rate, and `MORF`; see the Skeletal Animation section.
-- ~~**In-game cutscene voice acting**~~ — **found 2026-10-03**: 49 captioned `SMPC` voice lines, `scripts/rip_smpc.py`, `docs/cutscene_dialogue.md`.
-- **Custom-level leftovers (2026-10-04):** the engine's exact test behind fading out very large objects (pivot, bounding sphere or distance; worked around by tiling); `OssLoadChecker.m_type` values ↔ prompt slots; exits to destinations other than the base level's own (needs a new `GDLoad` stage name per zone); per-level strip lists for levels other than FISH; the minimap still shows FISH's map picture; dropping the 41 MB level music (`SndMusic`) is undecided.
-- **Draw distance leftovers (2026-10-17):** why an underwater far plane past ~400 breaks per-object visibility (shipwreck flicker, barriers only up close, NPC culling) and what crashed at 2500; possibly the same mechanism as the large-object fade. Mod `Shift+F4` far view works in-game (user-confirmed 2026-11-25, used in normal play). What the camera's linked objects at `+0x2E4`/`+0x2EC` are (their `+0x50` = far plane used when crossing the surface).
-- ~~**Unknown PROP IDs**~~ **Named 2026-11-25:** every `PROP` ID indexes the level's own `CLAS` `PRIM` field table, so all of them (`0x080017DB`–`E4` `GDBrick` filters/bounds/comment, `0x08001874`–`7B` `GDModel` lights/render/colour/physics, `0x08001980`–`93` `GDViewport`) have exact names (`docs/scene_graph.md`). What the values *mean* (bit layouts) is still open. PS2's `0x08001957`–`6A` are the same `GDViewport` fields (named from the PS2 file's table).
-- **`BNCH` record mapping (PS2)** — how the ~1,272 80-byte transform records map to the 3,495 names in the string pool.
-- **Unused material data** — extra `TEXP` layers beyond the base texture, and GMAT colour/shininess/transparency parameters.
-- **MREG `MOIL` content** — the large (~66 KB) `MOIL` sub-chunk inside `GMOA` blocks is undecoded. May contain AI pathfinding graph data or NPC navigation mesh.
-- **New-node render flags, leftovers** — brand-new node insertion is **solved** (2026-10-03, see `docs/brtr_editing.md`). Still open: which of `m_StaticLights` / `m_RenderSetting` / missing vertex colours hides the companion layer, what the individual `m_Viewport` bits mean (`0x20003` is confirmed to cover above + underwater), and what the `TFLG` per-triangle flags mean exactly (generated collision with all edge bits set works).
-- **GWB format lineage (2026-11-25, partly answered):** Defender builds are all `GDED` 2.1.12.1; the cancelled *Sentinels of the Universe* (Feb 2001) is 2.3.2.1, the only intermediate found; Jaws 2.6.3.16. Field-level diff done 2026-11-25 (`docs/lineage_field_diff.txt`), Sentinels `Tile` decoded. Still open: Sentinels `EXTR`, when `FSIZ`/`VERS`/`EXBY` and the `SKIP`/`FDIR`/`ENDF` footer arrived, whether Sentinels levels can be extracted with the Jaws tools. See `docs/GDW_FORMAT.md` "Format versions across Appaloosa builds".
-- ~~**Defender debug build**~~ — **resolved 2026-11-25:** `/DEBUGBIN/0.BIN` is cross-linked junk (already so on the 2000 discs), but the dev kit has an **unstripped `ECCO.ELF` + `0.MAP`** (12,156 named functions, DWARF v1 class layouts, `docs/exe_analysis.md` "Ecco: Defender debug symbols"). Follow-ups: ~~name `Jaws.exe` functions from it~~ (done 2026-11-25: 812 named, `docs/jaws_function_names.tsv`; more possible by loosening the call-graph thresholds or matching non-virtual engine code by hand); finish the Jaws `GDBrick`/`GDBase` mapping (`+0x18`, `+0xE8`, `+0xF0`, `+0xF4`); check whether `EXTR`/`SoulContainer` code shows up in Defender's symbols.
-- **Text-format levels (lead, 2026-11-25):** `GDLoadGame` accepts `GDED TEXT FORMAT` files (`docs/exe_analysis.md` "GDED text format"); the writer is dead code. Static check passed (every reader has a text branch; only `FDIR` names are raw). **Loads in-game (2026-11-25, user-confirmed)** via `scripts/gdw_to_text.py` + the mod's read trace. A hand edit (fog colour) also worked. Closed: the user judged it not practical vs the binary tools; a trace-free converter / fix-up script were not pursued.
-- **Push barriers (moved from the README, 2026-11-25):** how the shark turns buoy (`ANTol`) and current (`NAWhirl2000`) pushes into motion, and whether a vanilla (non-no-clip) terrain clip exists. See `docs/speedrun_glitches.md` §13.
-- **`NAAuroraRope` decompiled (2026-11-02):** see Cut Content and `docs/cut_content.md` "How the rope fight worked". Open: `NARope` base fields (segment setup), `NAAuroraRopeBuoyRopeInteractor`, the state set to 6 on reel-in, `MBAurora` collision mask `0x4000`, and placing a working rope in START (needs rope + `MBAurora` + rock excluders + HUD wiring + a movie). Side items: the FISH/`OPEN_*` `Kotelszakito` copies.
-- **Old Brody on the boss Aurora (checked 2026-11-23, `docs/cut_content.md` "Old Brody model on the boss Aurora"):** KATATAMA `Brody` (3721, `SKEL 2317`/`GMDL 2803`, under `BrodyHelye` on `AuroraBrick`) is an older model: 56 bones, 1,398 verts, 11 parts with 64-px textures, younger bearded man with cap and life vest (shipped Brody: 822 verts, 24/30 bones, one 256² texture). Not scripted, plays a 30-frame steering loop. Same model hidden in OPEN_NE as `CoastGuard 1` (4662, flag `0x100`, never shown, SC06 intro helicopter ladder) with clips `MBrody_AuroraComesMovie`/`AuroraCatchesMovie`/`GrabHarpoonMovie`/`Kormanyoz`/`EscapeAtL4`; TITLE's menu shark `SKEL 845` keeps a matching 90-frame `Shark_GW_Movie_L2_AuroraCatches`. Points to an older capture cutscene set (ties into the cut rope fight); inference. Model confirmed old Brody by the user; in `MBrody_AuroraComesMovie` he makes a throat-slit gesture (user-spotted), and the shipped 265-frame START Brody animation is different, frightened motion (new animation, same slot). The shipped START ending cutscene node is itself named `AuroraComesMovie` (198, generic helmsman `kormanyos`), so the old clips are most likely an earlier animation set for that scene; none are stored in START.GDW. Renders in `docs/images/`; Blender scene `animations/OldBrody_AuroraCatches_scene.blend` (Brody at his deck spot + shark clip, shark placed by eye). Still open: comparison with the beta screenshots/trailer.
-- **Hot Pursuit restoration leftovers (2026-10-11):** the quest plays end to end in `PURSUIT` (`scripts/build_pursuit_test.py`); still to do: end the jet ski's route in open water (it rams the bank at the canal's north-west corner), several jet skis plus `m_JetSkiBossIDList`, solid gates, on-screen goal text (message overrides), and maybe an open-water version near the lighthouse matching the goal text. Not yet understood: `ANPosition` fields beyond the route/speed/crew set, why some boats (top-level sail boats with tiny AABBs) aren't removed outside their AABB, `RequestStage` flag 2's details, and `0x69AC70(0x8000)` on the fail path.
-- **Cut mission — Hot Pursuit, location confirmed across two GDWs but full scope not pinned down** — see `docs/cut_content.md` for the full writeup. `MINEMSHA.GDW` (Grand Occasus Canals) has a tightly-clustered jetski chase/spawn/path node group, live-reproducible in the shipped game as a broken A-posing NPC. `OPEN_NE.GDW` independently has a bare `HOTPURSUIT` anchor marker near the `Brody's House` map location, confirmed in-game (2026-08-12) to have no house actually built there. Still open: a second, better lighthouse candidate was found 2026-08-13 (a fully-modeled lighthouse next to `MapItemPos_Coast Guard HQ` in `OPEN_NE.GDW`, ~400 units away, vs. the previously-checked bare-placeholder `Lighthouse02`) but it's still ~5,900 units from the `HOTPURSUIT`/`Brody's House` cluster, not proven adjacent — see `docs/mission_system.md`; whether the mission spanned both GDWs as one sequence or represents two different development-time concepts isn't confirmed; the causal/scripted trigger logic is presumed hardcoded in `Jaws.exe`, same caveat as the BEACH submarine finding above.
-- ~~**To investigate: `k2_03` in `MINEMSHA.GDW`**~~ — **checked 2026-11-25:** stray shrunken copy of the open-ocean rock `k2 1`, no collision, nothing refers to it (PC and PS2). `docs/cut_content.md` "MINEMSHA — stray tiny rock".
-- **To do (user request, 2026-11-25): sweep all levels for stray objects** like MINEMSHA `k2 03`: nodes out of bounds (outside the playable water/terrain area), meshes reused from another level's set at an odd scale, shrunk or hidden copies, and nodes nothing refers to (no child list, `GDControl`, reference or action). Aim: surface real leftovers (cut content) without spotting them in-game; expect mostly junk.
-- **Done (2026-11-25, user-confirmed): mod overlay leaked into render-to-texture passes** (text mirrored on the water and on BEACH beachgoers). The HUD was drawn in `DeviceProxy::EndScene`, which also ends the game's offscreen passes; it is now drawn once per frame in `DeviceProxy::Present`, only on the back buffer (`mod/README.md` "Fixed (2026-11-25)").
-- **To do list (user request, 2026-11-25), lineage follow-ups:**
-  1. ~~Sentinels' `EXTR` chunk~~: done 2026-11-26, a name → `BRTR` node table; `SoulContainer` = the soul-effect template the game clones at runtime (`docs/GDW_FORMAT.md` "Sentinels-only chunks").
-  2. ~~The Defender debug program `/DEBUGBIN/0.BIN`~~: done 2026-11-25, junk; found `ECCO.ELF` with full symbols instead (see above).
-  3. The 2001–2006 gap: ~~when `FSIZ`/`VERS`/`EXBY` and the footer arrived~~, dated 2026-11-26 from the loaders' version cutoffs and stamps (header likely June 2003 per `VERS`, footer July 2005, `RSRC` header Dec 2005; `docs/GDW_FORMAT.md` "Format history 2001–2006"). Still open: whether other titles of the period used GWB. Appaloosa's own releases after Defender DC were Defender PS2 (2002) and Jaws (2006) (user); Infogrames' *Wacky Races* Dreamcast port (2000) checked 2026-11-26: not GWB (Infogrames Sheffield House game, own `.NWB` format; `docs/GDW_FORMAT.md` "Other titles checked for GWB").
-  4. ~~**Compare Defender PS2 (2002) with the Dreamcast original (2000)**~~: class tables and field-level diff done 2026-11-26 (`docs/defender_dc_ps2_field_diff.txt`; corrected the `m_ExtRenderSetting` lineage row) on the retail PAL Dreamcast disc vs US PS2 (`docs/GDW_FORMAT.md` "Defender: retail Dreamcast vs PS2"): same 2.1.12.1 format, PS2 adds platform code plus `GDControl`, `NAPredatorModel`, `NAModelFade`, `GDMultiTexture`, `NASubdivide`, `GDPropExtRenderSet` shared with Jaws. Still open: retail DC vs the dev builds in detail, and the PS2 exe's loader. Old notes: Known: both are 2.1.12.1; DC has `KADI` + the `TITL`/`TSCR` PVR loading image, PS2 opens with `LDSC` (a 512×256 16-bit loading image). Not yet done: separate DC vs PS2 class/field tables (`gded_lineage.py compare`/`fields` so far grouped them as one "Defender" set), PS2-only classes, file dates, and whether the PS2 exe differs in its loader. Point of interest: the 2002 port keeps the old 2.1 format although Sentinels was on 2.3 by Feb 2001, which suggests the port was made from the shipped Defender code, separate from the Sentinels → Jaws line (inference).
-  5. **To do (user request, 2026-11-26): compare the `EXBY` exporter logins with the games' published credits.** Logins: PC `jts`, `gyozo`, `martens`; PS2 `balage`, `Zolcsika`, `SAN`, `Neszta`, `martens`, `AnChoR`; `gyozo` also in the 1999 Defender PS2 `.TKP` headers (`docs/GDW_FORMAT.md` "Format history 2001–2006"). **Mostly done 2026-11-26** (`docs/GDW_FORMAT.md` "Logins vs published credits"): `jts` = Tamás Jutasi (confirmed), `Neszta` = Neszta Volkai, `SAN` ≈ Sándor Mezei (plausible); `balage`, `Zolcsika` ambiguous; `gyozo`, `martens`, `AnChoR` unmatched. **First match:** the US Dreamcast master's credits (`460_CREDITS.GDE`) list **"Tamás Jutasi 'JTS'"** (the PAL master has the name without the nickname), which matches the `jts` login on most Jaws PC levels; the same list has "Ignác 'Nacy' Fetser". The section heading is a separate text object and wasn't resolved. Sources: the *Jaws Unleashed* in-game/manual credits (PC + PS2), the *Ecco: Defender* credits (Defender's `460_Credits` level, now also on the retail Dreamcast disc) and the PS1 *Wacky Races* credits ("APPALOOSA CREDITS" in its game data). Aim: see which logins plausibly match credited staff and roles; only compare against the published credits, don't research private individuals.
-  6. **To do (2026-11-26): look for GWB 1.x in Appaloosa's ~1998 titles.** GWB's block stamps start in 1998 (`WDIM` 19980304, `GNRL` 19980331, `GMAT` 19980409) and 2.1.12.1 was current by 1999–2000, so a 1.x would be older. *C: The Contra Adventure* (PS1, 1998) checked 2026-11-26: **negative**, no GWB traces (own `CDI`/`POS`/`PRE` level format; `docs/GDW_FORMAT.md`). The Defender Dreamcast prototype of 2000-02-17 checked 2026-11-26: also 2.1.12.1 (sound banks from Aug 1999), so no older format is reachable through Defender builds; it has three cut levels (`docs/ecco_leftovers.md`). No candidate left on hand.
-  7. **Housekeeping (user request, 2026-11-26):** (a) ~~clear the session scratch folder~~ (cleared 2026-11-26; originals stay in `download-check/`) was: clear the session scratch folder (~4.5 GB: unpacked Defender PAL/US/Feb-2000 discs and their level files, PS1 *Wacky Races*, *Contra*, the Sentinels `0.BIN` Ghidra project, decompile outputs, doc backups); everything is rebuildable from the originals in `download-check/` and the ECCO folder, and the findings are in the docs. Kept for now at the user's request. (b) ~~Ghidra helper `RefsDecomp.java`~~: moved to `scripts/ghidra/` 2026-11-26. Was: decide on (decompiles functions that reference given addresses, plus functions containing given addresses; currently outside the repo in the Ghidra tools folder): move it into `scripts/ghidra/` with the GPL header, or delete it. (c) ~~Dreamcast PVR texture decoder~~: moved to `scripts/pvr_decode.py` 2026-11-26. (d) `particle_compare/` in the project folder holds extracted game textures: keep it out of the public repo.
-  8. **Cancelled Appaloosa projects (user information, 2026-11-26):** Mermaid tech demo (videos 2001-01-05; `MBMermaid`/`MBMissile`/`MBLovedek` already registered in the US Defender master, mid-2000), Parrot first-person demo (design only), *Smurfs* (©2002, PS2 developer build on video). Details: `docs/ecco_leftovers.md` "Cancelled Appaloosa projects" and "Smurfs video (2002)". Open: no build of the Mermaid demo or *Smurfs* is public, so whether they used GWB (and which version) can't be checked; if one surfaces, check the `GDED` preamble, version and class registry. The *Smurfs* gift-bomb sparkles resemble Jaws's `CageHitEffect` (texture `0x1DA`); the exact Jaws image is in no Ecco build (Defender DC/PS2, Sentinels), so it dates after Feb 2001; whether it came from *Smurfs* needs *Smurfs* files. **Twofish / *SmartyAnts* (2010):** installers checked, they hold no game data (`docs/ecco_leftovers.md`). Files to look for (Wayback Machine or elsewhere): `http://s3.amazonaws.com/SA_boot/SmartyAnts.start.pack`, `…/launcher.exe`, `…/updater.exe`, `…/dx.pack`, `…/contentState.txt`, `…/SmartyAnts-Launcher.jar` (Mac; maybe under a variant folder like `macus/`), the folder listing `…/SA_boot/`, and the same under `smartyants.com.nefficient.co.kr/SA_boot/`; the user found none (2026-11-26). If a `.pack` turns up: check for a `GDED` header, GWB chunk tags, `EXBY` logins, and for Torque traits (TorqueScript `.cs`/`.dso`, `.dts`/`.dif`/`.dae` models) to confirm the engine suggested by the installer's `c:\Torque\anttools\` build path.
+---
+
+## Contents
+
+1. [Level scripting (`GDControl`)](#1-level-scripting-gdcontrol)
+2. [Skeletons](#2-skeletons)
+3. [Custom levels](#3-custom-levels)
+4. [Draw distance](#4-draw-distance)
+5. [Property values and render flags](#5-property-values-and-render-flags)
+6. [Undecoded data](#6-undecoded-data)
+7. [Cut content](#7-cut-content)
+8. [Speedrun: push barriers](#8-speedrun-push-barriers)
+9. [Engine history (GWB)](#9-engine-history-gwb)
+10. [To do](#10-to-do)
+11. [Solved](#11-solved)
+
+---
+
+## 1. Level scripting (`GDControl`)
+
+Scripting is decoded and custom triggers work (`docs/brtr_editing.md`). Still open:
+
+- What node flag `0x400000` does (ops `0x2000`/`0x4000`).
+- Why "kill" leaves an object solid. Suspend, hide, or clearing `0x10`/`0x40` each remove it fully (user-tested).
+- Spawn modes 3 vs 4.
+- How quest code starts controls that no other control starts.
+- Whether the dangling `missing#` targets are deleted objects or runtime-created ones.
+- Which engine code creates group-node actions at load. Not traced.
+
+---
+
+## 2. Skeletons
+
+Skinning and animation are solved (`docs/animation_system.md`). Still open:
+
+- Bone names.
+- How bodies bind to the shared human skeleton (`GlobalSkeletonAnim`) at runtime.
+- Playback rate.
+- `MORF`.
+
+---
+
+## 3. Custom levels
+
+Custom levels work end to end (`docs/custom_level_tutorial.md`). Still open:
+
+- **The fade-out test for very large objects:** pivot, bounding sphere or distance? Worked around by tiling.
+- **`OssLoadChecker.m_type` values** ↔ prompt slots.
+- **Exits to other destinations** than the base level's own. Needs a new `GDLoad` stage name per zone.
+- **Strip lists** for base levels other than FISH.
+- **The minimap** still shows FISH's map picture.
+- **Level music:** whether to drop the 41 MB `SndMusic`. Undecided.
+
+---
+
+## 4. Draw distance
+
+The mod's `Shift+F4` far view works (user-confirmed 2026-11-25, used in normal play). Still open (`docs/rendering_system.md`):
+
+- **Why an underwater far plane past ~400 breaks visibility:** shipwreck flicker, barriers only up close, NPC culling. Maybe the same mechanism as the large-object fade.
+- **What crashed at 2500.**
+- **The camera's linked objects** at `+0x2E4` / `+0x2EC`. Their `+0x50` is the far plane used when crossing the surface.
+
+---
+
+## 5. Property values and render flags
+
+Every `PROP` ID has an exact name, from the level's `CLAS` field table (`docs/scene_graph.md`). What's open is what the **values** mean:
+
+- **Bit layouts** of the named fields, e.g. `m_Viewport`. Only `0x20003` = above + underwater is confirmed.
+- **Hidden companion nodes:** which of `m_StaticLights`, `m_RenderSetting` or missing vertex colours hides the companion layer.
+- **`TFLG` per-triangle flags.** Generated collision with all edge bits set works.
+
+---
+
+## 6. Undecoded data
+
+- **`MOIL`** inside `GMOA` (~66 KB). Maybe AI path or navigation data.
+- **Unused material data:** extra `TEXP` layers beyond the base texture, and `GMAT` colour, shininess and transparency parameters.
+- **PS2 `BNCH`:** how its ~1,272 80-byte transform records map to the 3,495 names.
+
+---
+
+## 7. Cut content
+
+Details in `docs/cut_content.md`.
+
+### Hot Pursuit restoration
+
+The quest plays end to end in `PURSUIT` (`scripts/build_pursuit_test.py`). To do:
+- End the jet ski's route in open water. It rams the bank at the canal's north-west corner.
+- Several jet skis, plus boss jet skis (`m_JetSkiBossIDList`).
+- Solid gates.
+- On-screen goal text, via message overrides.
+- Maybe an open-water version near the lighthouse, matching the goal text.
+
+Not yet understood:
+- `ANPosition` fields beyond route, speed and crew.
+- Why some boats (top-level sailboats with tiny boxes) aren't removed outside their box.
+- The details of `RequestStage` flag 2.
+- `0x69AC70(0x8000)` on the fail path.
+
+### Hot Pursuit's original scope
+
+- Did the mission span MINEMSHA (canals) and OPEN_NE (lighthouse, `HOTPURSUIT` marker) as one sequence, or were they two separate ideas?
+- Which lighthouse the goal text means. The modelled Coast Guard HQ one is the best candidate, but it's ~5,900 units from the `HOTPURSUIT` marker.
+
+### Aurora rope fight
+
+`NAAuroraRope` is decompiled (`docs/cut_content.md` §3). Still open:
+- `NARope` base fields (segment setup).
+- `NAAuroraRopeBuoyRopeInteractor`.
+- The state set to 6 on reel-in.
+- `MBAurora`'s collision mask `0x4000`.
+- **Placing a working rope in START.** Needs the rope, `MBAurora`, rock excluders, HUD wiring and a movie.
+- Side item: the `Kotelszakito` copies in FISH and `OPEN_*`.
+
+### Old Brody
+
+The older Brody model on the boss Aurora is checked (`docs/cut_content.md` §4). Open: compare it with the beta screenshots and trailer.
+
+---
+
+## 8. Speedrun: push barriers
+
+- How the shark turns buoy (`ANTol`) and current (`NAWhirl2000`) pushes into motion.
+- Whether a terrain clip exists without no-clip.
+
+See `docs/speedrun_glitches.md` §13.
+
+---
+
+## 9. Engine history (GWB)
+
+Most lineage questions are answered (`docs/gwb_lineage.md`). Still open:
+
+**Defender builds:**
+- Retail Dreamcast vs the dev builds, in detail.
+- The PS2 Defender program's loader.
+- Testing the Feb 2000 prototype's three cut levels in an emulator (`docs/ecco_leftovers.md` §8).
+
+**Jaws symbols from `ECCO.ELF`:**
+- More function names: loosen the call-graph thresholds, or match non-virtual engine code by hand.
+- Finish the `GDBrick`/`GDBase` mapping: `+0x18`, `+0xE8`, `+0xF0`, `+0xF4`.
+- Whether `EXTR`/`SoulContainer` code shows up in Defender's symbols.
+
+**The May 1999 Defender builds** (`docs/gwb_lineage.md` §4):
+- What the shark's `STOP` message means. How `Ctrl.cpp` `0x8C0455BC` moves Ecco on `DRAG`/`PULL`.
+- `SharkTrap` (a 5 KB `Execute`) in detail.
+- The `Victim.cpp` classes.
+- Names for the slot-7 `GetFactory` getters.
+- Compare the 1999 levels (`2_OPEN`, `3_REEF`, `5_ATLANTIS`, `6_VICTIM`, `7_LOADING`) with their shipped versions.
+- Decode the `.INP`/`.GSG` demo recordings.
+- The 2 unresolved assert line numbers.
+- The second slot block (~2,600 slots) outside the main vtable block.
+- Match the "Ecco 3D" viewer program (May 6) separately. Same asserts; 5 files differ.
+
+**Exporter logins** (`docs/gwb_lineage.md` §7): `balage` and `Zolcsika` are ambiguous; `gyozo`, `martens` and `AnChoR` are unmatched. Only compare against published credits; don't research private people.
+
+### Other titles
+- Did any Appaloosa title from 2001–2005 use GWB? No GWB 1.x has been found either.
+- **Mermaid demo and *Smurfs*:** no files are public. If one surfaces, check the `GDED` preamble, version and class registry. Whether Jaws's cage sparkle (`0x1DA`) came from *Smurfs* needs its files.
+- ***EdgeRacers*** (Twofish.hu, finished but shelved): engine unknown. Ways to answer: a build, a former developer's memory (Ed Annunziata wasn't on the GWB games; former Appaloosa staff, e.g. at A&R Atelier, would know), or in-game video.
+- ***SmartyAnts*** (2010): the installers hold no game data. Files to look for, e.g. on the Wayback Machine:
+  - `http://s3.amazonaws.com/SA_boot/SmartyAnts.start.pack`, `…/launcher.exe`, `…/updater.exe`, `…/dx.pack`, `…/contentState.txt`;
+  - `…/SmartyAnts-Launcher.jar` (Mac; maybe under a folder like `macus/`);
+  - the folder listing `…/SA_boot/`;
+  - the same under `smartyants.com.nefficient.co.kr/SA_boot/`.
+
+  The user found none (2026-11-26). If a `.pack` turns up, check for a `GDED` header, GWB tags and `EXBY` logins, and for Torque traits (`.cs`/`.dso` scripts, `.dts`/`.dif`/`.dae` models).
+
+---
+
+## 10. To do
+
+- **Sweep all levels for stray objects** (user request, 2026-11-25), like MINEMSHA's `k2 03`:
+  - nodes outside the playable area;
+  - meshes from another level's set at an odd scale;
+  - shrunk or hidden copies;
+  - nodes nothing refers to (no child list, `GDControl`, reference or action).
+
+  Aim: find real leftovers without spotting them in-game. Expect mostly junk.
+- **Housekeeping:** `particle_compare/` holds extracted game textures. Keep it out of the public repo.
+
+---
+
+## 11. Solved
+
+Kept short; details are in each topic's doc.
+
+**Formats and scenes:** FISH whale position, scene mesh-index mismatch, static terrain (in `BRTR`), skeletal animation, parent-child hierarchy, `SCRT`, `SKIP`, texture–mesh link, Blender mirroring, `BRTR` false-positive offset, `PRIM`, `STRI`/BVH layout, "GTEXT" (not a tag), class ID → name, all `PROP` IDs named (2026-11-25).
+
+**Level editing (2026-10-03/04):** new nodes, custom meshes, collision, textures and transparency, Blender scene export, blank base levels (`--minimal`, `--blank`), in-game reload (F10), `GDControl` scripting, custom triggers, large-object fading (tiling), area triggers and exit zones, stage redirect, message tables, the custom-level kit and tutorial, custom levels as their own stage (F9), resource pruning.
+
+**Audio:** cutscene voice acting (`SMPC`, 2026-10-03).
+
+**Cut content checks:** BEACH "cut objective" (not cut, 2026-10-03), MINEMSHA's stray rock `k2 03` (2026-11-25).
+
+**Exe and mod:**
+- Defender debug build: `0.BIN` is junk, but `ECCO.ELF` has full symbols; 812 Jaws functions named (2026-11-25).
+- Text-format levels load in-game (2026-11-25). Closed by the user as not practical.
+- The mod overlay leaking into render-to-texture passes: fixed by drawing in `Present` (2026-11-25, user-confirmed).
+
+**Engine history (2026-11-26):** Sentinels `EXTR`, header/footer dating, the Defender DC vs PS2 comparison, the `jts` = Tamás Jutasi match, *Wacky Races* and *Contra* (not GWB), the May 1999 builds (GWB 2.1.1.6), the "2007 Xbox Ecco" (emulation, not GWB), scratch-folder cleanup, `RefsDecomp.java` and `pvr_decode.py` moved into `scripts/`.

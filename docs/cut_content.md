@@ -1,61 +1,96 @@
-# Cut Content — Detailed Findings
+# Cut content
 
-> Moved here from `CLAUDE.md` on 2026-10-02 to keep that file under its size limit. Text is verbatim.
+**In short:** *Jaws Unleashed* still contains a cut story stage (*Hot Pursuit*), a cut tutorial ending (the Aurora rope fight), a cut side challenge, an older Brody model, and many small leftovers. Some things that looked cut turned out to be in the game after all. This doc lists both.
 
-## Cut missions, characters, areas, collectibles
+Rewritten for readability on 2026-11-27. The previous version, with every dated correction, is in `docs/archive/cut_content_old_2026-11-27.md`.
 
-Identified by searching `game_binary/Jaws.exe` for strings and class names not present in the shipped game. All findings below are from the PC binary.
+---
 
-**Cut missions:**
+## Contents
 
-| Name | Evidence | Notes |
+1. [Summary](#1-summary)
+2. [Hot Pursuit: a cut story stage](#2-hot-pursuit-a-cut-story-stage)
+3. [Cut tutorial ending: the Aurora rope fight](#3-cut-tutorial-ending-the-aurora-rope-fight)
+4. [Old Brody model on the boss Aurora](#4-old-brody-model-on-the-boss-aurora)
+5. [Other cut missions and stage slots](#5-other-cut-missions-and-stage-slots)
+6. [Cut places and collectibles](#6-cut-places-and-collectibles)
+7. [Small leftovers in the levels](#7-small-leftovers-in-the-levels)
+8. [Dangling script references](#8-dangling-script-references)
+9. [Not cut after all](#9-not-cut-after-all)
+10. [*Sole Predator*: the working title](#10-sole-predator-the-working-title)
+
+---
+
+## 1. Summary
+
+| What | Status | Section |
 |---|---|---|
-| **Down the Hatch** | `MSHatchMission` class; string `" -, Down the Hatch (unused!)"` in stage select list; objective text `SWALLOW %d COLLECTABLES WITHIN %d SECONDS.` | Side challenge where Jaws must swallow a set number of spawned collectables before the timer expires. Three difficulty levels via `m_EasyNum`/`m_MediumNum`/`m_HardNum` and matching time limits. Uses the shark's built-in swallow animation (same mechanic as shipped SC22 The Gauntlet, which uses `COLLECT %d TIRES`; "Down the Hatch" is the simpler, earlier version — no ships or seekers, just eat-items-in-time). Not instantiated in any GDW's BRTR; cut before level placement. |
-| **Hot Pursuit** *(cut story stage, not side content — corrected 2026-08-12, was catalogued as two separate entries "Jet Ski Mission" + "Pursuit")* | Official title confirmed via PS2 exe (`SLUS_210.62`) stage-name string table, sitting between "Blood on the Beach" (M10) and "The Final Chase" (M11). **Confirmed 2026-08-15: the PC `game_binary/Jaws.exe` carries the identical stage-name string table entry, same list position** (`...The Final Chase   Hot Pursuit   Blood on the Beach...`) — the PC binary itself, not just PS2, ships with the dead stage name still compiled in, alongside the goal/failure mission text already documented below. Implemented by `StagePursuitQuest`/`StagePursuitQuest2`/`...QuestEvent` (`m_JetSkiIDList`, `m_JetSkiBossIDList`, `m_GateIDList`/`m_GateOpenPosIDList`/`m_GateClosePosIDList`/`m_GateOpenerIDList`, `m_OnBossFight`, `m_PursuitLostDist`). **Confirmed a cut STORY mission, not a cut side challenge, on two independent grounds:** (1) its classes use the `Stage*Quest` naming convention shared by every other real story mission (`Stage0Quest`, `StageBeachQuest`, `StageDeepSeaQuest`, etc.) — completely distinct from the side-challenge naming grammar (`...Mission`, `ANSideMission#`, `BGSideMission#`, `MBSideMission#`); (2) it sits interspersed directly in the numbered M01–M11 sequence in the PS2 stage list, not grouped with the free-roam zone/side-area names clustered at that list's tail. Likely occupied one of `MSStageSelect`'s 7 unused stage slots (18 total, 11 shipped), probably as M11, pushing the shipped "The Final Chase" mission down a slot. Goal text: *"Locate the jet skiers near the lighthouse and stop them from reaching the home of Amity Police Chief Candy Wilson."* Failure: *"The jet skiers have escaped!"* Plus a typo'd duplicate objective line, `"Destroy all the jets kis!"`, sitting next to the correct `"Destroy all the jet skis!"`. **Note: Candy Wilson is not the boss.** `m_JetSkiBossIDList` (a *list*, i.e. tougher enemy jet-ski riders) and `m_OnBossFight` describe a separate boss-fight segment within the chase — Candy Wilson only ever appears in the text as the jet skiers' destination, never as a combat target. The player is the shark, so the house isn't something the player protects: it's where the jet skiers flee for safety, and the goal is to catch them before they get there (corrected 2026-10-11, user-pointed-out; earlier wording said the player protects her home). **Real placed content found in two GDWs, not just code stubs:** (1) `MINEMSHA.GDW` (= Grand Occasus Canals, see below) has `JetskiChase`/`jetski 1`/`jetskipath` clustered within ~3 world units of each other at `(-1254, 0, -787)`, plus `jetski_mountpoint`/`ccjetski` unique to this file — and a jet ski with an NPC stuck in A-pose (bind/rest pose) reproducibly spawns at this exact spot in the shipped PC game. (2) `OPEN_NE.GDW` has a bare, dimensionless anchor node literally named `HOTPURSUIT` (world `(612.5, 0, 3626.4)`, no mesh, AABB min==max) sitting ~338 units from the `Brody's House` map-UI marker (world `(929.7, 0, 3508.8)`) — and in-game, that map location has no house built there at all, consistent with a mapped mission-endpoint that was cut before its building was placed. Gate fields (previously unexplained for an open-water chase) make sense as canal lock/sluice gates given the Grand Occasus Canals connection. **Lighthouse update (2026-08-13, user-prompted):** `OPEN_NE.GDW` actually has two lighthouses — `Lighthouse02` (previously the only one checked) is a bare placeholder mesh with no thematic neighbors, ~4,270 units from `HOTPURSUIT` — a weak candidate. A second, fully-modeled lighthouse (~15 Hungarian-named parts, `vilagitotorony_*`) sits only ~400 units from `MapItemPos_Coast Guard HQ`, a real named OPEN_NE landmark, matching the user's in-game recollection of a lighthouse near the Blood on the Beach stage entrance. Still ~5,900 units from the `HOTPURSUIT` cluster, so not proven adjacent, but plausible for an open-water chase. **Canal content structurally characterized (2026-08-14):** `JetskiChase`/`jetski 1`/`jetskipath`/`ccjetski` aren't a standalone system — they're nested inside `SM16UpACreek`'s (the real, shipped SC15 "Up a Creek") own object tree, added as a fourth entry alongside its real ambient sailboat/rowboat/canoe traffic (matching path/crew-slot/camera-control structure). `ccjetski`'s ~24 AI tuning fields are near-identical to the confirmed-shipped boats' (same speed, same thresholds) — no elevated/aggressive pursuit tuning found. Picture: an early integration step (jetski bolted onto existing traffic scaffolding with placeholder tuning), not a finished chase encounter that got cut late. See `docs/mission_system.md` for full detail. **Game code decoded 2026-10-10 (`docs/exe_analysis.md`, "Cut story mission Hot Pursuit"): the mission logic is fully compiled into the shipped PC exe.** `StagePursuitQuest2` is a complete mission: jet skis race through a chain of gates that open ahead of them (within 150 units of an open marker) and close behind them; you fail with "The jet skiers have escaped!" if the nearest jet ski gets farther than `m_PursuitLostDist` from the shark; once all gates are shut, an end-of-route event (message 5) starts the boss fight ("Destroy all the jet skis!", `m_OnBossFight`); killing every jet ski and boss jet ski fires `m_OnAccomplished`. `StagePursuitQuest` is an earlier draft where each kill opens the next gate and reroutes the survivors to another waypoint group. `OOOOOOZZZZZ`/`NNNNNNZZZZZ` are those waypoint-group letter sequences, not cheats. **Playable proof of concept (2026-10-10, user-tested):** `scripts/build_pursuit_test.py` puts a `StagePursuitQuest2` in a copy of MINEMSHA (custom level `PURSUIT`, mod F9), on the canal's leftover `jetski 1`. In-game the gate opens, the lose condition fires and restarts the stage, the end zone starts the boss phase ("Destroy all the jet skis!") and killing the jet ski completes the mission. **v9 (2026-10-11):** the whole sequence now runs through the real gate logic: a jet ski on a copy of the canal sail boats' route passes two gates that open ahead of it and shut behind it, then the boss phase and win. **v10:** with speed 120 and the ocean boats' turn/stop distances the jet ski drives the route on its own. Still open: it rams the bank at the route's end, and the build has one jet ski, no boss jet skis and see-through gates. Details in `docs/exe_analysis.md` "Running it in-game". |
+| *Hot Pursuit*, a jet-ski chase between stages 10 and 11 | Cut. Code complete; we made it playable. | §2 |
+| Candy Wilson, Amity Police Chief | Cut. Text only. | §2 |
+| Aurora rope fight at the end of the tutorial | Cut. Code complete; never placed. | §3 |
+| An older Brody model and his animations | Leftover, partly visible | §4 |
+| *Down the Hatch* side challenge | Cut. Code only. | §5 |
+| Side challenges 26–32 | Removed | §5 |
+| Highlands Bay | Cut. Name only. | §6 |
+| Trident collectible | Never placed | §6 |
+| Loose orca insides in AQUARIUM (PC) | Leftover | §7 |
+| Static cage gate outside the orca arena | Leftover | §7 |
+| Tiny rock `k2 03` in MINEMSHA | Leftover | §7 |
+| Calmer alternate voice take in TOWN | Unused | §7 |
+| 327 deleted objects still named in scripts | Leftovers | §8 |
+| BEACH "submarine" and blocking boulders | **Not cut** | §9 |
+| Dolphin Passage | **Not cut** | §9 |
+| The Gauntlet mermaid | **Not cut** | §9 |
 
-**Cut character:**
-- **Candy Wilson** — Amity Police Chief. Referenced only in the Hot Pursuit mission text (all five languages, exactly 5 occurrences total — not duplicated per quest class), and only in the **PC** build. No class name, scene placement, or mesh anywhere in any of the 20 GDWs, including `MINEMSHA.GDW` itself (confirmed 2026-08-13), and **confirmed absent from the entire PS2 build (2026-08-15)** — zero occurrences of "Candy" or "Wilson" in `GAME_GDWs/ps2/SLUS_210.62` (the PS2 exe) or in any of the 12 per-level text tables in `GAME_GDWs/ps2/STRDATA/*.MIC`; PS2's jet-ski mission text is a shorter version with no police-chief/lighthouse framing at all (see `docs/ps2_cut_content_findings.md`). The text is in the PC exe only, but that doesn't date it: **Correction (2026-10-11):** the PS2 exe is missing the PC's whole mission-goal text pool, not just this line: shipped goals like "BEAT THE COLOSSAL SQUID BOSS!", "FIND AND DESTROY THE FIVE CONTROL ROOMS" and the facility-turbine lines are absent from `SLUS_210.62` too (its only "lighthouse" strings are movie trivia). So the Candy Wilson line's absence on PS2 says nothing about when it was written or cut; the PS2 build just keeps its goal text elsewhere (not located) or has no such briefing text. The "written after the April 2006 PS2 build" dating is withdrawn. Her house's intended location may be identified: see the `Brody's House` empty-lot finding under Hot Pursuit above. Her mission text sits inside a large shared "mission goals" localization pool used by many missions' briefing screens (unrelated M08/M09 text sits immediately adjacent), so static analysis can't confirm whether `StagePursuitQuest`, `StagePursuitQuest2`, or both reference this specific string at runtime. Note "Brody" itself is a separate, real (non-cut) character elsewhere in the game — an animated skeleton with Aurora/Coast Guard cutscene clips (`MBrody_AuroraComesMovie`, `MBrody_GrabHarpoonMovie`, etc.) tied to `KATATAMA.GDW`'s M05 content — so "Brody's House" as a map label is not itself cut content, it's just sitting empty at the spot the cut mission also anchors a marker to.
+---
 
-**Correction (2026-08-14) — "Dolphin Passage" is NOT cut content; only Highlands Bay is.** Both names were originally flagged together because neither maps to any of the 32 side missions or 11 story missions — but "not tied to a mission" was wrongly read as "cut from the game." User reported directly encountering Dolphin Passage in-game, sitting right at the `OPEN_S`↔`OPEN_NE` zone-transition boundary. Verified: `MapItemPos_Dolphin Passage` exists in **both** `OPEN_S.GDW` and `OPEN_NE.GDW` at the **identical** world position `(4693.3, 0, -2267.0)`, and each file has a real `From*`-prefixed zone-transition marker (the naming convention confirmed via `START.GDW`'s `FromStart1`/`FromOpenOcean`, see the BEACH/DOCKS/TOWN transition-marker sweep above) sitting close by — `FromS` in `OPEN_NE.GDW` (187 units away) and `FromNE` in `OPEN_S.GDW` (839 units away, the closest `From*` marker to it in that file by a wide margin). Dolphin Passage is simply the named water channel connecting Open Ocean South and Open Ocean East — real, shipped, playable geography with no dedicated mission attached, not cut content.
+## 2. Hot Pursuit: a cut story stage
 
-**Highlands Bay remains genuinely cut/unused, now more strongly confirmed.** Checked for a `MapItemPos_Highlands Bay` (the actual 3D position marker, as opposed to the generic `MapItem_Highlands Bay` UI-icon slot every catalogued location gets automatically) across all three Open Ocean zones (`OPEN_S`, `OPEN_NE`, `OPEN_NW`) — found in none of them. No real position was ever assigned to it anywhere.
+**In short:** a jet-ski chase that sat between stage 10 *Blood on the Beach* and stage 11 *The Final Chase*. Its mission code is complete in the PC game. Pieces of it are placed in two levels. We got it running as a custom level.
 
-| Name | Position in string table | Status |
-|---|---|---|
-| **HIGHLANDS BAY** | Between ENVIRONPLUS MINING SITE and BRIDGEPORT SOUND | Cut/unused — appears in the map-name string table and the generic map-icon UI list, but has no `MapItemPos_` (real 3D position) anywhere in `OPEN_S`/`OPEN_NE`/`OPEN_NW`. |
-| ~~DOLPHIN PASSAGE~~ | ~~Between AMITY ISLAND and OLD SOUTH BEACH PIERS~~ | **Not cut — real, shipped `OPEN_S`↔`OPEN_NE` zone-transition channel, confirmed in-game and in data (see correction above).** |
+### What it was
 
-**Stage slot evidence:**
-The `MSStageSelect` data structure contains fields `m_Stage1ID` through `m_Stage18ID` — 18 stage slots total. The shipped game has 11 story missions. The 7 extra slots (stages 12–18) were likely reserved for cut story missions. Named stage quest classes that do not map to shipped missions: `StagePursuitQuest/2`, `StageDocksQuest` (DOCKS.GDW has its own dedicated quest stage).
+- **Goal text:** *"Locate the jet skiers near the lighthouse and stop them from reaching the home of Amity Police Chief Candy Wilson."*
+- **Failure text:** *"The jet skiers have escaped!"*
+- **Boss phase:** *"Destroy all the jet skis!"*. Next to it sits a typo'd copy, *"Destroy all the jets kis!"*.
+- The jet skiers flee to Candy Wilson's house for safety. The shark has to catch them first.
+- **Candy Wilson is not the boss.** The boss is a list of tougher jet-ski riders (`m_JetSkiBossIDList`).
 
-**User theory investigated (2026-08-14) — do the 7 unused story slots correspond to side challenges that reuse cut story content?** User noted exactly 7 side challenges have opening cutscenes and suspected a link to the 7 unused slots above. Confirmed the count: **SC01 Barrels of Fun, SC02 Seal Whip, SC03 Bay Patrol Blood Bath, SC06 Flip the Bird, SC07 Reality TV, SC12 Trouble and Strife, SC19 Get Mr. Stripes** all have real, positioned cutscene-trigger objects in BRTR data (found by matching `*Movie*`-named nodes against each mission's location, not by class fields — most of these classes, e.g. `FlipTheBirdMission`, carry no movie reference in their own fields at all; `BGSideMission8`/Reality TV's `m_MovieID` is the sole exception). Two of the seven — Trouble and Strife (`START.GDW`) and Get Mr. Stripes (`WRACK.GDW`) — are hosted inside dedicated story-mission GDWs rather than the shared Open Ocean pool the other 25 side challenges use, a real and unusual amount of investment for side content. **No direct proof of reuse found**, though: neither class carries leftover `Stage*Quest`-style fields (`GetMrStripMission` is in fact minimal — just `m_FishList`), neither uses the `Ch<N>intro` chapter-tag convention that revealed Flip the Bird's internal "SC7"/display "SC06" mismatch, and the one dataset that could settle this directly — `MSStageSelect`'s actual bound slot values — wasn't found; every match in `TITLE.GDW` was shared class-definition metadata, not a live instance. The real instance likely lives in `TITLE.GDW`'s `SCRT` tree (menu/overlay chunk, structurally decoded elsewhere in this doc but not parsed for this specific object) — decoding it is the next step if this is revisited. Full writeup in `docs/mission_system.md`'s "Side challenges with opening cutscenes" section.
+### Why it's a story stage, not a side challenge
 
-**Cut collectible category — Trident only (found 2026-08-13, corrected same day):** the shipped `CollectibleGameObject` completionist system (license plates, tin cans, treasure chests, etc. — the `"YOU'VE FOUND A TIN CAN"`-style reward text in `Jaws.exe`) has a numbered catalog of 13 item categories. Categories 01–08 all have real placed `CGO_`-prefixed pickup instances somewhere across the 20 GDWs. **First pass wrongly concluded categories 09–13 (Pirate Ship, Trident, Body Bag, Mermaid, Nautilus) were all cut** — that check only searched for the `CGO_` naming convention. User reported finding Pirate Ship, Body Bag, Mermaid, and Nautilus in-game, prompting a re-check that found three more real per-level naming conventions (`BSCollectibleGameObject <Name>`, `<Name>Collectibles`, bare names) — all four of those categories are genuinely placed somewhere (`AQUARIUM`: Nautilus, `KATATAMA`/`GAUNTLET`: Mermaid, `START`/`TOWN`: Body Bag, `DOCKS`: Pirate Ship). **Only Trident remains unplaced anywhere** under any known naming convention, across all 20 GDWs — a fully modeled, unused 208-triangle mesh (`WRACK.GDW`'s `TridentStaff`) that never got placed as a pickup. **Diamond Necklace (category 06) double-checked and confirmed real** after the user recalled a 100%-completion guide not listing it for `WRACK.GDW` — decoded the marker's full instance fields (see PROP ID table above), found no broken reference, then live-tested by scaling the marker 10x in a deployed copy of `WRACK.GDW` (backed up, md5-verified, later reverted) — user confirmed the necklace is clearly visible in-game at 10x. The user's original guide recollection turned out to be a mix-up with the Trident; the guide does list the necklace. This also reinforces the Trident finding, since it shows the guide does track rare one-off items carefully. Full writeup with the complete category table and all naming conventions in `docs/mission_system.md`.
+- Its classes are named `StagePursuitQuest` / `StagePursuitQuest2`, like every real story mission (`Stage0Quest`, `StageBeachQuest`, …). Side challenges use other names (`…Mission`, `ANSideMission#`).
+- The stage-name lists in both the PS2 and PC programs put "Hot Pursuit" between *Blood on the Beach* and *The Final Chase*.
+- A developer level-select menu in `TITLE.GDW` lists it as **"10.Hot Pursuit"**. See below.
 
-**ANSideMission internal numbering gap:**
-The five shipped `ANSideMission` classes map to display SC numbers as follows: class 15 → SC14, class 21 → SC20, class 22 → SC21, class 25 → SC24, class 33 → SC29. Classes 15/21/22/25 are all exactly 1 higher than their display number. Class 33 maps to SC29 (offset of 4), meaning **classes 26–32** existed internally but were removed — at least 3 cut side challenges in that range, compressing the display numbers from 25 onward. "Down the Hatch" (`MSHatchMission`) likely occupied one of those removed slots. See `docs/mission_system.md` for the full mapping table.
+### How the mission code works
 
-## Hot Pursuit: playable restoration (2026-10-10/11, user-tested)
+Fully compiled into `Jaws.exe`. Details: `docs/exe_analysis.md` "Cut story mission Hot Pursuit".
 
-The cut story mission's quest code (`StagePursuitQuest2`, fully compiled into the PC exe, never placed in any level) now runs in the shipped game, on the canal leftovers in `MINEMSHA.GDW`.
+1. Jet skis race through a chain of gates. Each gate opens when a jet ski comes within 150 units and shuts behind it.
+2. If the nearest jet ski gets farther than `m_PursuitLostDist` from the shark, you fail.
+3. Once all gates are shut, an end-of-route event starts the boss fight.
+4. Killing every jet ski and boss jet ski completes the mission.
 
-**Play it:**
-```bash
-python3 scripts/build_pursuit_test.py --deploy PURSUIT   # stock MINEMSHA -> edited_levels/PURSUIT.GDW -> custom_levels/
-```
-Then press F9 in-game and pick PURSUIT (needs the mod; no stock file is changed). `--stock-jetski` builds the simpler v5 version on `jetski 1`'s cove loop, with gate closing off.
+`StagePursuitQuest` is an earlier draft: each kill opens the next gate and sends the survivors to another waypoint group. The "cheats" `OOOOOOZZZZZ` and `NNNNNNZZZZZ` are those waypoint-group letter sequences, not cheats.
 
-**What you get (v10):** one jet ski with a rider starts at the north edge of the cove and races up the main canal on its own, on a reversed copy of the sail boats' canal route. Two pink gate walls on the route vanish as it approaches (gate opens) and come back once it's 150 units past (gate shuts). Fall more than 700 units behind and you get *"The jet skiers have escaped! Mission failed!"*, then the stage restarts. Reach the yellow cube at the canal's north end after both gates have shut and *"Destroy all the jet skis!"* starts the boss phase. Killing the jet ski completes the mission, shown by the blue pillar near the spawn vanishing. SC15's stock `jetski 1` and its rider are removed from this copy.
+### What's placed in the levels
 
-**Known issues:** the route ends in the canal's north-west corner, so the jet ski drives into the bank there. Only one jet ski, no boss jet skis (`m_JetSkiBossIDList`), gates are see-through markers, no goal text on screen. In the boss phase, swimming far away despawns the jet ski, which counts as a kill.
+**`MINEMSHA.GDW`** (Grand Occasus Canals):
+- `JetskiChase`, `jetski 1`, `jetskipath` and `ccjetski`, all within ~3 units of `(-1254, 0, -787)`.
+- They sit inside SC15 *Up a Creek*'s boat traffic, as a fourth entry beside the sailboats, rowboats and canoes.
+- Their AI tuning is the same as the ordinary boats', so this was an early test step, not a finished chase.
+- **In the shipped game a jet ski with a rider in A-pose spawns at this exact spot.**
 
-**Story placement:** a numbered story stage between M10 *Blood on the Beach* and M11 *The Final Chase*, going by the stage-name lists in both the PS2 exe and the PC exe and the `Stage*Quest` class naming. The goal text (*"Locate the jet skiers near the lighthouse and stop the jet skiers from reaching the home of Amity Police Chief Candy Wilson"*) points at open water near a lighthouse ending at a house, which fits the `OPEN_NE` leftovers (`HOTPURSUIT` marker by the empty Brody's House lot) better than the canal. The canal holds the mission's placed leftovers, so it may have been an earlier test bed; the final intended layout isn't known.
+**`OPEN_NE.GDW`:**
+- A bare marker named `HOTPURSUIT` at `(612.5, 0, 3626.4)`, with no mesh.
+- It is ~338 units from the `Brody's House` map marker, where no house was ever built. That fits a mission end point cut before its building was placed.
+- Lighthouses: `Lighthouse02` is a bare placeholder ~4,270 units away. A fully modelled one (`vilagitotorony_*`) is ~5,900 units away, near the Coast Guard HQ.
 
-**How it works and what it took** (10 test builds): `docs/exe_analysis.md` "Cut story mission Hot Pursuit", "Running it in-game" and "Getting the jet ski to race".
+The goal text (a lighthouse, open water, a house) fits `OPEN_NE` better than the canal. The canal may have been an early test bed. The final layout isn't known.
 
-## Developer level-select menus in TITLE: Hot Pursuit is stage 10 (found 2026-10-11)
+### The developer level-select menus in TITLE
 
-`TITLE.GDW` holds five level-select menus as plain-text `ACTN` blocks (class `0x0211D11C`, IDs 1089–1093). Each is up to 20 pairs of `[label string][action ID]` in PROPs `0x08000B46`–`0x08000B69`, and the menu's own name (`PROP 0x080017C3`) comes **after** its list. Read the name after the list, not before it: a strings dump makes each list look like it belongs to the next menu's name.
+`TITLE.GDW` holds five level-select menus as plain text. The PS2 `TITLE.GDE` has the same five.
 
 | ID | Menu name | Entries |
 |---|---|---|
@@ -63,259 +98,542 @@ Then press F9 in-game and pick PURSUIT (needs the mod; no stock file is changed)
 | 1090 | `Level Select Action Marketing Version` | 1.The Arrival, 2.Predator In The Bay, 3.The Angry Armada, 4.The Deep |
 | 1091 | `Level Select Action` | 0.Open Ocean … 9.Blood On The Beach, **10.Hot Pursuit**, 11.The Final Chase, Open Ocean NE, Open Ocean NW, Fisherman, Minemsha, Gauntlet |
 | 1092 | `Level Select Action Alpha` | 0.Open Ocean … 9.Blood On The Beach, 10.The Final Chase |
-| 1093 | `Level Select Action - Pursuit` | shipped names: Open Ocean - South, The Arrival … The Deep, **The Facility**, Blood On The Beach, The Final Chase, Open Ocean - East/West, Fisherman's Isle, Grand Occasus Canals, The Underwater Caves |
+| 1093 | `Level Select Action - Pursuit` | The shipped names, including **The Facility** |
 
-Each action ID points to a `GDLoad` action (`0x02038036`, IDs 1193–1210) named `GDLoad-Stage<N> <LEVEL>`. Every entry loads one of TITLE's own `FDIR` loading-screen sub-archives (`TITLE00`–`TITLE10`), **except Hot Pursuit**: action 1204, `GDLoad-Stage10 PURSUIT`, loads a stage named `PURSUIT` directly. No `PURSUIT` sub-archive exists in TITLE's `FDIR`, and no `PURSUIT.GDW` ships (installer manifest, see CLAUDE.md "WMV Cutscene Videos"). The Facility is `GDLoad-Stage8 DEEPSEA 2` (via `TITLE09`).
+**What this shows:**
+- **Hot Pursuit had its own level file, `PURSUIT`.** Its entry loads `GDLoad-Stage10 PURSUIT` (action 1204). Every other entry loads one of TITLE's built-in loading screens. No `PURSUIT.GDW` shipped.
+- The numbered menus have no Facility entry, so *The Facility* became its own stage after they were written.
+- "SCEE" (Sony Europe) and "Marketing Version" look like cut-down menus for demos or reviews.
 
-What this shows:
-- **Hot Pursuit had its own level file, `PURSUIT`, and was numbered story stage 10, between Blood on the Beach and The Final Chase.** This is the first evidence in level data, as opposed to exe strings and quest classes, and agrees with the stage-name lists in both exes.
-- The numbered menus have no Facility entry (9 = Blood on the Beach); only the shipped-names menu (1093) has it. So The Facility was added as its own stage after these numbered lists were written. 1093's "- Pursuit" name looks like a leftover from an edit of a list that once held Hot Pursuit.
-- "SCEE" (Sony Computer Entertainment Europe) and "Marketing Version" look like cut-down level selects for demo or review builds.
-- The PS2 `TITLE.GDE` has the same five menus and the same `GDLoad-Stage10 PURSUIT` action, so the leftover is in both releases.
+**How the menus are stored:**
+- Each menu is an `ACTN` block, class `0x0211D11C`.
+- It holds up to 20 `[label][action ID]` pairs, in PROPs `0x08000B46`–`0x08000B69`.
+- **The menu's name (`PROP 0x080017C3`) comes after its list.** In a strings dump, each list seems to belong to the next menu's name.
 
-Not determined: no PROP in TITLE references IDs 1089–1093, so it's unknown which menu (if any) the shipped game can show or how it was opened. The live `MSStageSelect` instance is still unlocated (see "Stage slot evidence" above). The restoration's custom level is also named `PURSUIT`, so action 1204 would now resolve to `custom_levels/PURSUIT.GDW` through the mod's loader hook, but that hasn't been tested.
+**Not known:** nothing references these menus, so we don't know if or how the shipped game can show them. Our custom level is also called `PURSUIT`, so action 1204 might load it through the mod. Untested.
 
-## Cut Objective — BEACH/BEACHPST Submarine + Blocking Boulders (found 2026-07-30, resolved 2026-10-03: not a cut objective)
+### Playable restoration
 
-### Resolution (2026-10-03)
-
-Re-checked with tools that didn't exist in July: `ACTN` stage-logic references, the `Jaws.exe` reflection field table (`scripts/dump_class_fields.py`), and an in-game test with the barrier removed. Result: **no cut objective.** The rocks seal off an unfinished edge of the map, and the "drone" is an ordinary stationary SeaSeeker hazard. The July write-up below is kept for history, but its `TKSub` identification is wrong.
-
-**The "drone" is a SeaSeeker, not a `TKSub`.** `Jaws.exe`'s tutorial hint describes it: *"The seaseeker on the ocean floor is making you hungry. Destroy it to stop your hunger from being drained."* It's node `ANSeekerRef 4` (BEACH 1915, BEACHPST also present) at `(-233, -17, 265)` under the bridge. All BEACH SeaSeekers are reference copies (`PROP 0x080017F0`) of the template `ss_mobile` (BEACH node 19822, class `0x010AE0AD` = `ANSeeker`). BEACH has 4, BEACHPST 2 (seekers 4 and 1).
-
-**`ANSeekerRef` fields decoded.** The class (`0x0109C09B`, reflection descriptor `?@0x8cf518`) has 74 fields, and the node has 74 PROPs: **PROP ID = `0x080002E9` + field index** in registration order. The three vector fields (`m_linkvec`, `m_linkrot`, `m_sensor_ofs`) land exactly on the 12-byte PROPs, which confirms the mapping. On reference nodes, 0 means "inherit the template value". Booleans are tri-state: 0 = inherit, 1 = off, 2 = on. Seeker 4 differs from the mobile seekers in five fields:
-
-| Field (PROP) | Seeker 4 (bridge) | Seekers 1–3 |
-|---|---|---|
-| `m_chase_shark` (`0x080002F1`) | 1 (off) | 2 (on) |
-| `m_lookdistance` (`0x08000308`) | inherit | 180.0 |
-| `m_alarmdistance` (`0x08000309`) | inherit | 40.0 |
-| `m_chasearea` (`0x08000310`) | none | `seekerarea` (1) / `seekerketrec` (2, 3), path polygons of class `0x0101B013` |
-| `m_lights` (`0x08000312`) | 1 (off) | 2 (on) |
-
-The `m_hunger_*` fields are inherited by all four, which is why seeker 4 drains hunger like the others. It was deliberately configured as a stationary hunger seeker. It isn't a broken mobile one.
-
-**START's working "destroy → boulder clears" setup**, for comparison:
-- **On the seeker:** `LastSeaSeekerRef` (2098, → template `ss_armored`) has two child mission bricks, `LastSeaSeekerMissionBrick` / `… 1` (class `0x010D20D1`, single field `PROP 0x080005BF` = 13 / 14, an objective number).
-- **On the boulder:** `TunnelBlockingDust` (2083, a plain model brick carrying the rock mesh) is referenced, together with `LastSeaSeekerRef`, by `ACTN` blocks owned by the stage-phase nodes `SecondPart` (677) and `BeforeZodiacs` (679) (class `0x010C20C1`).
-- **Effects only:** `KoVizbeEsik` and `TitokzatosKod` are particle systems (class `0x0103D03C`) under `MovieOnlyParticles`. `Szikla1 127` is not referenced by anything.
-
-**In BEACH and BEACHPST nothing is wired.** Of 1,112 (BEACH) / 836 (BEACHPST) `ACTN` blocks, none references `Level3_elzarokovek`, the `Elzaroko` rocks, the barrier plate (`Kizaro_Lap_Kozepes 7` in BEACH / `8` in BEACHPST, same position), or any SeaSeeker. No PROP references them either, and seeker 4 has no mission-brick children. `Jaws.exe` doesn't contain any of the names (`Elzaro`, `Kizaro`, `Level3`, `TunnelBlocking`), so there's no hardcoded trigger by name either.
-
-**Behind the barrier:** a short channel. `Fal_alapkeszlet` wall pieces with collision run x −222 to −462, z 354–449, with underwater `Trees` and a sand patch (`HomokKiny01`), then reach beach sand (`Beach_Homok`, y = 4) at z ≈ 430–530. There are no markers, triggers or exits. Identical in both files.
-
-**In-game test (2026-10-03, user):** both files were patched with the rocks and plate moved 50,000 units down (57 bytes each). The rocks were gone in BEACHPST, and the user confirmed the canyon is empty: the seafloor stops and the rocky walls only go in a short way. The user had already reached it before through their own out-of-bounds routes. Seeker 4 has always been killable by biting, and killing it shows no message or event. The same test in BEACH (the M10 mission) gave the same result. **In-game seeker layout matches the data (user):** BEACH has 4 findable seekers. 3 work: 2 before the electric fence (seekers 2 and 3, sharing the `seekerketrec` chase area) and 1 just past the fence in the ditch (seeker 1, `seekerarea`). The 4th is stationary. It sits under the bridge, about 135 units from the boulders (≈110 on X, 80 on Z), not right at them. BEACHPST spawns only 2: the working ditch seeker (1) and the stationary one under the bridge (4).
-
-**What's left:** only circumstantial hints. The group is explicitly named "blocking rocks", a short walled channel heads inland, and the world map art shows a stream there. At most these suggest the designers once planned to extend the area this way and dropped it early. Nothing points to a cut objective.
-
-### Boulder comparison: START vs BEACH/BEACHPST (2026-10-03)
-
-| | START `TunnelBlockingDust` (2083) | BEACH/BEACHPST `Level3_elzarokovek` (4882 / 4559) |
-|---|---|---|
-| Structure | one rock node | group node + 3 rocks `Elzaroko01–03` |
-| Mesh | GMDL 3234, 48 verts / 70 tris, ~13 × 26 × 31, Z scale 1.26 (~39 long), used only here | GMDL 2557 (PST 2506, identical geometry), 55 verts / 80 tris, ~17 per side, 3 instances, used only here |
-| Texture | dark grey cliff rock (GTEX 0xD2) | mossy green seabed rock (GTEX 0x6E) |
-| Collision | `PRIM` → MREG 3925 | `PRIM` → MREG 3044 (PST 2978) |
-| `m_nFlags` | `0x4A` (local transform) | `0x2000005A` (absolute) |
-| `m_Viewport` | `0x80002` | `0xE0003` |
-| `m_RenderSetting` | `0x280820` | `0x820` |
-| `m_ChannelSetting` | `0x1F` | `0` |
-| Effect child | `TunnelBlockingRockDust` (dust particle system, class `0x0103D03C`) | none |
-| Extra barrier | none | invisible `Kizaro_Lap_Kozepes 7`/`8` plate |
-| `ACTN` on itself | `SeaSeekerQuestEventControl`: `Ctrl1` `0x4B000400` → [self], `Ctrl2` `0x0F000008` → [self] | none |
-| `ACTN` referencing it | `CheckPointCleanUp` (on `SecondPart` 677) and `CheckPointCleanUp 1` (on `BeforeZodiacs` 679), each `m_Ctrl3` `0x0F000008` → [2083]; root `SideMissionControl` (in `m_List8`); root `NAQuestManager` (`PROP 0x08001169`, a 24-entry list) | none |
-| Linked SeaSeeker | `LastSeaSeekerRef` + 2 mission bricks (objectives 13, 14) | none (stationary seeker ~135 units away, unlinked) |
-
-**The event-control action class** (reflection descriptor `?@0x91fed0`, `ACTN` class header `0x0203B039`) has 17 fields: eight pairs `m_Ctrl1`/`m_List1` … `m_Ctrl8`/`m_List8` (PROP `0x08001819`/`0x0800181A`, then +3 per pair: `181C`/`181D`, `181F`/`1820`, … `182E`/`182F`) and `m_DeactProps` (`0x08001831`). Each `m_Ctrl` is 12 bytes (first u32 looks like an action/trigger word, the rest zero in all samples), and each `m_List` is `[u32 n] + n node IDs`. The instance name is in `PROP 0x080017C3`. The meaning of the `Ctrl` words isn't decoded. The same `0x0F000008` is applied to the boulder by the boulder's own controller and by both checkpoint clean-ups, which fits "remove/deactivate" (keeping it gone when reloading a checkpoint after the blast). Unconfirmed until the action class is read in Ghidra.
-
-**Reading:** START's boulder is a scripted object: it has its own controller and dust effect, it's on the quest manager's list, and the checkpoint clean-ups handle it. BEACH's rocks are plain scenery with a descriptive name. `0x820` is the level's most common model render setting (583 of 1,033 BEACH mesh models; rock/wall-named nodes mostly use `0x40000820`/`0x40000C20`), and 67 of 69 rock/wall nodes share the absolute-transform flag. The rocks have no effect child, no controller and no references. The invisible plate beside them is the same blocker BEACH uses along its other edges (`Kizaro_Lap_Kozepes 1–5`, z ≈ 326–405). Nothing looks like a destructible prop with its wiring stripped, which supports the "never an objective" conclusion.
-
-### Original write-up (2026-07-30 to 2026-08-13, superseded)
-
-User-reported anomaly: an underwater "drone" sits motionless under the bridge in `BEACH.GDW`/`BEACHPST.GDW` and never activates (unlike other similar drones elsewhere in the level, which move and chase the player), yet still drains player hunger on proximity. Investigation, prompted by the user recalling that `START.GDW` (M01 Tutorial) has a submarine which, when destroyed, blows up a boulder blocking the path and opens the next area:
-
-**`TKSub` — a fully code-complete miniature attack submarine class**, found in the shared `CLAS` reflection registry (present in every GDW, so class presence alone doesn't prove a specific level uses it): `m_faster`/`m_slower` (speed), `m_maxyturn`/`m_turnaccel` (turning), `m_crab` (strafe), `m_libegamp` (hover/bob amplitude — "lebegő" = Hungarian "floating"), `m_MaxScooter`/`m_MaxDiver`/`m_MaxTorpedo` (damage thresholds by weapon type), `m_ShotPosID`/`m_ShotPos2ID` (torpedo firing points), `m_DiverID`/`m_DiverPosID` (carries a pilot diver), `m_RudderID` (destructible rudder), `m_BubblesID`/`m_DustID` (engine FX), `m_PropExplID` (propeller blows off on death), `m_ExplID`/`m_ExplActID`/`m_CompleteID`/`m_marker` (death sequence). It's referenced by a single resource-ID field (not a spawn list) from `MSScooter`, alongside `m_ScooterID` (player's seascooter), `m_RomboloID` ("Rombolo" = Hungarian for Destroyer ship), and **`m_TesztID`** ("Teszt" = Hungarian for "Test") — a field literally named "Test ID" sitting next to the sub reference is a strong signal this Scooter/Sub/Rombolo/Teszt group was a dev-time vehicle-mount test harness, not something uniformly finished across every level that references it. No CHBR node named "Sub"/"TKSub"/"submarine" exists anywhere in BEACH's or START's static `BRTR` scene graph — these vehicles are almost certainly mounted/spawned by that single ID reference at runtime (hardcoded mission C++), not individually art-named like a static prop, so the specific stuck instance can't be pinned down by name search.
-
-**The mechanic is proven working in `START.GDW`.** A tight cluster at world pos ~`(535.6, -12.5, 23.5)`: `TunnelBlockingDust`/`TunnelBlockingRockDust` (literally "tunnel blocking rock dust"), `TunnelRoom` (the gated room, 17 units away), `FromStart2` (checkpoint marker), and a `LastSeaSeekerMissionBrick` mission trigger nesting `KoVizbeEsik` ("rock falls into water", Hungarian) and `TitokzatosKod` ("mysterious code"). `Szikla1 127` — one of ~200 generic numbered boulder props scattered through the level — sits directly on the dust marker and is almost certainly the actual blocking rock.
-
-**`BEACH.GDW` has a matching, explicitly-named blocking-boulder group that never opens.** Searching for meshes placed in groups of exactly 3 near the bridge (bridge center ≈ `(-220, 20, 280)`, see `BridgeShooters`/`Bridge Spot` nodes) found:
+```bash
+python3 scripts/build_pursuit_test.py --deploy PURSUIT
 ```
-Level3_elzarokovek   ("Level3 Blocking Rocks" — BEACH is internally named "Level3")
-├── Elzaroko01  world (-343.5, -17.4, 338.6)
-├── Elzaroko02  world (-342.4,  -2.9, 342.0)
-└── Elzaroko03  world (-342.4, -15.2, 350.1)
-```
-"Elzáró" = Hungarian for "blocking/sealing/shutting off" — an explicitly-named, dedicated barrier group, ~140 units past the bridge. Each rock's mesh is ~16 units long (`models/BEACH/BEACH_mesh_0395.obj`) — a real boulder, not decoration. Right next to them (4 units) sits `Kizaro_Lap_Kozepes` ("Excluding Plate, Medium") — an invisible collision-blocker plate, the same mesh (`mesh_id 2394`) used elsewhere in the level as `LowTideBarrier`: a visual wall of 3 rocks *plus* an invisible hard collision stop, together forming a deliberate, reinforced dead end. The underwater canyon (built from 64 `Fal_alapkeszlet` modular wall-kit pieces, the same canyon the bridge crosses) continues for 200+ more units past the rocks, up to a rock breaching the surface around `Z≈570` — i.e. there's substantial, fully-built map geometry sealed behind this barrier, not a dead-end stub.
 
-**BEACH vs. BEACHPST (the post-mission-state variant of this level) are byte-identical for this group** — same 3 rock positions, same structure (only the mesh_id numbering differs: 2557 vs 2506, consistent with per-file mesh-index renumbering of the same asset, not a state change). If this were a working "destroy to progress" objective, the post-mission variant should show the rocks already cleared. It doesn't — strong evidence this objective was never completed/wired up before shipping, in either mission state.
+Then press **F9** in-game and pick PURSUIT. This needs the mod; no stock file is changed. `--stock-jetski` builds an older, simpler version.
 
-**Working theory (data-supported, not proven):** the inert submarine under the BEACH bridge and the permanently-sealed `Elzaroko` boulders are two halves of one abandoned objective — a "destroy the sub → blast open the canyon → reach the next area" sequence, mechanically proven to exist and work via the equivalent `TunnelBlockingDust` setup in `START.GDW`, that never got fully wired together in `BEACH`/`BEACHPST` before shipping. The exact causal trigger (sub kill → rock destruction) is almost certainly hardcoded in `Jaws.exe`'s mission C++, not data-driven, so it isn't provable from GDW data alone. No transition marker (`ToDocks`/`ToTown`-style) was found to confirm where the sealed canyon was meant to lead — worth checking `DOCKS.GDW`/`TOWN.GDW` for a matching `FromBeach`-style marker. Next step to go further: runtime instrumentation via the `mod/` d3d8 proxy to watch the sub and the `Elzaroko`/`Kizaro_Lap_Kozepes` objects live in-game.
+**What you get (version 10):**
+- One jet ski with a rider races up the main canal on its own, on a reversed copy of the sailboats' route.
+- Two pink gate walls vanish as it approaches (the gate opens) and come back 150 units after it passes (the gate shuts).
+- Fall more than 700 units behind: *"The jet skiers have escaped! Mission failed!"*, and the stage restarts.
+- Reach the yellow cube at the canal's north end after both gates shut: *"Destroy all the jet skis!"*
+- Kill the jet ski to finish. The blue pillar near the start vanishes to show it.
 
-**Independent visual corroboration, found 2026-07-30 (user-provided, user is the sole known extractor of this asset):** the in-game Amity Island overview map (`OPEN_NE.GDW`'s `gtex_0123_id000002e9_512x256_rgba32.png` — see the Texture Database section above; this is normal shipped UI content, not cut, only the *area it depicts* is in question) independently shows a distinct, rounded, lighter-toned landform in the island's interior, roughly inland from the BEACH coastal cove, connected to that cove by a visibly lighter, meandering break in the tree-canopy texture consistent with an artist's rendering of a stream. This lines up geographically with the sealed canyon's direction of travel and its terminus at the literal edge of BEACH's built geometry (see above). Caveat: this is a painted overview illustration, not literal terrain data — it's suggestive corroboration from an independent source, not proof by itself. The stronger evidence remains the GDW-side findings above.
+**Known problems:**
+- The route ends in the canal's north-west corner, so the jet ski drives into the bank.
+- One jet ski only, and no boss jet skis.
+- The gates are see-through markers, and no goal text is shown.
+- In the boss phase, swimming far away despawns the jet ski, which counts as a kill.
 
-## Cut tutorial ending: the Aurora rope tug-of-war (found 2026-10-11)
+How it was built (10 test builds): `docs/exe_analysis.md` "Running it in-game" and "Getting the jet ski to race".
 
-The shipped tutorial (`START.GDW`, M01) ends in a cutscene: the Aurora arrives, Brody fires a harpoon (`Scene03` action `KiloviASzigonyt`, "fires the harpoon", which adds the line pieces `KotelVegeTartoBrick`, `KotelEgyikVege`, `SzigonyKotel`), one more camera shot (`Scene04`), then `LoadOpen` saves the stage as completed and loads the Aquarium. The data holds a cut **playable** phase in between, where Jaws is hooked to the Aurora by the line and has to break free. The user has the rope-meter sprites and a beta screenshot showing the mechanic (user-confirmed 2026-10-11).
+### Evidence: the placed leftovers in detail
 
-- **Code, in both exes (PC `Jaws.exe`, PS2 `SLUS_210.62`):** brick class `NAAuroraRope` (+ `NAAuroraRopeExcluder`). Hungarian fields (`kötél` = rope, `hajó` = ship, `cápa` = shark): `m_aurora`, `m_kotelauroravege` (rope's Aurora end), `m_kotelhajothuzza` / `m_kotelhajothuzzacsaktol` / `m_hajothuzfesz` (the rope pulls the ship, tension), `m_kotelsebez` / `m_kotelsebzicapatfeszules` / `m_feszulhpszorzo` (rope damage, the rope hurting the shark under tension, HP multiplier), `m_kienged` / `m_behuz` / `m_nemhuztime` (let the line out / reel in / time not pulling), `m_minlen`, `m_halfdist`, `m_kozelvantav` / `m_kozelvansebez` (close-range distance / damage), the rope HUD `m_kotelalap`, `m_kotelkeret`, `m_kotelhudcapa`, `m_kotelhudhajo`, `m_kotelhudhosszu`, `m_kotelhudbelseje`, `m_kotelhudmaxscale`, `m_kotelfazisok`, `m_szinesfazisok` (coloured phases), `m_hud*`, and `m_finalmovie`. Debug strings `Kienged, feszul:%f`, `Behuz`, `Kotel len:%f`. **Decompiled 2026-11-02, see "How the rope fight worked" below.**
-- **Brody's rope-fight dialogue (found 2026-11-23):** START's `Movie` sound bank holds two uncaptioned, never-played Brody lines (samples 470/471, PC and PS2): `Movie.VoiceBrody3` *"Gottem! Hold tight, he's gonna try and break free!"* (the hook, start of the tug-of-war) and `Movie.VoiceBrody4` *"Oh my God it's a Great White! Make sure he's fully restrained and let's get him to the research center ASAP."* (the capture, likely `m_finalmovie`; leads into M02's research tank). User-transcribed. The same bank's other unused names are mostly copies of stock gameplay sounds; only `FootstepsGuard` and `EngineSeaSeeker` are unique (`audio_leads.md`). Details: `audio_leads.md`. This also answers the old Brody's intent: despite the throat-slit gesture in `MBrody_AuroraComesMovie` (below), the cut ending's dialogue is a capture for research.
-- **Tutorial prompt, PC exe message 487:** *"BREAK THE LINE BY TUGGING OR GETTING IT CAUGHT ON OBJECTS."* Not seen in the shipped game.
-- **Rope-breaking rocks placed in PC `START.GDW`** at the cutscene spot (Aurora `AURORA_LO0` at (606, 5, −250)): `Kotelszakito_szikla_vf01` (642, 19, −323), `_vf02` (579, 19, −226), `_va01` (640, −15, −327), `_va02` (575, −15, −223); plain `GDModel` nodes 2968–2971, referenced by nothing. `vf`/`va` probably = `víz felett` / `víz alatt` (above / below water), matching their heights. These are the "objects" the prompt means.
-- **Rope-meter HUD sprites placed in PC `START.GDW`** at the origin, referenced by nothing: `GDRotSprite` nodes 2955–2960, `Hooked_alap` (meter base) and `Hooked_Kotel_0`–`_3`, `Hooked_Kotel_4_Over` (rope stages up to snapped).
-- **The rope itself is never placed:** `NAAuroraRope` has 0 instances in all 20 PC GDWs and all 22 PS2 GDEs (class-index scan via each file's `CLAS` lists). Neither is `MBAurora`. The fight was most likely replaced by the capture cutscene, since M02 starts with Jaws captured.
-- **PS2:** the tutorial is split into `START.GDE` and **`START2.GDE`** (PC has no START2). `START2.GDE` holds the Aurora/Brody cutscene, the four `Kotelszakito_szikla` rocks and the `Hooked_Kotel` sprites; PS2 `START.GDE` has neither. Still no `NAAuroraRope` instance.
-- **Not a Brody boss fight in START:** START's `Boss Meter 2` is the generic boat health bar (`PROP 0x080000F7`/`0x080000F8` on boat actions class `0x021E01DD`: `SpeedBoat`, `Rubber_Boat`, `Dive_Boat`, `Sail_Middle`, `Little_Star`); `Stage0Quest` has no boss fields (`m_loadbricks`, `m_prepostactivate`, `m_smcompletedcheat`). The real Aurora boss (`MSAuroraBoss`: sensor, depth charges, guards, cutter) is placed once, in `KATATAMA` (M05), PC and PS2.
-- **The tutorial's own finish hook waited for the rope (2026-10-18):** `MBStageTutorial` (the START stage brick, vtable `0x7D9FF8`, tick `0x4B12C0`) moves from state 4 to its completion steps (`m_completecontrol0`, then after `m_completewritetime` ticks `m_loadtitle`) only once the global flag `[0x8DA1C0]+0x12C` is set. That flag is written only by `NAAuroraRope` (`0x4BC8E3`, `0x4BCE98` in its tick `0x4BC670`, `0x4BD19A` in its damage handler `0x4BD100`; corrected 2026-11-02, these were mislabelled as slots 19/21). The flag is **`DDGameState.m_koteldied`** ("the rope died", runtime offset `+0x12C`), so winning the rope fight was meant to end the tutorial. In the shipped game the path is dead and the stage ends through `NATutorialQuest`'s Aurora movie instead. `MBStageTutorial`'s activation (`0x4B12B0`) also starts it in state 4, skipping states 0–3, which fired `m_csonakcont1` (`ZodiacComingEvent`) once boat damage reached `m_csonakharm` (1000). See `speedrun_glitches.md` section 7.
-- **Open:** `Kotelszakito_szikla` names also occur in FISH and the three `OPEN_*` GDWs (placed or just shared pool, unchecked); `MBShipRope` (one instance in `OPEN_S`, PC and PS2, debug `MBShipRope nem latja a CAPAT!` = "can't see the shark") turns out to be a cut-down sibling of the rope fight, see below.
+**Jet-ski nodes across the levels.** Names were checked through the name property, not raw strings.
 
-### How the rope fight worked (decompiled 2026-11-02)
+| Node | Found in |
+|---|---|
+| `JetSki`, `Jetski_egyben` ("in one piece"), `JetskiGen`, `ANTargeting_jetski`, `JetskiOverlay*`, `JetskiQuickRef`/`MediumRef`/`SlowRef` | Many levels: the shared pool, so it means nothing |
+| `jetski_mountpoint`, `jetski_mountpoint_a` | MINEMSHA, OPEN_S, TOWN |
+| `jetskipath` | MINEMSHA, TOWN |
+| `JetskiChase`, `ccjetski` | **Only MINEMSHA**: real placement |
 
-Read-only decompile of `Jaws.exe` (Ghidra + objdump). Classes and addresses:
+**In MINEMSHA, the jet ski is part of *Up a Creek*'s boat traffic.**
+- `JetskiChase`, `jetski 1` and `jetskipath` sit inside `SM16UpACreek`'s tree.
+- They sit next to the shipped sailboats, rowboat and canoe. Each of those has a path (under `SM16ShipPaths`), a crew slot (under `SM16CrewContainer`) and a controller node (`cc…`).
+- The jet ski uses the same three parts.
 
-| Class | What it is | Addresses |
-|---|---|---|
-| `NAAuroraRope` | the line between the shark's mouth and the Aurora. A subclass of the engine's segmented rope **`NARope`** (base constructor `0x5AA3F0`, physics step `0x5ABAE0`; segments are 0x3C-byte records at runtime `+0x260`, count at `+0x1FC`) | descriptor `0x8DB828`, runtime vtable `0x7DA4D4`, props `0x7DA56C`. Tick (slot 22) `0x4BC670`, activate (slot 23) `0x4BC470`, deactivate (slot 24) `0x4BD010`, damage handler `0x4BD100`, message hook `0x4BBD90` |
-| `NAAuroraRopeExcluder` | an obstacle the line can't pass through and gets snagged on (subclass of `NARopeExcluder`) | descriptor `0x8DC8E0`, runtime vtable `0x7DA5E8`, tick (slot 22) `0x4BD780` |
-| `MBAurora` | the Aurora as a drivable ship (path, motor, propeller `m_hajocsavar`, rudder `m_kormanylapat`, `m_rope`, `m_kotelvege`, `m_hajotolkotelserul` = "rope damaged by the ship") | descriptor `0x8DCD00`; its collision handler `0x4B9610` damages the rope |
-| `NAAuroraRopeBuoyRopeInteractor` | an action, vtable `0x7E69CC` (tick `0x574DC0`); not decoded | |
+**`ccjetski`'s tuning is a copy of the civilian boats'.**
+- It has ~24 number fields, PROP `0x08001036`–`0x0800104D`.
+- Every meaningful value matches `ccvitorlasb`, `ccladik2` and `cccanoe`: speed 300 and thresholds 100/−5/30/200/100/50/50/100/1/50/1.
+- Only two fields differ:
+  - `0x08001038` is 27 for the jet ski and rowboat, 5 for the others. Probably a craft type.
+  - `0x0800103A` is unset for the jet ski and sailboat, 21–22 for the others. Probably an unwired waypoint set.
+- Nothing looks like chase or boss tuning.
 
-**Rope tuning fields** (props object; value at field offset + 4): `m_maxhp` (rope HP), `m_treshold` (default 1.1), `m_capaszaja` (shark's-mouth node), `m_aurora`, `m_kotelauroravege`, `m_kotelforce`, `m_halfdist`, `m_feszulhpszorzo`, `m_kotelsebzicapatfeszules`, `m_kotelsebez`, `m_hajothuzfesz`, `m_kotelhajothuzza`, `m_kotelhajothuzzacsaktol`, the HUD sprites, `m_kotelfazisok` / `m_szinesfazisok` (lists), `m_hudfulllen`, `m_hudfazisx`, `m_hudhosszux`, `m_hudhajox`, `m_damagetime`, `m_maxlen`, `m_minlen`, `m_belsofeszulkotelkifele`, `m_kienged`, `m_behuz`, `m_nemhuztime`, `m_font`, `m_kozelvantav`, `m_kozelvansebez`, `m_finalmovie` (37 fields, from `scripts/dump_class_fields.py`).
+**So the canal content was an early test step, not a nearly finished chase.** Someone copied a traffic entry for a jet ski, gave it a path and a rider, and stopped there. The rider stuck in A-pose fits: his animation was never hooked up.
 
-**Each tick (`0x4BC670`):**
-1. **Rope length.** The rope has a current length `L` (runtime `+0x2A0`, starts as the sum of the segment lengths), spread evenly over the segments, then the `NARope` physics step runs. Debug print `Kotel len:%f`.
-2. **Brody reels in.** If the shark hasn't pulled for `m_nemhuztime` ticks, `L -= m_behuz` (debug `Behuz`), down to `m_minlen`.
-3. **Reeled in = caught.** If `L` stays at `m_minlen` for 60 ticks (2 s at 30 fps): start **`m_finalmovie`**, set a state field (`+0x40`) of the game-state object's `+0x20` member to 6 (after a type check), and remove the rope.
-4. **Tension.** Stretch `r` = actual length ÷ `L`. Above `m_treshold`, tension `t = 1 − m_halfdist / (m_halfdist + r − m_treshold)` (0 → 1, saturating). Then:
-   - **the rope loses `m_feszulhpszorzo × t` HP** every tick (pulling hard wears it out);
-   - if `t ≥ m_belsofeszulkotelkifele`, **Brody lets out line**: `L += m_kienged × t`, up to `m_maxlen` (debug `Kienged, feszul:%f`), and the "not pulling" timer resets;
-   - if `t > m_hajothuzfesz`, **the shark tows the Aurora**: horizontal forces along the rope, `m_kotelhajothuzza × t` on the ship and `m_kotelhajothuzzacsaktol × t` at a second point (y blended 80 % toward the `m_aurora` object's `+0x118`), which also gets a timer of 20;
-   - **the rope hurts and pulls the shark**: damage `m_kotelsebez` when `t > m_kotelsebzicapatfeszules` (else 0), or a fixed `m_kozelvansebez` when `L ≤ m_kozelvantav` (too close to the boat); sent as message `0x41` together with a pull of `m_kotelforce` × the rope vector.
-5. **Rope breaks = free.** When the rope's HP reaches 0 it sets **`DDGameState.m_koteldied`** = 1, which `MBStageTutorial` waits for to end the stage (above).
-6. The rope's first segment is pinned to the shark's mouth.
+**The `OPEN_NE` sites:**
+- **`HOTPURSUIT`** has only the universal fields: name, transform and a zero-size box. It's a designer's position note, not a gameplay object.
+- **Around it and the Brody's House marker**, within 400–500 units, are only canyon walls, a reused pair of rope-breaking rocks, and zone-wide markers: a buoy grid and 17 `TestPos` nodes. No foundations, no partial building.
+- **`MapItem_Brody's House`** is one of ~50 automatic map-icon slots. Even the cut Highlands Bay has one.
+- **In-game** (user): there's no house at the Brody's House spot, just open ground. A nearby "power station" turned out to be the separate Eastside Homes location.
+- **Two lighthouses:**
 
-**Snagging (`NAAuroraRopeExcluder`, tick `0x4BD780`):** `m_type` 0 = sphere (segments are pushed out of it), 1 = a line/column (segments are pushed off its axis), 2 = a model's collision mesh. On contact (type 1) it sends the rope message **`0x29A` carrying `m_damage`**, which the rope's hook `0x4BBD90` turns into `0x4BD100(damage)`. It also starts `m_collisioneffects` at the contact point. If `m_collisionclone` is set it spawns that object with `+0x1C0` = `m_myrope` and `+0x1C8` = the hit's fraction along the rope (an anchor that keeps the line caught on the rock). Then it removes itself. **`0x4BD100`** flashes the HUD and, at most once every `m_damagetime` ticks, takes the damage off the rope's HP, rumbles the pad (`0x6C9010(2, 30, 0, 30)`) and checks for the break. These are the "objects" of message 487, so the four `Kotelszakito_szikla` rocks were meant to carry excluders.
+  | Lighthouse | Position | What it is | Distance from `HOTPURSUIT` |
+  |---|---|---|---|
+  | `Lighthouse02` | — | A placeholder, near nothing named | ~4,270 |
+  | `vilagitotorony_*` | (3581.2, 17.8, −1479.8) | Fully modelled from ~15 parts, by the Coast Guard HQ marker and a USA flag | ~5,900 |
 
-**The Aurora also wears the rope:** `MBAurora`'s collision handler `0x4B9610`, on a collision with mask bit `0x4000` (at most once per 30 ticks), applies a push and damages the rope by `m_hajotolkotelserul`. On mask bit `0x8` it sets `DDGameState.m_angry` (`+0x104`) = 1.
+  The user remembers the modelled one near the entrance to *Blood on the Beach*.
+- **A possible reading:** the goal's "near the lighthouse" = the Coast Guard HQ lighthouse (the start), and "the home of Candy Wilson" = the empty Brody's House lot (the end). Unproven. Whether the canal content was a separate test or part of the same route is also unknown.
 
-**HUD (`Hooked_*` sprites):** bar centred at x = (640 − `m_hudfulllen`) / 2. An offset slides 1 px per tick toward `160 − 160 × (L − m_minlen) / (m_maxlen − m_minlen)`, so the shark icon (`m_kotelhudcapa`) and ship icon (`m_kotelhudhajo`) close in as the line is reeled in, and the line pieces (`m_kotelhudhosszu`, `m_kotelhudbelseje`) shorten. The rope's damage picks the phase: `index = (maxhp − hp) × 4 / maxhp` shows `m_kotelfazisok[index]` plus its coloured copy from `m_szinesfazisok`, which fits the shipped sprites `Hooked_Kotel_0`–`_3` and `Hooked_Kotel_4_Over`. `m_kotelhudbelseje` and the coloured phase flash with tension. All of it hides while engine flag `[0x920E24]+0xA8 & 8` is set.
+**Candy Wilson's house: the user's theory.**
+- `Jaws.exe` has no "Candy's house" or "Wilson's house" string: only "BRODY'S HOUSE" in the normal map list, and the goal text.
+- The user still thinks the lot was meant to be her house and was renamed early. A rename before the string table was built would leave no trace.
+- Recorded as the user's working theory, not a finding.
 
-**How it played:** Brody keeps reeling Jaws in. Pulling away hard stretches the line: that frays it but also makes Brody let out line, tows the Aurora and hurts the shark. Dragging the line across the rocks snags it and costs it a chunk of HP each time. If the line breaks, the tutorial ends. If Brody gets Jaws all the way in and holds him there for 2 s, `m_finalmovie` plays, which is probably the capture that the shipped game shows as a straight cutscene (M02 starts with Jaws captured). Whether being caught was meant as a loss or as a second way to finish isn't clear from the code.
+**Which quest class uses the goal text?** It sits in a large shared pool of mission goals, next to unrelated stage 8 and 9 text. So reading the strings can't tell whether `StagePursuitQuest`, `StagePursuitQuest2` or both use it.
 
-**`MBShipRope` is a stripped-down copy:** its field list (descriptor `0x8DBD48`: `m_capaszaja`, `m_kotelhajovege`, `m_treshold`, `m_halfdist`, `m_kotelforce`, `m_hajothuzfesz`, `m_kotelhajothuzza`, `m_kotelsebzicapatfeszules`, `m_kotelsebez`) is the same tension/tow/damage core without HP, reeling, HUD or movie. That's the version that shipped, once, in `OPEN_S`.
+**Full text** (PC, in English, French, German, Italian and Spanish):
+- *"Locate the jet skiers near the lighthouse and stop the jet skiers from reaching the home of Amity Police Chief Candy Wilson."*
+- *"Kill all the jet skiers!"*
+- *"Destroy all the jet skis!"*, and the typo copy *"Destroy all the jets kis!"*
+- *"The jet skiers have escaped! Mission failed!"*
 
-**Making it playable** would need, in START: an `NAAuroraRope` brick (with `NARope` base fields for the segments), an `MBAurora` on the Aurora, excluders on the four rocks, the `Hooked_*` sprites wired to the HUD fields, and a movie for `m_finalmovie`. All the classes are compiled in. Next steps: decode `NARope`'s fields and check whether any shipped level places one to copy from.
+The PS2 program keeps only the short and failure lines. More: `docs/ps2_cut_content_findings.md`.
 
-## Old Brody model on the boss Aurora (KATATAMA) (checked 2026-11-23)
+### Candy Wilson
 
-![Shipped Brody (left) and the old model, OPEN_NE and KATATAMA copies](images/old_brody_vs_shipped.png)
-
-The Brody standing on the Aurora in the M05 boss fight is an **older character model**, not the one every cutscene uses. Read-only check, all from the level data:
-
-- **Node:** KATATAMA `Brody` (3721), `GDSkeletonModel`, under `BrodyHelye` (3720, "Brody's spot", a `GDStdBrick`) under `AuroraBrick` (3665, `MLEnemy`, the `MSAuroraBoss` brick whose model is `aurora2_frank` 3678 with `AURORA_LO0` 3683). Local offset on the boat (0.03, 10.6, −1.35), world (324, 11, −1146). `m_nFlags` `0x1A` (no hide bit), `m_Viewport` 1 (above water only). `SKEL 2317` + `GMDL 2803`, 2.08 units tall (normal human scale). Action `GDSkeletonAnim` (3722, the generic engine animator, not the `NASkeletonAnim` all cutscene Brodys use).
-- **Nothing scripts him:** no `GDControl` step, `ACTN` or PROP names 3720–3722. He rides along with the boss Aurora, so he shows in the `Aurora Comes Movie cuccok` in-engine cutscene and the fight, and goes with it when the escape movie's `MBTeleport` (290) moves `AuroraBrick`.
-- **Different generation of model:** 56 bones and 1,398 vertices, 11 submeshes each with its own small 64×64/64×128 texture (head, two life-vest halves, arms, trousers, boots). Every other Brody in the game (`Specific_Michael_Brody` in AQUARIUM, START, KATATAMA, DEEPSEA2, TOWN; `Brody` in BEACH) is the shipped 822-vertex body with 24 or 30 bones and one 256×256 texture. Looks: younger, dark curly hair, beard, blue cap, yellow life vest, navy cargo trousers, boots. The shipped Brody is older and grey-haired, in a yellow jacket and jeans.
-- **Only 31 frames, no clips:** his skeleton holds a bind frame plus a 30-frame loop, the length of `MBrody_Kormanyoz` ("steering", 30 frames) below. So he's at the wheel.
-- **Twin in OPEN_NE:** `CoastGuard 1` (4662, `SKEL 2454`, `GMDL 2861`) is the same model: same 1,464 triangles, same 11-submesh layout, same textures under different IDs, 55 bones. It hangs from the rope ladder (`letra`) of `helicopter2` in SC06 Flip the Bird's intro cutscene (`SM7FlipTheBird` → `Ch7intro_StartMovie`), but its `m_nFlags` `0x11A` include `0x100` (not rendered) and no `GDControl` shows it, so **it never appears**. Its skeleton keeps the old Brody's named clips: **`MBrody_AuroraComesMovie` (265 frames), `MBrody_AuroraCatchesMovie` (90), `MBrody_GrabHarpoonMovie` (36), `MBrody_Kormanyoz` (30), `MBrody_EscapeAtL4` (1)**; the node holds one frame (356) of `AuroraCatchesMovie`. Despite the `CoastGuard` node name, the model is the old Brody (user-confirmed 2026-11-23: KATATAMA's scene import names it `Brody`; its clips are all `MBrody_*`).
-- **Matching shark clip:** TITLE's menu shark (`GWside 1`, node 1385 under `Korbe Uszo Capa`, "circle-swimming shark", `SKEL 845`) still carries **`Shark_GW_Movie_L2_AuroraCatches` (90 frames)** in its clip table, the same length as `MBrody_AuroraCatchesMovie`. Nothing plays it. The name exists only in TITLE.GDW (not in other GDWs, the exe or PS2).
-- **Reading (inference, not proven):** an older cutscene set had the Aurora arrive (`AuroraComes`), Brody grab the harpoon (`GrabHarpoon`), and the Aurora catch the shark (`AuroraCatches`, Brody + shark clips of equal length) in "L2", plus Brody escaping by helicopter in "L4" (`EscapeAtL4`; in the shipped game Michael Brody escapes by helicopter ladder in KATATAMA, M05, `Movie-BrodyEscape`). That fits the shark being caught and taken to the aquarium before The Break Out (M02), and the cut rope fight above, whose `m_finalmovie` would play a capture. The level numbers in those names don't match the shipped order, so the stage list was different when they were made. The shipped START ending uses the new Brody (clips `Brody_Lvl_0_150` + `Brody_Lvl_150_265` = 265 frames, the same length as `MBrody_AuroraComesMovie`; the rigs differ, so whether the motion was reused isn't checked).
-- **Open:** compare the model with the user's beta screenshots and trailer; check whether the 265-frame START animation is a retarget of `MBrody_AuroraComesMovie`; whether the Aurora boss's Brody is visible from normal gameplay distance.
-
-**Playable in Blender (2026-11-23):** `animations/OldBrody_AuroraCatches_scene.blend` puts the old Brody rig (from `CoastGuard_OPEN_NE_skel2454.blend`, all five `MBrody_*` actions) at his exact KATATAMA deck transform on the boss Aurora's parts (nodes 3680–3693, textured), with the TITLE shark playing `Shark_GW_Movie_L2_AuroraCatches`; frames 1–90, 30 fps, water plane at game y = 0. The shark's spot (28 units off the hull at y −1) is **placed by eye**, since no data gives the pair's relative position; in the clip the shark breaches out of the water and drops back. Each rig hangs from a parent Empty (`Brody_on_deck`, `Shark_by_eye`) so the clips' root motion doesn't fight the placement; move the Empty to reposition. Swap Brody's action in the Action Editor to view the other clips.
-
-**The old Brody threatens the shark (user-spotted 2026-11-23):** in `MBrody_AuroraComesMovie` he stands still to about frame 90, raises his right arm high (≈100–125), points out to the side (≈135–160), lowers it, then from ≈215 to the end draws his hand across his throat: a throat-slit gesture (`docs/images/old_brody_auroracomes_f140-230.png`). The shipped START ending's Brody animation fills the same 265 frames (`Brody_Lvl_0_150` + `Brody_Lvl_150_265`) with entirely different motion: shading his eyes to look out, leaning, a running stumble, then both hands on his head (`docs/images/old_vs_shipped_brody_265f.png`, old rows on top, every 15th frame). So it's a new animation, not a retarget; the matching length suggests the same cutscene slot was reanimated. Reading: an aggressive, hostile hunter Brody was replaced by a frightened one. The gesture suggests hostility, but the scene still ended in a capture: the partner clip is `AuroraCatches`, and the cut ending's unused voice line 471 says *"make sure he's fully restrained and let's get him to the research center"* (see the rope section above).
-
-**Link to START's ending (2026-11-23):** none of the old clips are stored in `START.GDW` (`MBrody_*` only in OPEN_NE, `Shark_GW_Movie_L2_AuroraCatches` only in TITLE, neither in any PS2 file). But the shipped tutorial-ending cutscene in START is the group node **`AuroraComesMovie` (198)**: `MovieAurora` with two `crew` and a helmsman `kormanyos` (all the generic crew rig `SKEL 2431`, the helmsman playing the shared 2-frame human clip `Kormanyoz`), the harpoon line (`NARope` `SzigonyKotel`, anchor `KotelEgyikVege`), `Scene01`–`04` with the new Brody, the movie shark and a victim. The old clip names describe the same scene: the Aurora coming (`AuroraComesMovie`), Brody at the wheel (`Kormanyoz`), grabbing the harpoon (`GrabHarpoonMovie`), the catch (`AuroraCatchesMovie` + the shark's `AuroraCatches`). So the old Brody animations are most likely an earlier animation set for this START ending, with old Brody himself at the wheel where a generic helmsman now stands. The Blender scene's staging (positions, camera, timing) is a reconstruction, not recovered data.
-
-Files: `docs/images/old_brody_vs_shipped.png` (render: shipped Brody, OPEN_NE `CoastGuard 1`, KATATAMA `Brody`), `docs/images/old_brody_textures.png` (KATATAMA top row, OPEN_NE bottom; raw game textures, kept local and not in the repo).
-
-## Unused alternate voice take — TOWN (found 2026-10-03)
-
-TOWN sample **388** (`MovieTown1.VoiceCrew2`, 6.18 s) is the crew's "Something's happening out at the pond. Mr. Mayor, we must leave! Things are getting... Oh shit, look at the size of that thing!" line, recorded by a **different voice actor in a calmer tone** than the shipped take 387 (user-identified by listening). It's listed in the `MovieTown1/2/3` sound banks, but no sound event or sound object references it, so it never plays. It's the only one of the 49 captioned cutscene lines that's unused. See `docs/cutscene_dialogue.md`.
-
-## Dangling script references — survey (2026-10-03)
-
-`GDControl` steps (`scripts/dump_gdcontrol.py`, shown as `missing#<id>`) still reference objects that no longer exist. Across the 19 levels with scripting: **327 distinct missing IDs**, **all below their file's highest ID**, so they were deleted during development, not created at runtime. 10 controls with missing targets are shared prefabs present in 8+ levels (menu Select/Increase systems; the shark's `PauseControl`/`CatchedControl` overlays; `LoadingEffectControl`; the shooting control `KilovesControl`, which spawns 3 missing projectile parts). The remaining **146 level-specific** ones are mostly routine (skip handlers, particle clean-up, foam spawners pointing at a removed effect variant). The notable ones:
-
-| Level | Control (owner) | What it shows |
-|---|---|---|
-| WRACK | `MayorFeliratKiBeKapcsolgato` ("mayor caption on/off", on `MAyorSpeakContainer`) | Turns objects 422/423 on at ticks 173 and 850 and off at 750; the skip handler kills them. Both deleted: caption overlays for the mayor's street interview, presumably replaced by the `SMPC` samples' built-in captions. This lead found the cutscene voice acting. |
-| AQUARIUM | `SeahorseBizgeto` ("seahorse jiggler") and `EndOfScene2` (`ExhibitionHall_Scene2`) | Suspends 9 objects (7868–7876) during exhibition-hall scene 2, and the scene's end resumes them. All 9 deleted: a removed seahorse display, probably. |
-| AQUARIUM | `cinema203_starter`, `movie4-snitt1-start`, `return to game 1` | Stop a run of missing IDs spaced 8 apart (3869, 3877, 3885…) between surviving `Foka a fokamedenceben` ("seal in the seal pool") nodes: several seals removed from the seal pool. |
-| TOWN | `firework 1`, `firework 2` (`NemElpusztuloActionok`) | Each fires 7 timed bursts from 7 firework emitters; only `firework1 ref` and `firework1 ref 1` survive (references to template `continuous firework gun` 1307), 5 (1369–1373) deleted, plus 1368/1378. PS2 `TOWN.GDE` is the same. The fireworks show was cut down; the unused firework sound is just the raw master of the used one (`audio_leads.md`, 2026-11-23). |
-| TOWN | `NaEzekreNincsSzukseg` ("we don't need these") | Kills the vehicle HUD overlays (jetski, banana boat, row boat, kayak, police boat) plus one deleted overlay (41233, between `SndPoliceBoatSiren` and `Big_Cutter`). |
-| OPEN_NE / OPEN_NW / OPEN_S | per-destination controls on `PreposterousActions` (`BeachControl`, `DoxControl`, …) | Each stops its level's map-item killer and adds a "white triangle" marker (`FeherHaromszog<Level>`). In OPEN_NE only the Armada and Town markers survive (Beach, Docks, Katatama, Wrack, Deep deleted); the other zones were trimmed similarly. |
-| DEEPSEA | `grinderkikapcsolo` ("grinder switch-off") | Adds/stops a run of deleted IDs (3627, 3629, …) alongside the surviving `GrinderLifter` actions. Part of the grinder machinery was removed. |
-| DEEPSEA | `room1pusztulas`…`room4pusztulas` ("room N destruction", on `checkpoints`) | Each starts a deleted object (1569, 1695, 1823, 1951) whose ID is just before its room's `kontrll_room2_def N` group. |
-| START | `SzetfroccsenoDarabokController3` (`DeathOfShawMovie`) | Adds blood-splash pieces 639–642 that no longer exist, next to the surviving `VerFrocs 4/5`. |
-| TITLE | `Mpeg Demo 1 Control …` | The attract-mode MPEG demo loaders reference deleted objects (1274/1280, 1286/1292). |
-
-## PC vs PS2 — loose boss-orca "inside" meshes in AQUARIUM (user-found 2026-10-04)
-
-**User discovery:** the PC `AQUARIUM.GDW` stage contains a bleeding carcass of what looks like a big fish, lying around in the level. In the Blender scene import it's named **`Boss_Orca_Inside01 2`**. That's the mesh you see when you take bites out of the boss orca at the end of the stage (its exposed insides).
-
-What the data shows (2026-10-04):
-- PC `AQUARIUM.GDW` has **three** nodes with that mesh (`GMDL 2647`):
-  - `Boss_Orca_Inside01` (node 27744): a child of the `Boss_Orca` model, the real one used during the boss fight;
-  - **`Boss_Orca_Inside01 2`** (node 2804) at about (−267, −1.0, 98);
-  - **`Boss_Orca_Inside01 3`** (node 2806) at about (−61, −1.5, −121).
-  The last two are **standalone top-level copies at the water surface**, attached to nothing (flags `0x4A`, plain model nodes), so they render as loose carcasses in the stage. **The user found both in-game** (2026-10-04).
-- PS2: the aquarium is split into `AQUARIUM.GDE` and `AQUA2.GDE`. `AQUARIUM.GDE` doesn't contain the name at all, and `AQUA2.GDE` contains it once, consistent with only the boss's own attached piece. PS2 names are pooled in a shared name table (`BNCH`), so one occurrence doesn't strictly rule out more objects, but there's no sign of the loose copies.
-- Likely explanation (not proven): leftover test or placement copies of the boss's "inside" model that were cleaned out of the PS2 build but left in the PC one. What, if anything, was meant to use them isn't known.
-
-## AQUARIUM — leftover static cage gate outside the boss-orca arena (user-found 2026-10-04)
-
-**User observation:** a cage gate, `Ketrec_Ajto01` ("cage door"), stands just out of bounds of the area where you fight the boss orca.
-
-What the data shows:
-- **Node 7430 `Ketrec_Ajto01`**: mesh 2678, a child of the orca tank group `orkarium-forgatott` ("orca tank, rotated"), at about (933, −193.5, −156.5). It's a plain model node, enabled (flags `0x5A`), with **no collision link** (no `PRIM`), no logic block, and **no script referencing it**. `m_Viewport` = `0x2` (probably underwater-only rendering; that bit isn't confirmed).
-- **It's the cage-gate model.** Mesh 2678 has the same 514 vertices as the breakable gate mesh 3070 and matches its shape after scaling (residual under 1 unit), with the scale baked into the vertices. The working breakable gates (`Ketrec_Ajto 1/4/6`, mesh 3070, under the breakable bars `TorhetoRacs…`) are scaled nodes, (0.6, 0.42, 0.5), instead. Its world size, about 9 × 12 × 8, suggests the gate set at an angle. (A first look at the raw mesh size wrongly suggested a smashed door; corrected after checking the node scales.)
-- **Its sibling `Ketrec_Ajto04`** (node 7427, mesh 2681, the same model baked differently) sits **exactly where breakable gate `Ketrec_Ajto 6` is** (world box x 1077–1082, z −196 to −189) and is **disabled** (flags `0x20000018`, no `0x2`), so it never shows.
-- **No breakable gate exists at `Ketrec_Ajto01`'s spot today** (the nearest, gate 1, is about 80 units away at (952, −234)).
-
-**Reading (not proven):** two static gate copies from an earlier pass, before the breakable-gate setup. One duplicate was switched off when gate 6 replaced it; `Ketrec_Ajto01` was left enabled at a position from an earlier arena layout, so it shows up outside the bounds as a gate you can't touch.
-
-PS2: both `AQUARIUM.GDE` and `AQUA2.GDE` contain the name `Ketrec_Ajto01` once. Because names are pooled (`BNCH`), that doesn't show whether it's placed the same way; not checked further.
+- Amity Police Chief, named **only** in the Hot Pursuit goal text. It appears 5 times, once per language.
+- No class, model or placement anywhere.
+- The text is in the PC program only, but that doesn't date it. The PS2 program lacks the PC's whole mission-goal text, including shipped goals like "BEAT THE COLOSSAL SQUID BOSS!".
+- "Brody's House" on the map is a real label for a real character. Only the house itself was never built.
 
 ---
 
-## MINEMSHA — stray tiny rock `k2 03` out of bounds (user-found, checked 2026-11-25)
+## 3. Cut tutorial ending: the Aurora rope fight
 
-The user spotted a very small rock out of bounds in the Grand Occasus Canals. Result: **a stray decoration, tied to nothing.**
+**In short:** in the shipped tutorial (`START.GDW`, stage 1), Brody harpoons Jaws in a cutscene and the stage ends. Originally there was a **playable** part next: Jaws hooked to the Aurora by a line, pulling and snagging it on rocks to break free. The code is complete, the rocks and HUD pictures are placed, Brody's lines were recorded, but the rope itself was never placed.
 
-- **Node** 3030 `k2 03`, a plain static `GDModel` (class `0x0107402F`), top level, flags `0x2000005A` (enabled, in world, absolute transform), viewport `0x80002` (common: 204 nodes, mostly particles), at (−1401, −21, −842). Mesh `GMDL 2017` (103 vertices, 130 triangles, texture 154). **No `PRIM`**, so it has no collision.
-- **Nothing refers to it:** node ID 3030 appears nowhere else in the scene graph (no child list, `GDControl`, reference or action), and no other node uses mesh 2017. It's the only `k`-named node in MINEMSHA.
-- **What it is:** the same geometry (vertices within 0.0001, identical faces) as the open-ocean seabed rock **`k2 1`** (OPEN_S 7507 at scale 3, OPEN_NE 6634 at scale 6.3). OPEN_NE also has the sibling rocks `k1 2` and `k3 1`, which share the face list but have different vertex positions. KATATAMA and DEEPSEA have unrelated `k`-named pieces. In MINEMSHA it's scaled down to **0.34**, about 10–20× smaller than the open-ocean copies, so it's roughly 1 unit wide.
-- **Where:** among outer-edge filler pieces: `inter03` (27 units away), `takar05` (33), `inter02`, `Fal_alapkeszlet_Kulkanyar23` (wall base set, outer bend). Its ID directly follows `takar05` (3029), and the **PS2 `MINEMSHA.GDE`** `BNCH` name table also lists `takar04`, `takar05`, `k2 03`, `canal12` in a row, so it shipped on both platforms and was placed in the same batch as the `takar` cover pieces.
-- **Reading (inference):** an open-ocean rock copied into the canals and shrunk (or left behind) while the edge pieces were being placed, never cleaned up. `k` is probably Hungarian *kő* ("stone"), which fits the rock set's names, but that's a guess.
+The user has the rope-meter sprites and a beta screenshot showing it.
 
-## Moved from CLAUDE.md (2026-11-25)
+### What's left of it
 
-The text below was moved word for word from the root `CLAUDE.md`. It is newer than earlier sections of this file where they disagree.
+- **The code** is in both the PC and PS2 programs: class `NAAuroraRope`, plus `NAAuroraRopeExcluder` for obstacles.
+- **The tutorial prompt** (PC message 487): *"BREAK THE LINE BY TUGGING OR GETTING IT CAUGHT ON OBJECTS."* Never shown.
+- **Four rope-breaking rocks** placed in PC `START.GDW` at the cutscene spot, with nothing referencing them:
 
-### BEACH/BEACHPST "Cut Objective" — resolved 2026-10-03: not cut (full write-up in `docs/cut_content.md`)
+  | Node | Name | Position |
+  |---|---|---|
+  | 2968 | `Kotelszakito_szikla_vf01` | (642, 19, −323) |
+  | 2969 | `Kotelszakito_szikla_vf02` | (579, 19, −226) |
+  | 2970 | `Kotelszakito_szikla_va01` | (640, −15, −327) |
+  | 2971 | `Kotelszakito_szikla_va02` | (575, −15, −223) |
 
-The suspected cut "destroy the sub → boulders clear" objective isn't real. The stuck "drone" under the bridge is a **SeaSeeker** (`ANSeekerRef 4`, `(-233, -17, 265)`), not a `TKSub`. It's deliberately configured stationary: `m_chase_shark`/`m_lights` = 1 (off), no `m_chasearea`, and it inherits the hunger drain. **`ANSeekerRef` PROP ID = `0x080002E9` + reflection field index**; 0 = inherit, booleans tri-state 0/1 off/2 on. No `ACTN` block, PROP or exe string references it or the `Level3_elzarokovek` rocks / `Kizaro_Lap_Kozepes` plate. By contrast, START's working version links `LastSeaSeekerRef` (child mission bricks, class `0x010D20D1`, objective `PROP 0x080005BF`) and the boulder `TunnelBlockingDust` through `ACTN` blocks on its stage-phase nodes. In-game with the rocks removed (user, BEACHPST), the canyon behind them is an empty unfinished stub. Killing the seeker triggers nothing.
+  *Kötélszakító szikla* = rope-breaking rock. `vf` / `va` probably mean above / below water, which matches their heights. The Aurora (`AURORA_LO0`) is at (606, 5, −250).
+- **The rope-meter HUD sprites**, placed at the origin and unused: `Hooked_alap` (the meter base) and `Hooked_Kotel_0`–`_3` plus `Hooked_Kotel_4_Over` (the rope's damage stages, up to snapped). Nodes 2955–2960.
+- **Brody's dialogue**, two never-played lines in START's `Movie` sound bank (samples 470/471, PC and PS2):
+  - `VoiceBrody3`: *"Gottem! Hold tight, he's gonna try and break free!"* The start of the fight.
+  - `VoiceBrody4`: *"Oh my God it's a Great White! Make sure he's fully restrained and let's get him to the research center ASAP."* The capture.
+  - Transcribed by the user. Details: `docs/audio_leads.md`.
 
-### Cut Content — Missions and Areas
+**The rope is never placed:** `NAAuroraRope` has 0 instances in all 20 PC and 22 PS2 levels. Neither does `MBAurora`, the Aurora as a drivable ship.
 
-**Full write-ups (evidence, coordinates, corrections) are in `docs/cut_content.md`**, with more in `docs/mission_system.md`. Summary:
+**On PS2** the tutorial is split into `START.GDE` and `START2.GDE`. The PC has no START2. `START2.GDE` holds the Aurora cutscene, the four rocks and the HUD sprites.
 
-- **Down the Hatch** (`MSHatchMission`, string `"Down the Hatch (unused!)"`): cut side challenge, swallow N collectables before a timer. Never placed in any GDW.
-- **Hot Pursuit** (`StagePursuitQuest`/`StagePursuitQuest2`): cut **story** stage between M10 and M11, title in both the PS2 and PC exes. **Its logic is fully compiled into the PC exe (decoded 2026-10-10):** jet skis race through gates that open ahead of them and close behind; lose if they get farther than `m_PursuitLostDist` from the shark; an end-of-route event starts a boss fight; kill them all → `m_OnAccomplished`. `OOOOOOZZZZZ`/`NNNNNNZZZZZ` are waypoint-group letter sequences from the first draft. Details in `docs/exe_analysis.md`. **Playable proof of concept (2026-10-10, user-tested):** `scripts/build_pursuit_test.py` (custom level `PURSUIT` from MINEMSHA, quest on the canal's `jetski 1`): gate opens, lose fires and restarts the stage, boss phase and win work. **v9 (2026-10-11): full sequence through the real gate logic** (jet ski up the canal on a copy of the sail boats' route, 2 gates open and shut behind it, then boss phase and win). Boat markers (`ANPosition`): PROP = `0x080001EE` + field index, route in fields 1–2; **a spawned boat is removed when it leaves its marker's AABB**. **v10:** speed 120 + turn/stop distances 40/20 and the jet ski races the canal on its own. Play it: `python3 scripts/build_pursuit_test.py --deploy PURSUIT`, then F9 → PURSUIT; write-up in `docs/cut_content.md` "Hot Pursuit: playable restoration". Open: the route's end runs into the bank, one jet ski only, no boss jet skis, see-through gates. Jet-ski chase; goal text: stop the jet skiers before they reach Amity Police Chief Candy Wilson's home, i.e. they flee there for safety and the shark (the player, the villain) catches them first. She is not the boss (`m_JetSkiBossIDList` is). Placed leftovers: `MINEMSHA.GDW` (`JetskiChase`/`jetskipath`/`ccjetski` nested in SC15's `SM16UpACreek` traffic, with a live A-pose NPC bug at `(-1254, 0, -787)`) and `OPEN_NE.GDW` (bare `HOTPURSUIT` marker near the empty `Brody's House` lot).
-- **Developer level-select menus (found 2026-10-11):** `TITLE.GDW` (and PS2 `TITLE.GDE`) hold five plain-text level-select `ACTN` menus (class `0x0211D11C`, IDs 1089–1093; `[label][action ID]` pairs in PROPs `0x08000B46`–`0x08000B69`, the menu name `0x080017C3` comes *after* the list). `Level Select Action` (1091) lists **`10.Hot Pursuit`** between `9.Blood On The Beach` and `11.The Final Chase`, pointing to `GDLoad-Stage10 PURSUIT` (action 1204), the only entry that loads its own stage file (`PURSUIT`, never shipped) instead of a `TITLE0x` loading-screen sub-archive. Other menus: `SCEE` and `Marketing Version` (cut-down demo lists), `Alpha` (no Hot Pursuit), `- Pursuit` (shipped names, the only one with The Facility). Which menu the game can show isn't known. Details: `docs/cut_content.md` "Developer level-select menus".
-- **Candy Wilson:** cut character, text only in the PC exe, no class, mesh, or placement anywhere. The PS2 exe lacks the PC's whole mission-goal text pool (shipped goals like the squid boss too), so PS2's absence doesn't date it (corrected 2026-10-11).
-- **Highlands Bay:** cut map area (string only, no `MapItemPos_` in any Open Ocean zone). **Dolphin Passage is NOT cut**: it's the real `OPEN_S`↔`OPEN_NE` transition channel.
-- **Stage slots:** `MSStageSelect` has `m_Stage1ID`–`m_Stage18ID` (18 slots, 11 shipped). Exactly 7 side challenges have opening cutscenes (SC01/02/03/06/07/12/19); no proof they reuse the 7 unused slots. `MSStageSelect`'s live instance data is unlocated (probably `TITLE.GDW`'s `SCRT`).
-- **Collectibles:** of catalog categories 01–13, only **Trident (10)** is never placed (mesh `TridentStaff` exists in `WRACK.GDW`). The others use 4 naming conventions (`CGO_*`, `BSCollectibleGameObject <Name>`, `<Name>Collectibles`, bare names).
-- **AQUARIUM leftovers (user-found 2026-10-04):** two loose copies of the boss orca's bleeding "insides" mesh (`Boss_Orca_Inside01 2/3`, nodes 2804/2806) lie in the PC stage, attached to nothing; the PS2 aquarium files show no such copies. A static, non-solid cage gate (`Ketrec_Ajto01`, node 7430, the breakable-gate model with its scale baked in) stands just out of bounds of the boss-orca arena where no breakable gate exists, and its twin `Ketrec_Ajto04` duplicates breakable gate 6 and is disabled. Details in `docs/cut_content.md`.
-- **Cut tutorial ending, Aurora rope tug-of-war (2026-10-11):** after Brody harpoons Jaws (START cutscene), a cut playable phase had Jaws hooked to the Aurora and breaking the line. Code `NAAuroraRope` in both exes (rope tension/damage, reel in/let out, rope HUD with shark/ship icons, `m_finalmovie`), prompt message 487 "BREAK THE LINE BY TUGGING OR GETTING IT CAUGHT ON OBJECTS.", the four `Kotelszakito_szikla` rope-breaking rocks placed at the Aurora spot and the `Hooked_Kotel_0–4` meter sprites at the origin (PC START, PS2 `START2.GDE`), all unreferenced; `NAAuroraRope` is never placed in any PC or PS2 level. User has the sprites and a beta screenshot showing it. **Decompiled 2026-11-02** (rope = `NARope` subclass, tick `0x4BC670`): Brody reels in (`m_behuz` after `m_nemhuztime`), pulling hard frays the line (`m_feszulhpszorzo` × tension), makes Brody let out line (`m_kienged`), tows the Aurora (`MBAurora`, never placed) and hurts the shark; snagging on `NAAuroraRopeExcluder`s (meant for the rocks) sends rope-damage message `0x29A`; HP 0 sets `DDGameState.m_koteldied` (`[0x8DA1C0]+0x12C`, ends the tutorial); held at `m_minlen` for 2 s plays `m_finalmovie` (likely the capture). HUD phase = damage × 4 / max HP (`Hooked_Kotel_0–4`). **Its dialogue survives (2026-11-23):** unused START samples 470/471 (`Movie.VoiceBrody3/4`), "Gottem! Hold tight, he's gonna try and break free!" and "…make sure he's fully restrained and let's get him to the research center ASAP". Shipped `MBShipRope` (OPEN_S) is a stripped copy of the tension core. Not a Brody boss fight: START's boss meter is the boats' health bar; the Aurora boss (`MSAuroraBoss`) is KATATAMA only. Details: `docs/cut_content.md` "How the rope fight worked"; engine addresses, field offsets and formulas: `docs/exe_analysis.md` "Cut Aurora rope".
-- **Mermaid (2026-10-20, not cut):** collectible 12 has a static statue (KATATAMA) and, in SC22 The Gauntlet (`SM23TheGauntletMission`), a live swimming mermaid: `GDSkeletonModel` `MermaidModel 1` (3362), `SKEL 946` (31 bones, clips `Mermaid_Swim/Pain/Left/Up`), `MSGeneralFish` AI `Mermaid Action`, collected by biting. Blender copy `skeletons/GAUNTLET/mermaid_skel946.blend`. The **Appaloosa Mermaid tech demo (videos dated 2001-01-05, after Ecco)** shows a different character (blue, with legs) and a HUD naming "GIANT MEDUSA"/"SNAKE FIGHTER"; only Ecco's jellyfish code (`DDMedusaAct`) links it to Jaws, none of its content survives. Stray `MermaidR` bytes in the pelican `WGHT` are leftover memory. Details: `docs/mission_system.md`, `docs/ecco_leftovers.md` "Appaloosa Mermaid tech demo".
-- **Unused voice take:** TOWN sample 388 (`MovieTown1.VoiceCrew2`), the crew's pond line by a different, calmer voice actor; never played.
-- **Dangling script references (2026-10-03 survey):** 327 deleted objects still referenced by `GDControl` steps, e.g. 9 seahorses (AQUARIUM), 5 of 7 firework emitters (TOWN), several seal-pool seals, open-zone destination markers, and WRACK's mayor-interview caption overlays. Table in `docs/cut_content.md`.
-- **ANSideMission numbering gap:** classes 15/21/22/25 map to SC14/20/21/24, class 33 to SC29, so classes 26–32 were removed (at least 3 cut side challenges).
+**It's not a Brody boss fight.** START's "Boss Meter 2" is the ordinary boat health bar. The real Aurora boss (`MSAuroraBoss`) is only in KATATAMA, stage 5.
 
-### "Sole Predator" — original working title
+### Winning the rope fight would have ended the tutorial
 
-*Sole Predator* was the game's original working title during development at Appaloosa Interactive (formerly Novotrade, Budapest), before Majesco licensed the Jaws IP and agreed to publish the game. The title change happened during production; the shipped build is *Jaws Unleashed*.
+- The tutorial's stage brick, `MBStageTutorial`, finishes only when a game flag is set: `DDGameState.m_koteldied`, "the rope died" (`[0x8DA1C0]+0x12C`).
+- Only `NAAuroraRope` sets that flag. So breaking the rope was meant to end the stage.
+- In the shipped game this path is dead. The stage ends through `NATutorialQuest`'s Aurora movie instead.
+- `MBStageTutorial` also starts in state 4, skipping states 0–3, which would have triggered the Zodiac boats once boat damage reached 1,000. See `docs/speedrun_glitches.md` section 7.
 
-The string "Sole Predator" **does appear** in extracted textures as promotional/marketing copy describing the game's boasted features — early promotional assets baked into the build that survived the title change. It is **absent** from mission names, class names, mode names, and script strings — the rename was applied consistently to the code/data namespace but not to all texture assets.
+### How the rope fight worked
+
+Read from the decompiled game code (2026-11-02). It wasn't run.
+
+**In plain words:**
+- Brody keeps reeling Jaws in.
+- Pulling away hard stretches the line. That frays it, but it also makes Brody let out line, drags the Aurora along, and hurts the shark.
+- Dragging the line across the rocks snags it and takes a chunk of its strength each time.
+- If the line breaks, the tutorial ends.
+- If Brody reels Jaws all the way in and holds him for 2 seconds, `m_finalmovie` plays. That is probably the capture, which the shipped game shows as a plain cutscene; stage 2 starts with Jaws captured.
+- Whether being caught counted as losing, or as a second way to finish, isn't clear.
+
+**Each game tick, step by step:**
+1. **Rope length.** The rope has a current length `L`, spread over its segments.
+2. **Brody reels in.** If the shark hasn't pulled for `m_nemhuztime` ticks, `L` shrinks by `m_behuz`, down to `m_minlen`.
+3. **Caught.** If `L` stays at `m_minlen` for 60 ticks (2 s), `m_finalmovie` starts and the rope is removed.
+4. **Tension.** Stretch `r` = actual length ÷ `L`. Above `m_treshold`, tension `t = 1 − m_halfdist / (m_halfdist + r − m_treshold)`, which runs from 0 to 1. Then:
+   - the rope loses `m_feszulhpszorzo × t` strength every tick;
+   - if `t ≥ m_belsofeszulkotelkifele`, Brody lets out line: `L` grows by `m_kienged × t`, up to `m_maxlen`;
+   - if `t > m_hajothuzfesz`, the shark tows the Aurora;
+   - the rope hurts the shark: `m_kotelsebez` damage under high tension, or `m_kozelvansebez` when too close to the boat. It also pulls the shark by `m_kotelforce`.
+5. **Broken.** When the rope's strength reaches 0, it sets `m_koteldied`, and the tutorial ends.
+6. The rope's first segment is pinned to the shark's mouth.
+
+**Snagging.** `NAAuroraRopeExcluder` is an obstacle the line can't pass through. It can be:
+- a sphere;
+- a column;
+- a model's collision shape.
+
+On contact it damages the rope by `m_damage`, plays an effect, and can leave an anchor that keeps the line caught. The damage is applied at most once every `m_damagetime` ticks, with a pad rumble. **The four rocks were meant to carry these.**
+
+**The Aurora wears the line too:** when the ship hits something, it damages the rope by `m_hajotolkotelserul`.
+
+**The HUD:**
+- The shark and ship icons slide toward each other as the line is reeled in.
+- The rope picture shows its damage stage: `(max − current strength) × 4 / max` picks `Hooked_Kotel_0` to `_4_Over`.
+- It flashes with tension.
+
+**A shipped cousin:** `MBShipRope`, placed once in `OPEN_S`, is a stripped-down copy. It has the same tension, towing and damage, but no strength, reeling, HUD or movie.
+
+### Making it playable
+
+It would need, in START:
+1. an `NAAuroraRope` brick, plus the fields of its `NARope` base class;
+2. an `MBAurora` on the Aurora;
+3. excluders on the four rocks;
+4. the `Hooked_*` sprites wired to the HUD fields;
+5. a movie for `m_finalmovie`.
+
+All the classes are compiled in. The next step is decoding `NARope`'s fields and finding a shipped level that places one, to copy from.
+
+### Evidence: classes and addresses
+
+| Class | What it is | Addresses in `Jaws.exe` |
+|---|---|---|
+| `NAAuroraRope` | The line. A subclass of the engine's rope `NARope` (constructor `0x5AA3F0`, physics `0x5ABAE0`). | descriptor `0x8DB828`, vtable `0x7DA4D4`, tick `0x4BC670`, activate `0x4BC470`, deactivate `0x4BD010`, damage `0x4BD100`, message hook `0x4BBD90` |
+| `NAAuroraRopeExcluder` | An obstacle that snags the line | descriptor `0x8DC8E0`, vtable `0x7DA5E8`, tick `0x4BD780` |
+| `MBAurora` | The Aurora as a drivable ship | descriptor `0x8DCD00`, collision handler `0x4B9610` |
+| `NAAuroraRopeBuoyRopeInteractor` | An action; not decoded | vtable `0x7E69CC`, tick `0x574DC0` |
+| `MBShipRope` | The shipped cut-down rope | descriptor `0x8DBD48` |
+
+**Other details:**
+- `NAAuroraRope` has 37 tuning fields, listed by `scripts/dump_class_fields.py`.
+- The Hungarian field names: *kötél* = rope, *hajó* = ship, *cápa* = shark, *kienged* = let out, *behúz* = reel in.
+- Debug text: `Kienged, feszul:%f`, `Behuz`, `Kotel len:%f`.
+- Rope messages: `0x29A` (snag damage) and `0x41` (hurt and pull the shark).
+- `m_koteldied` is written at `0x4BC8E3`, `0x4BCE98` and `0x4BD19A`.
+
+More: `docs/exe_analysis.md` "Cut Aurora rope".
+
+### Open
+
+- The `Kotelszakito_szikla` names also occur in FISH and the three open-ocean levels. Are they placed there, or only in the shared pool? Unchecked.
+
+---
+
+## 4. Old Brody model on the boss Aurora
+
+![Shipped Brody (left) and the old model, OPEN_NE and KATATAMA copies](images/old_brody_vs_shipped.png)
+
+**In short:** the Brody standing on the Aurora in the stage 5 boss fight (KATATAMA) is an **older character model**. A hidden twin in OPEN_NE still carries his old animations, including a throat-slit gesture. They come from an earlier version of the tutorial's ending.
+
+### The two models
+
+| | Old Brody | Shipped Brody |
+|---|---|---|
+| Look | Younger, dark curly hair, beard, blue cap, yellow life vest, navy cargo trousers, boots | Older, grey hair, yellow jacket, jeans |
+| Bones | 56 | 24 or 30 |
+| Vertices | 1,398 | 822 |
+| Textures | 11 small ones (64×64 or 64×128) | One 256×256 |
+| Where | KATATAMA boss Aurora; hidden in OPEN_NE | AQUARIUM, START, KATATAMA, DEEPSEA2, TOWN, BEACH |
+
+### The KATATAMA copy (visible)
+
+- Node `Brody` (3721), on the boss Aurora's deck. He rides along with the boat in the boss cutscene and the fight.
+- Position on the boat: local offset (0.03, 10.6, −1.35); world (324, 11, −1146). He's 2.08 units tall, normal human size.
+- Model: `SKEL 2317`, `GMDL 2803`.
+- Node chain: under `BrodyHelye` (3720, "Brody's spot"), under `AuroraBrick` (3665, the `MSAuroraBoss` brick).
+- Nothing scripts him.
+- He uses the generic animator `GDSkeletonAnim`, not the `NASkeletonAnim` that cutscene Brodys use.
+- His skeleton holds a 30-frame loop, the length of the steering clip, so he stands at the wheel.
+
+### The OPEN_NE twin (hidden)
+
+- Node `CoastGuard 1` (4662): same model, same textures under different IDs. `SKEL 2454`, `GMDL 2861`.
+- It hangs from the helicopter's rope ladder in SC06 *Flip the Bird*'s intro, but it is set "not rendered" and nothing shows it. **It never appears.**
+- Despite the node name, it is the old Brody (user-confirmed). All its clips are named `MBrody_*`.
+
+**Its animation clips:**
+
+| Clip | Frames |
+|---|---|
+| `MBrody_AuroraComesMovie` | 265 |
+| `MBrody_AuroraCatchesMovie` | 90 |
+| `MBrody_GrabHarpoonMovie` | 36 |
+| `MBrody_Kormanyoz` (steering) | 30 |
+| `MBrody_EscapeAtL4` | 1 |
+
+**A matching shark clip:** TITLE's menu shark (`GWside 1`, `SKEL 845`) carries an unused 90-frame clip, `Shark_GW_Movie_L2_AuroraCatches`. That's the same length as Brody's `AuroraCatches`. The name exists only in `TITLE.GDW`.
+
+### The throat-slit gesture
+
+Spotted by the user. In `MBrody_AuroraComesMovie`, Brody:
+- stands still until about frame 90;
+- raises his right arm high (≈100–125);
+- points to the side (≈135–160);
+- lowers it;
+- from about frame 215, draws his hand across his throat.
+
+Pictures: `docs/images/old_brody_auroracomes_f140-230.png`.
+
+The shipped tutorial ending fills the same 265 frames with entirely different motion: Brody shades his eyes, leans, stumbles, then puts both hands on his head (`docs/images/old_vs_shipped_brody_265f.png`). **So it's a new animation, not a retarget.** The matching length suggests the same cutscene slot was reanimated.
+
+A hostile hunter Brody was replaced by a frightened one. But the scene still ended in a capture: the partner clip is "AuroraCatches", and the unused voice line says to take the shark "to the research center".
+
+### Where the old clips belong
+
+The old clip names describe the shipped tutorial ending. In `START.GDW` that ending is the group `AuroraComesMovie` (198). It contains the Aurora, two crew, a helmsman at the wheel playing the clip `Kormanyoz`, the harpoon line, the new Brody, the shark and a victim.
+
+| Old Brody clip | Shipped ending |
+|---|---|
+| `AuroraComesMovie` | The Aurora arrives |
+| `Kormanyoz` | A generic helmsman now stands at the wheel |
+| `GrabHarpoonMovie` | Brody fires the harpoon |
+| `AuroraCatchesMovie` (+ the shark's clip) | The capture |
+
+**Reading (inference):** an older cutscene set for this ending had old Brody at the wheel, grabbing the harpoon and catching the shark. "L2" and "L4" in the clip names don't match the shipped stage order, so the stage list was different then. "EscapeAtL4" may be Brody's helicopter escape, which the shipped game has in stage 5.
+
+### Blender scene
+
+`animations/OldBrody_AuroraCatches_scene.blend` puts the old Brody, with all five clips, on the boss Aurora's deck, next to the TITLE shark playing its `AuroraCatches` clip.
+- Frames 1–90, at 30 fps.
+- **The shark's position is a guess.** No data gives where it should be.
+- Each rig hangs from an Empty (`Brody_on_deck`, `Shark_by_eye`); move the Empty to reposition it.
+- Change Brody's clip in the Action Editor.
+
+Pictures: `docs/images/old_brody_vs_shipped.png`. The raw textures (`docs/images/old_brody_textures.png`) stay local, not in the repo.
+
+### Open
+
+- Compare the model with the user's beta screenshots and the trailer.
+- Is the boss Aurora's Brody visible from normal play distance?
+
+---
+
+## 5. Other cut missions and stage slots
+
+### *Down the Hatch* (cut side challenge)
+
+- Class `MSHatchMission`. The stage list text reads `"Down the Hatch (unused!)"`.
+- Goal: `SWALLOW %d COLLECTABLES WITHIN %d SECONDS.`
+- Three difficulties (`m_EasyNum`, `m_MediumNum`, `m_HardNum`), each with a time limit.
+- A simpler version of SC22 *The Gauntlet*, which has you collect tyres.
+- Never placed in any level.
+
+### Side challenges 26–32 were removed
+
+The five `ANSideMission` classes map to the displayed challenge numbers like this:
+
+| Class | Shown as |
+|---|---|
+| 15 | SC14 |
+| 21 | SC20 |
+| 22 | SC21 |
+| 25 | SC24 |
+| 33 | SC29 |
+
+- The first four are off by one. Class 33 is off by four.
+- So classes 26–32 existed and were removed: **at least 3 cut side challenges**.
+- *Down the Hatch* may have been one of them.
+- Full table: `docs/mission_system.md`.
+
+### 18 stage slots, 11 used
+
+- The stage-select object `MSStageSelect` has 18 slots (`m_Stage1ID`–`m_Stage18ID`). The game has 11 story stages.
+- Story-quest classes without a shipped stage: `StagePursuitQuest`/`2` (§2) and `StageDocksQuest`.
+
+**The user's theory:** exactly 7 side challenges have opening cutscenes. Do they reuse content from 7 cut story stages?
+- The 7 are SC01 *Barrels of Fun*, SC02 *Seal Whip*, SC03 *Bay Patrol Blood Bath*, SC06 *Flip the Bird*, SC07 *Reality TV*, SC12 *Trouble and Strife* and SC19 *Get Mr. Stripes*. Confirmed.
+- Two of them live inside story levels instead of the shared open ocean: *Trouble and Strife* in START, *Get Mr. Stripes* in WRACK.
+- **No proof of reuse found.** Neither class has leftover story-quest fields.
+- The settled answer would be the values in `MSStageSelect`'s 18 slots, but its real instance hasn't been found. It's probably in `TITLE.GDW`'s `SCRT` tree.
+- Details: `docs/mission_system.md` "Side challenges with opening cutscenes".
+
+---
+
+## 6. Cut places and collectibles
+
+### Highlands Bay (cut)
+
+- It is in the map-name list, between ENVIRONPLUS MINING SITE and BRIDGEPORT SOUND, and gets a map icon slot like every location.
+- **It has no real map position** (`MapItemPos_Highlands Bay`) in any of the three open-ocean levels. It was never placed.
+
+### The Trident (never placed)
+
+- The collectible catalogue has 13 categories. Categories 01–08 use `CGO_` names. The others use three more naming styles: `BSCollectibleGameObject <Name>`, `<Name>Collectibles`, and bare names.
+- **Only the Trident (category 10) is placed nowhere**, under any naming style.
+- Its model exists: `TridentStaff` in `WRACK.GDW`, 208 triangles.
+
+Where the rarer ones are:
+
+| Collectible | Level |
+|---|---|
+| Pirate Ship | DOCKS |
+| Body Bag | START, TOWN |
+| Mermaid | KATATAMA, GAUNTLET |
+| Nautilus | AQUARIUM |
+| Diamond Necklace | WRACK. Verified in-game by scaling it up 10×. |
+
+The first check missed these by searching for one naming style only; the user caught it. Full table: `docs/mission_system.md`.
+
+---
+
+## 7. Small leftovers in the levels
+
+### Loose orca insides in AQUARIUM (PC only)
+
+Found by the user.
+- The bleeding "insides" mesh you see when biting the boss orca (`GMDL 2647`) is placed three times in PC `AQUARIUM.GDW`:
+  - `Boss_Orca_Inside01` (27744), attached to the orca. The real one.
+  - **`Boss_Orca_Inside01 2`** (2804) at about (−267, −1.0, 98).
+  - **`Boss_Orca_Inside01 3`** (2806) at about (−61, −1.5, −121).
+- The last two float at the water surface, attached to nothing, so they show as loose carcasses. The user found both in-game.
+- **PS2:** the aquarium is split into `AQUARIUM.GDE` and `AQUA2.GDE`. Only `AQUA2` has the name, once, which fits only the boss's own copy. The PS2 name table is shared, so this isn't certain.
+- Probably leftover test copies, cleaned out of the PS2 build but not the PC one.
+
+### A static cage gate outside the orca arena (AQUARIUM)
+
+Found by the user.
+- `Ketrec_Ajto01` ("cage door", node 7430) stands just out of bounds of the boss-orca arena, at about (933, −193.5, −156.5).
+- It has no collision, no logic and no script.
+- It's the same model as the breakable cage gates, with the scaling built into the mesh.
+- Its twin `Ketrec_Ajto04` (7427) sits exactly where breakable gate 6 is, and is switched off.
+- No breakable gate exists at `Ketrec_Ajto01`'s spot. The nearest is ~80 units away.
+- **Reading:** two static gates from before the breakable-gate setup. One was switched off when gate 6 replaced it. The other was left on, at a spot from an older arena layout.
+
+### A tiny stray rock in MINEMSHA
+
+Found by the user.
+- `k2 03` (node 3030) at (−1401, −21, −842), outside the playable canals. No collision, and nothing refers to it.
+- It's the open-ocean seabed rock `k2 1`, shrunk to 0.34 scale, about 1 unit wide. In the open ocean the same rock is used at scale 3–6.3.
+- It sits among edge-filler pieces (`inter03`, `takar05`), and its ID follows `takar05`. The PS2 file has it too.
+- **Reading:** copied in by mistake while the edge pieces were placed, and never cleaned up. `k` may be Hungarian *kő*, "stone".
+
+### A calmer alternate voice take (TOWN)
+
+- TOWN sample **388** (`MovieTown1.VoiceCrew2`, 6.18 s): *"Something's happening out at the pond. Mr. Mayor, we must leave! Things are getting... Oh shit, look at the size of that thing!"*
+- Recorded by a **different voice actor in a calmer tone** than the shipped take 387. Identified by the user, by listening.
+- It's in the sound banks, but nothing plays it. It's the only unused one of the 49 captioned cutscene lines.
+- See `docs/cutscene_dialogue.md`.
+
+---
+
+## 8. Dangling script references
+
+**In short:** the level scripts (`GDControl`) still name **327 objects that were deleted** during development. They show what used to be there.
+
+- All the missing IDs are below their level's highest ID, so they were deleted, not created at runtime.
+- 10 of the controls are shared prefabs, found in 8 or more levels: menus, the shark's pause and caught overlays, the loading effect, and the shooting control.
+- 146 are level-specific. Most are routine, such as clean-up of removed effects.
+- See them with `scripts/dump_gdcontrol.py`. Missing targets show as `missing#<id>`.
+
+**The notable ones:**
+
+| Level | Control | What it shows |
+|---|---|---|
+| WRACK | `MayorFeliratKiBeKapcsolgato` ("mayor caption on/off") | Turns two deleted objects on and off during the mayor's interview: old caption overlays, replaced by captions built into the sounds. This lead found the cutscene voice acting. |
+| AQUARIUM | `SeahorseBizgeto` ("seahorse jiggler"), `EndOfScene2` | Pauses 9 deleted objects during exhibition-hall scene 2: probably a removed seahorse display |
+| AQUARIUM | `cinema203_starter`, `movie4-snitt1-start`, `return to game 1` | Missing IDs spaced 8 apart between the surviving seals: several seals removed from the seal pool |
+| TOWN | `firework 1`, `firework 2` | Each fires 7 bursts from 7 emitters, but only 2 emitters survive. The fireworks show was cut down. Same on PS2. |
+| TOWN | `NaEzekreNincsSzukseg` ("we don't need these") | Hides vehicle HUD overlays, plus one deleted overlay |
+| OPEN_NE / NW / S | per-destination controls (`BeachControl`, `DoxControl`, …) | Each adds a "white triangle" map marker. In OPEN_NE only the Armada and Town markers survive. |
+| DEEPSEA | `grinderkikapcsolo` ("grinder switch-off") | Part of the grinder machinery was removed |
+| DEEPSEA | `room1pusztulas`–`room4pusztulas` ("room N destruction") | Each starts a deleted object, just before its room's control group |
+| START | `SzetfroccsenoDarabokController3` (Shaw's death movie) | Adds blood-splash pieces that no longer exist |
+| TITLE | `Mpeg Demo 1 Control …` | The attract-mode demo loaders point at deleted objects |
+
+---
+
+## 9. Not cut after all
+
+### The BEACH "submarine" and blocking boulders
+
+**In short:** it looked like a cut "destroy the sub, blast the boulders, reach a new area" objective. **It isn't.** The "sub" is an ordinary SeaSeeker set up to stand still, and the boulders seal off an unfinished edge of the map.
+
+**What the user noticed:** in BEACH and BEACHPST, a "drone" sits motionless under the bridge and drains your hunger. Not far away, a named group of three rocks (`Level3_elzarokovek`, "blocking rocks") seals a canyon. START has a working version of the same idea: destroy a SeaSeeker, a boulder blows up and the path opens.
+
+**What the data says:**
+- **The "drone" is a SeaSeeker**, `ANSeekerRef 4` (BEACH node 1915) at (−233, −17, 265). The tutorial hint describes these: *"The seaseeker on the ocean floor is making you hungry. Destroy it…"*
+- **It was set up to stand still on purpose.** It inherits the hunger drain like the others:
+
+  | Field | Seeker 4 (bridge) | Seekers 1–3 |
+  |---|---|---|
+  | `m_chase_shark` | off | on |
+  | `m_lookdistance` | inherited | 180 |
+  | `m_alarmdistance` | inherited | 40 |
+  | `m_chasearea` | none | a patrol area |
+  | `m_lights` | off | on |
+
+- **Nothing links it to the rocks.** None of BEACH's 1,112 script blocks (836 in BEACHPST) mentions the rocks, the invisible barrier plate or any SeaSeeker. No property does either, and the game program doesn't contain their names.
+- **START's working version is wired up.**
+  - Its SeaSeeker has two mission objectives as child nodes.
+  - Its boulder has its own controller and a dust effect.
+  - Checkpoint clean-up scripts remove the boulder.
+  - It is on the quest manager's list.
+- **BEACH's rocks are plain scenery.** They use the level's most common render settings and have no effect, controller or reference.
+- **Behind the rocks** is a short walled channel ending at beach sand. No markers, triggers or exits.
+
+**In-game test (user):**
+- The rocks were moved 50,000 units down. The canyon behind is an empty stub: the seafloor stops after a short way.
+- Killing the bridge seeker triggers nothing.
+- The seeker layout matches the data:
+  - BEACH: 3 working seekers, plus the still one under the bridge, ~135 units from the rocks.
+  - BEACHPST: 2 seekers, the ditch one and the bridge one.
+
+**What's left** is only circumstantial: the "blocking rocks" name, a short walled channel heading inland, and a stream painted on the world map. At most the designers once planned to extend the area.
+
+**The first theory was wrong.** It was written July–August 2026, before the tools existed to check it. It said:
+- the drone was a `TKSub` mini-submarine class;
+- the rocks hid a large built area;
+- BEACHPST not having the rocks cleared meant the objective was never finished.
+
+The wording is in the archived version of this doc.
+
+#### Evidence: the `ANSeekerRef` fields
+
+- 74 fields; **PROP ID = `0x080002E9` + field index**, in registration order.
+- On reference nodes, 0 means "use the template's value".
+- Yes/no fields have three values: 0 = inherit, 1 = off, 2 = on.
+- PROP IDs of the fields above:
+
+  | Field | PROP |
+  |---|---|
+  | `m_chase_shark` | `0x080002F1` |
+  | `m_lookdistance` | `0x08000308` |
+  | `m_alarmdistance` | `0x08000309` |
+  | `m_chasearea` | `0x08000310` |
+  | `m_lights` | `0x08000312` |
+
+- All BEACH SeaSeekers are reference copies of the template `ss_mobile` (BEACH node 19822, class `ANSeeker`).
+
+#### Evidence: START's boulder vs BEACH's rocks
+
+| | START `TunnelBlockingDust` (2083) | BEACH `Level3_elzarokovek` (4882; BEACHPST 4559) |
+|---|---|---|
+| Structure | One rock | A group of 3 rocks, `Elzaroko01`–`03` |
+| Mesh | GMDL 3234, about 13 × 26 × 39 | GMDL 2557 (BEACHPST 2506), about 17 per side |
+| Texture | Dark grey cliff rock | Mossy green seabed rock |
+| Collision | MREG 3925 | MREG 3044 (BEACHPST 2978) |
+| Flags | `0x4A` (local transform) | `0x2000005A` (absolute) |
+| `m_Viewport` | `0x80002` | `0xE0003` |
+| `m_RenderSetting` | `0x280820` | `0x820` (the level's most common value) |
+| Dust effect | Yes (`TunnelBlockingRockDust`) | No |
+| Extra barrier | None | Invisible plate `Kizaro_Lap_Kozepes 7`/`8` |
+| Own controller | `SeaSeekerQuestEventControl` | None |
+| Referenced by | Two checkpoint clean-ups, `SideMissionControl`, the quest manager | Nothing |
+| Linked SeaSeeker | `LastSeaSeekerRef`, with objectives 13 and 14 | None |
+
+### Dolphin Passage
+
+- First flagged as cut because no mission uses it.
+- **It's real.** It's the water channel between Open Ocean South and Open Ocean East. The user swam through it.
+- Its map position `(4693.3, 0, -2267.0)` is the same in both `OPEN_S` and `OPEN_NE`, next to each zone's transition marker (`FromS`, `FromNE`).
+
+### The Gauntlet mermaid
+
+- Collectible 12 is a static statue in KATATAMA.
+- In SC22 *The Gauntlet* it's a live, swimming mermaid that you collect by biting: `MermaidModel 1`, `SKEL 946`.
+- Appaloosa's 2001 Mermaid tech demo is a different character.
+- Details: `docs/mission_system.md`, and `docs/ecco_leftovers.md` "Appaloosa Mermaid tech demo".
+
+---
+
+## 10. *Sole Predator*: the working title
+
+- The game was developed at Appaloosa (formerly Novotrade, Budapest) as ***Sole Predator***, before Majesco licensed *Jaws*.
+- The name survives only in a few promotional textures that describe the game's features.
+- It's absent from mission, class and mode names and from script text. The rename was applied to the code and data but not to every texture.

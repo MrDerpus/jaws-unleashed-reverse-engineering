@@ -8,7 +8,7 @@ Quick version:
   2. ./build.sh            (add --show-exits to see exit zones as coloured columns)
   3. In the game: F9, pick the level (CUSTOM_FISH), Enter. F10 reloads it.
      build.sh installs it as custom_levels/<LEVEL_NAME>.GDW next to Jaws.exe.
-  Custom text: jaws_messages.txt (copy it to the Wine prefix's drive_c).
+  Custom text: jaws_messages.txt (copy it to the game folder, next to Jaws.exe).
   Music: MUSIC= in build.sh: keep, none, or custom (files in music/ named
   calm_above, calm_under, suspense, action; any format; one calm_above is enough).
 

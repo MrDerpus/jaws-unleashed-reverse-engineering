@@ -1,110 +1,132 @@
-# Bite System — Jaws Unleashed
+# Biting and body parts
 
-The bite interaction system is fully component-based, as revealed by the property reflection metadata in the CLAS chunk. The engine supports per-limb bite targeting, material swapping on impact, skeletal replacement for dismemberment, and nutrition/damage scaling per target type.
+**In short:** anything the shark can bite carries an `NABiteTarget` component, with its own hit points, nutrition, size and damage multiplier.
+- Each body part is its own target.
+- Biting one can swap its material (wounds), destroy dependent parts and swap in a ragdoll skeleton.
+- Things the shark can grab and throw are `NAChewingToy`s.
+- Group bitmasks decide what can attack or sense what.
+
+Most of this comes from field names. The bite damage itself (frames and formula) is decoded from the exe: `docs/exe_analysis.md` §6 "Bite animation".
+
+Rewritten for readability on 2026-11-27. Old version: `docs/archive/bite_system_old_2026-11-27.md`.
 
 ---
 
-## NABiteTarget — Core Component
+## Contents
 
-The `NABiteTarget` class defines any object the shark can bite. All properties are reflected in the CLAS chunk.
+1. [`NABiteTarget`](#1-nabitetarget)
+2. [`NAChewingToy`](#2-nachewingtoy)
+3. [Body parts and dismemberment](#3-body-parts-and-dismemberment)
+4. [Interaction groups](#4-interaction-groups)
+5. [How the bite deals damage](#5-how-the-bite-deals-damage)
+6. [Examples](#6-examples)
 
-| Property | Meaning |
+---
+
+## 1. `NABiteTarget`
+
+| Field | Probably |
 |---|---|
-| `m_hp` | Hit points for this bite target |
-| `m_damagemultiplier` | Damage scaling factor |
-| `m_nutrition` | Nutrition gained by shark when this target is eaten |
-| `m_radius` | Collision radius for bite detection |
-| `m_eattype` | Category of object (creature, object, vehicle, etc.) |
-| `m_creature` | Associated creature reference |
-| `m_dragfactor` | How much this object resists being dragged/thrown |
-| `m_shakefactor` | Camera/feedback shake intensity on bite |
-| `m_bitetargetmodel` | Model displayed while being bitten |
-| `m_bitetargetmaterialindex` | Material swap index triggered on bite impact |
-| `m_dependentlimbs` | Other `NABiteTarget` components that are destroyed when this one is |
-| `m_rubberskeletonid` | Replacement skeleton ID for ragdoll/dismemberment |
+| `m_hp` | Hit points |
+| `m_damagemultiplier` | Damage scaling |
+| `m_nutrition` | Hunger the shark regains by eating it |
+| `m_radius` | Bite detection radius |
+| `m_eattype` | Category (creature, object, vehicle, …) |
+| `m_creature` | The creature it belongs to |
+| `m_dragfactor` | Resistance to being dragged or thrown |
+| `m_shakefactor` | Shake on bite |
+| `m_bitetargetmodel` | Model shown while bitten |
+| `m_bitetargetmaterialindex` | Material swapped in on a bite |
+| `m_dependentlimbs` | Other targets destroyed along with this one |
+| `m_rubberskeletonid` | Ragdoll skeleton swapped in on dismemberment |
 
-**Implications:**
-- Each limb (head, torso, arm, etc.) is a separate `NABiteTarget` component
-- Biting a limb can trigger material swaps (blood effects, wound textures)
-- `m_dependentlimbs` creates a destruction chain — destroying one part destroys attached parts
-- `m_rubberskeletonid` drives the skeletal swap from animation skeleton to ragdoll skeleton
+**What it allows:**
+- Each limb (head, torso, arm…) is a separate target.
+- A bite can swap a material (blood, wound textures).
+- `m_dependentlimbs` chains destruction: losing one part loses the parts attached to it.
+- `m_rubberskeletonid` swaps the animation skeleton for a "rubber" ragdoll one (`docs/animation_system.md` §8).
 
 ---
 
-## NAChewingToy — Physics-Enabled Prey
+## 2. `NAChewingToy`
 
-Objects the shark can grab, drag, and throw are `NAChewingToy` components.
+Things the shark can grab, drag and throw.
 
-| Property | Meaning |
+| Field | Probably |
 |---|---|
-| `m_velocity` | Initial velocity when grabbed |
-| `m_angularvelocity` | Rotational velocity when thrown |
-| `m_gravity` | Physics gravity scale |
-| `m_attackgroups` | Collision group mask for attack interactions |
-| `m_sensorgroups` | Sensor mask for detection |
-| `m_target` | Target reference |
+| `m_velocity` | Velocity when released |
+| `m_angularvelocity` | Spin when thrown |
+| `m_gravity` | Gravity scale |
+| `m_attackgroups` | Attack mask |
+| `m_sensorgroups` | Sensor mask |
+| `m_target` | Target |
 
 ---
 
-## Dismemberment Framework
+## 3. Body parts and dismemberment
 
-The anatomy/dismemberment system uses standard body-part property naming across all creature types:
+The same field names appear across creature types:
 
-| Property | Body Part |
+| Field | Part |
 |---|---|
 | `m_head` | Head |
-| `m_body` | Torso / body |
-| `m_leftarm` | Left arm |
-| `m_rightarm` | Right arm |
-| `m_leftleg` | Left leg |
-| `m_rightleg` | Right leg |
-| `m_lefthand` | Left hand |
-| `m_righthand` | Right hand |
-| `m_leftfoot` | Left foot |
-| `m_rightfoot` | Right foot |
+| `m_body` | Torso |
+| `m_leftarm`, `m_rightarm` | Arms |
+| `m_lefthand`, `m_righthand` | Hands |
+| `m_leftleg`, `m_rightleg` | Legs |
+| `m_leftfoot`, `m_rightfoot` | Feet |
 
-Supporting system properties:
-- `m_dependentlimbs` — destruction chain references
-- `m_rubberskeleton` — ragdoll skeleton binding
-- `m_dismembermaterialindex` — material shown at dismemberment point (wound texture)
+**Supporting fields:**
+- `m_dependentlimbs`: the destruction chain;
+- `m_rubberskeleton`: the ragdoll skeleton;
+- `m_dismembermaterialindex`: the material at the cut (wound texture).
+
+Spawn templates for loose parts (`BloodyHead`, `BloodyLeftArm`, …) sit at the origin in the open-ocean levels (`docs/terrain_and_water_bounds.md` §5).
 
 ---
 
-## Group-Based Interaction Filtering
+## 4. Interaction groups
 
-The engine uses bitmask groups to control which objects can interact with which:
-
-| Property | Purpose |
+| Field | Probably |
 |---|---|
 | `m_attackgroups` | Which groups this object can attack |
-| `m_sensorgroups` | Which groups this object can detect |
+| `m_sensorgroups` | Which groups it can detect |
 | `m_backgroundgroups` | Background collision groups |
 
-This acts as a layer system for collision, AI targeting, and bite interactions — allowing the shark, prey, and environment to each occupy different channels.
+- Bitmask layers for collision, AI targeting and biting.
+- **In the exe:** a brick's attack and sensor masks are at `+0x3C` / `+0x40`. The collision pair test (`0x695F30`) checks `mask & a[+0x3C] & b[+0x40]` (`docs/exe_analysis.md` §5).
 
 ---
 
-## Hierarchy Example (Hammerhead)
+## 5. How the bite deals damage
 
-Reconstructed from BRTR CHBR nodes and property reflection:
+Decoded from the exe (`docs/exe_analysis.md` §6 "Bite animation"):
+- **The bite clip** `Shark_GW_Pitbull04` is the grab-chew-shake. It deals damage at three frames (start +12, +23, +33); shorter variants deal two.
+- **Damage** = `(SharkConfig[0xD74] × Power ability + 1) × SharkConfig[0x4AC]`, sent to the held prey as message `0x27`.
+- **Shake/tear** (sub-state `0xF`) deals damage by how far the shark moves instead (`Razas damage!`).
+
+---
+
+## 6. Examples
+
+### Hammerhead
+
+From the `BRTR` nodes and field names:
 
 ```
 Hammerhead SkeletonModel
-├── Hammerhead Head Fixed Brick     [NABiteTarget: m_hp, m_nutrition, m_dependentlimbs]
-├── Hammerhead Body Fixed Brick     [NABiteTarget: primary hp pool]
-└── Hammerhead Tail Fixed Brick     [NABiteTarget: m_dependentlimbs → body]
+├── Hammerhead Head Fixed Brick     NABiteTarget: m_hp, m_nutrition, m_dependentlimbs
+├── Hammerhead Body Fixed Brick     NABiteTarget: the main hit-point pool
+└── Hammerhead Tail Fixed Brick     NABiteTarget: m_dependentlimbs → body
 ```
 
-Spatial layouts extracted from transform matrices match expected anatomy — confirmed via world-space AABB comparison.
+The parts' world bounding boxes match the expected anatomy.
 
----
+### Notable placed objects in FISH
 
-## Known Placed Bite Targets (FISH.GDW)
-
-Notable objects with mesh references in the FISH.GDW BRTR scene graph:
-
-- `GWside` — Great White Shark model
-- `WhaleCarcass Body` — Dead floating whale (edible)
-- `MartinWalker` — NPC with bite target components
-- `mansionC` (×2) — Underwater buildings (structural bite targets)
-- `Torheto_pozna` — Breakable posts (Hungarian: "breakable post")
+Not each one checked for a bite target:
+- `GWside`: the great white (the player's own model);
+- `WhaleCarcass Body`: the floating dead whale (edible; SC17);
+- `MartinWalker`: an NPC with bite-target parts;
+- `mansionC` ×2: underwater buildings;
+- `Torheto_pozna`: breakable posts (*törhető pózna*).

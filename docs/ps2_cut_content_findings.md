@@ -1,93 +1,80 @@
-# PS2 Cut-Content Findings
+# PS2 exe: what it says about cut content
 
-String and struct analysis of `GAME_GDWs/ps2/SLUS_210.62` (the PS2 executable), using the same technique that originally surfaced PC's cut-content evidence in `Jaws.exe`. Cross-checked against PC wherever possible to avoid false positives (see the "Corrections" section below for a near-miss caught during this pass).
+**In short:** the PS2 program (`SLUS_210.62`) was searched for strings and tables. Main findings:
+- **"Hot Pursuit"** is the title of the cut story stage between Blood on the Beach and The Final Chase.
+- **"Deepsea Facility"** is the PS2 title of stage 9 (The Facility).
+- Its stage-name table has a flag that switches from 1 to 0 exactly at Hot Pursuit. What the flag means isn't known.
+- Every Hot Pursuit class uses the story-quest naming (`Stage…Quest`), which is the main evidence that it was a story stage.
+- **The PS2 has no extra systems:** every PS2 class also exists on PC. Things that first looked cut (the squid boss) turned out to be shipped content.
+
+The full Hot Pursuit story is in `docs/cut_content.md` §2; its decoded logic in `docs/exe_analysis.md` §10.
+
+Rewritten for readability on 2026-11-27. Old version: `docs/archive/ps2_cut_content_findings_old_2026-11-27.md`.
 
 ---
 
-## Confirmed Cut-Stage Titles
+## Contents
 
-A stage-name string list in `SLUS_210.62` gives the following, in order:
+1. [The stage-name table](#1-the-stage-name-table)
+2. [Story-quest classes](#2-story-quest-classes)
+3. [Hot Pursuit fields and text](#3-hot-pursuit-fields-and-text)
+4. [Candy Wilson, Highlands Bay, Dolphin Passage](#4-candy-wilson-highlands-bay-dolphin-passage)
+5. [Developer-only strings](#5-developer-only-strings)
+6. [Checking against PC](#6-checking-against-pc)
+7. [Later PC findings](#7-later-pc-findings)
+8. [Old mistakes](#8-old-mistakes)
 
-```
-Open Ocean South, The Arrival, Break Out, Dead of Night, Predator in the Bay,
-Angry Armada, A Taste for Blood, The Deep, Deepsea Facility, Blood on the Beach,
-Hot Pursuit, The Final Chase, Open Ocean East, Open Ocean West,
-Grand Occasus Canals, Underwater Caves, Fisherman's Isle
-```
+---
 
-Two titles here resolve previously-open questions from `mission_system.md` / `CLAUDE.md`:
+## 1. The stage-name table
 
-- **"Hot Pursuit"** — the full title of the cut post-M10 story stage, previously known only via class names (`StagePursuitQuest`). Sits exactly where expected in the list, between "Blood on the Beach" (M10) and "The Final Chase" (M11).
-- **"Deepsea Facility"** — the full title of M09, previously just an inferred label ("The Facility"). Sits between "The Deep" (M08) and "Blood on the Beach" (M10).
-
-## The Mission-Name Table Structure
-
-The string list above is backed by a data table in `.data`, base address `0x004cd8d8` (file offset `0x4cd8d8`). 12-byte entries:
+A table in `.data` at `0x004CD8D8`, 12 bytes per entry (how it was found: `docs/ps2_disassembly_notes.md` §5):
 
 ```c
 struct StageNameEntry {
-    uint32_t name_ptr;  // vaddr into .rodata
-    uint32_t zero;      // always 0 in observed entries
+    uint32_t name_ptr;   // address of the name in .rodata
+    uint32_t zero;       // always 0
     uint32_t flag;
 };
 ```
 
-Decoded entries (`ptr`/`flag`, string resolved from `.rodata`):
+| # | Name | Flag |
+|---|---|---|
+| 1 | Open Ocean South | 1 |
+| 2 | The Arrival | 1 |
+| 3 | Break Out | 1 |
+| 4 | Dead of Night | 1 |
+| 5 | *(pointer into `.sdata`, not resolved; by position probably Hunted, stage 4)* | 1 |
+| 6 | Predator in the Bay | 1 |
+| 7 | Angry Armada | 1 |
+| 8 | A Taste for Blood | 1 |
+| 9 | The Deep | 1 |
+| 10 | **Deepsea Facility** | 1 |
+| 11 | Blood on the Beach | 1 |
+| 12 | **Hot Pursuit** | **0** |
+| 13 | The Final Chase | 0 |
+| 14 | Open Ocean East | 0 |
+| 15 | Open Ocean West | 0 |
+| 16 | Grand Occasus Canals | 0 |
+| 17 | Underwater Caves | 0 |
+| 18 | Fisherman's Isle | 0 |
+| 19 | *(pointer into `.sdata`)* | `0xFA` |
 
-| Entry | flag |
-|---|---|
-| Open Ocean South *(table starts here)* | 1 |
-| The Arrival | 1 |
-| Break Out | 1 |
-| Dead of Night | 1 |
-| *(unresolved pointer, into `.sdata` not `.rodata`)* | 1 |
-| Predator in the Bay | 1 |
-| Angry Armada | 1 |
-| A Taste for Blood | 1 |
-| The Deep | 1 |
-| Deepsea Facility | 1 |
-| Blood on the Beach | 1 |
-| **Hot Pursuit** | **0** |
-| The Final Chase | 0 |
-| Open Ocean East | 0 |
-| Open Ocean West | 0 |
-| Grand Occasus Canals | 0 |
-| Underwater Caves | 0 |
-| Fisherman's Isle | 0 |
-| *(unresolved pointer, into `.sdata`)* | 0xfa |
+**The two titles:**
+- **"Hot Pursuit"** sits exactly between Blood on the Beach (10) and The Final Chase (11). Before this, the stage was known only from class names.
+- **"Deepsea Facility"** sits between The Deep (8) and Blood on the Beach: the PS2 title of stage 9.
 
-**Finding:** the `flag` field is `1` for every entry through "Blood on the Beach," then flips to `0` starting exactly at **"Hot Pursuit"** and stays `0` through "Fisherman's Isle." This is a real, verified structural distinction in the compiled data — since "The Final Chase" (a real, shipped M11 mission) also carries `flag=0`, this is likely **not** a simple cut/unused marker, but something more like "has a numbered stage-select slot" vs. "does not" (Open Ocean zones and side areas are also `flag=0`, and per `CLAUDE.md`, M11 is documented as "not revisitable from Open Ocean" — consistent with not needing a numbered slot). **Not fully resolved** — the exact semantic of the flag bit hasn't been traced to consuming code (see `ps2_disassembly_notes.md` for why that trace didn't succeed this pass).
+**The flag:**
+- It's 1 for every entry up to Blood on the Beach, and 0 from Hot Pursuit on.
+- It's not a simple "cut" marker: the shipped Final Chase has 0 too.
+- Maybe "has a numbered stage-select slot". The open-ocean zones and side areas have 0, and The Final Chase can't be replayed from the open ocean.
+- **Unresolved:** the code that reads the flag wasn't found (`docs/ps2_disassembly_notes.md` §6).
 
-## Jet-Ski / "Hot Pursuit" Mission Text Differs From PC
+---
 
-PS2's jet-ski mission objective/fail text:
-```
-"Destroy all the jet skis!\nPress ^CONT^ to continue."
-"The jet skiers have escaped!\nMission failed!\nPress ^CONT^ to continue."
-```
+## 2. Story-quest classes
 
-This is simpler than PC's version (`CLAUDE.md`'s "Cut Content" section): no mention of Candy Wilson, no police chief, no lighthouse framing. **"Candy" does not appear anywhere in the PS2 executable** — confirmed via full-binary string search. **Re-confirmed and extended 2026-08-15: "Wilson" also has zero occurrences in `SLUS_210.62`, and both "Candy" and "Wilson" have zero occurrences across all 12 per-level string tables in `GAME_GDWs/ps2/STRDATA/*.MIC`** (`AQUARIUM`, `ARMADA`, `BEACH`, `CHASE`, `DEEPSEA`, `DOCKS`, `KATATAMA`, `MUSIC`, `TMYOPEN`, `TMYSTART`, `TOWN`, `WRACK`) — these `.MIC` files hadn't previously been checked as a possible separate localized-text location outside the main exe; this closes that gap. The Candy Wilson narrative is confirmed absent from every text-bearing PS2 file examined, not just the main executable. "Highlands Bay" (genuinely cut/unused — see `CLAUDE.md`) is likewise absent from the PS2 exe's map-name string table. **Correction (2026-08-14):** "Dolphin Passage" was previously grouped with Highlands Bay here as a "cut map name," but it is not cut — it's the real, shipped `OPEN_S`↔`OPEN_NE` zone-transition channel (user-confirmed in-game, verified in GDW data via a shared `MapItemPos_Dolphin Passage` position and matching `FromS`/`FromNE` transition markers — see `CLAUDE.md`/`docs/mission_system.md`'s "Cut / unused map areas" sections). Whether the PC exe's "Dolphin Passage" map label string is likewise absent from the PS2 exe wasn't re-verified after this correction — that would only speak to a PS2 UI-text difference, not to whether the underlying zone-transition content exists on PS2.
-
-~~**Interpretation:** the Candy Wilson / police-chief-home framing was very likely written *after* this PS2 build (April 2006), sometime before the PC build (October 2006), then cut from both before ship.~~
-
-**Correction (2026-10-11):** the PS2 exe is missing the PC's whole mission-goal text pool, not just this line: shipped goals like "BEAT THE COLOSSAL SQUID BOSS!", "FIND AND DESTROY THE FIVE CONTROL ROOMS" and the facility-turbine lines are absent from `SLUS_210.62` too (its only "lighthouse" strings are movie trivia). So the Candy Wilson line's absence on PS2 says nothing about when it was written or cut; the PS2 build just keeps its goal text elsewhere (not located) or has no such briefing text. The "written after the April 2006 PS2 build" dating is withdrawn.
-
-## Richer Implementation Detail for the Cut Pursuit Mission
-
-The PS2 exe retains fields stripped from PC's binary, suggesting a more developed mechanic than "chase jet skis":
-
-```
-m_GateIDList, m_GateCloserIDList, m_GateOpenPosIDList,
-m_GateClosePosIDList, m_GateOpenerIDList         -- a gate-puzzle system
-m_OnBossFight, m_PursuitLostDist                 -- boss/chase-loss mechanics
-m_killpeople, m_peoplenum, m_people...           -- a hostage/kill-count mechanic
-```
-
-Also present: `MSG_BOSSSQUID_COLUMN_DESTROYED`, `CTRLROOM_DESTROYED`, `CTRLRoomcount`, `CTRLRooms`, `DEEPstate`, `DEEP2state` — see "Correction" below, this is **not** part of the cut Pursuit mission, it belongs to the real Colossal Squid boss (`DEEP`/`DEEP2` = `DEEPSEA`/`DEEPSEA2`).
-
-## Full Story-Quest Class List
-
-From a fuller string sweep of `SLUS_210.62` (beyond the earlier targeted keyword greps):
+From a full string sweep:
 
 ```
 Stage0Quest, Stage2Quest, Stage4Quest, Stage6Quest, Stage9Quest, Stage11Quest,
@@ -96,38 +83,107 @@ StageDeepSeaQuest, StageDeep2Quest, StageDeepSeaQuestEvent,
 StagePursuitQuest, StagePursuitQuestEvent, StagePursuitQuest2, StagePursuitQuest2Event
 ```
 
-Note the cut Pursuit mission has **four** related classes (`Quest`, `QuestEvent`, `Quest2`, `Quest2Event`) — more than any single shipped mission — suggesting it may have been planned as a two-phase mission at some point (`Quest`/`Quest2` mirrors the `StageDeepSeaQuest`/`StageDeep2Quest` split used for the real two-part M08 Deep mission across `DEEPSEA.GDW`/`DEEPSEA2.GDW`).
+**Why this makes Hot Pursuit a story stage** (2026-08-12):
+- Every class here uses the `Stage…Quest` pattern.
+- No side challenge, shipped or cut, uses it. They use `…Mission`, `ANSideMission#`, `BGSideMission#` or `MBSideMission#`.
+- Together with its place in the numbered stage list (§1), this makes it a story stage.
 
-**This class list is also the primary evidence (2026-08-12) that Hot Pursuit was a cut *story* mission, not cut side content:** every class here uses the `Stage*Quest` naming pattern — no shipped or cut side challenge anywhere in the game uses that grammar (they use `...Mission`, `ANSideMission#`, `BGSideMission#`, `MBSideMission#` instead). Combined with Hot Pursuit's position in the stage-name list above (interspersed in the numbered M01–M11 sequence, not grouped with the free-roam zone names at the list's tail), this confirms story-mission status. Full writeup with both pieces of evidence in `mission_system.md`.
+**Four Pursuit classes**, more than any shipped stage. On PC, `StagePursuitQuest` turned out to be a first draft and `StagePursuitQuest2` the full mission (`docs/exe_analysis.md` §10).
 
-Also found: `TutorialQuests` containing `FirstQuest`, `BiteQuest`, `FirstBoatQuest`, `FirstCageQuest`, `FirstSeaSeekerQuest`, `DiversQuest`, `SunkenShipQuest`, `SwimmersQuest`, `DestroyPierQuest` — internal names for the shipped tutorial's sub-objectives, not cut content.
+**Tutorial sub-goals** (shipped, not cut): `TutorialQuests` with `FirstQuest`, `BiteQuest`, `FirstBoatQuest`, `FirstCageQuest`, `FirstSeaSeekerQuest`, `DiversQuest`, `SunkenShipQuest`, `SwimmersQuest`, `DestroyPierQuest`.
 
-## Other Dev-Only Strings Found
+---
 
-From the full strings sweep, not previously documented:
+## 3. Hot Pursuit fields and text
+
+**Field names in the PS2 exe:**
+
+```
+m_GateIDList, m_GateCloserIDList, m_GateOpenPosIDList,
+m_GateClosePosIDList, m_GateOpenerIDList            gates
+m_OnBossFight, m_PursuitLostDist                    boss phase, lose distance
+```
+
+- The PC exe has the same fields; their use is decoded in `docs/exe_analysis.md` §10.
+- The gates fit the canal locks of MINEMSHA (§7).
+- Nearby strings `m_killpeople`, `m_peoplenum`, `m_people…` belong to some class not identified here; they're not among the Pursuit quests' fields on PC.
+
+**The PS2 mission texts:**
+
+```
+"Destroy all the jet skis!\nPress ^CONT^ to continue."
+"The jet skiers have escaped!\nMission failed!\nPress ^CONT^ to continue."
+```
+
+These are the texts the quest code itself shows. The PC exe has the same two, plus a separate goal text (§4).
+
+---
+
+## 4. Candy Wilson, Highlands Bay, Dolphin Passage
+
+**Candy Wilson** (the PC goal text: *"…stop them from reaching the home of Amity Police Chief Candy Wilson"*):
+- "Candy" and "Wilson" appear nowhere in `SLUS_210.62`.
+- Nor in any of the 12 `STRDATA/*.MIC` files (`AQUARIUM`, `ARMADA`, `BEACH`, `CHASE`, `DEEPSEA`, `DOCKS`, `KATATAMA`, `MUSIC`, `TMYOPEN`, `TMYSTART`, `TOWN`, `WRACK`), checked 2026-08-15.
+- **This says nothing about when the line was written.** The PS2 exe lacks the PC's whole mission-goal text pool, not just this line: shipped goals like "BEAT THE COLOSSAL SQUID BOSS!" and "FIND AND DESTROY THE FIVE CONTROL ROOMS" are missing too. The PS2 keeps its goal text somewhere not located, or has none.
+
+**Highlands Bay:** a map name on PC that leads nowhere. Absent from the PS2 exe's map-name table.
+
+**Dolphin Passage is not cut.** It's the shipped channel between OPEN_S and OPEN_NE (user-confirmed in-game; shared `MapItemPos_Dolphin Passage` position, `FromS`/`FromNE` markers). Whether the PS2 exe has the label string wasn't re-checked; that would only be a UI-text difference.
+
+---
+
+## 5. Developer-only strings
 
 | String | Context |
 |---|---|
-| `ANShipDebug` | Debug-only ship class, sits among `ANPosition`, `ANVolumetricLight`, `ANSideMission21` (confirms known SC20 class number), `ANShipGen` |
-| `m_debugspheres` | Debug visualization field on a boss class (near `m_bosssprite1/2`, `m_reflector`, `m_lock_texture`, `m_scoretype`) |
-| `m_todo` (×2, different classes) | Literal TODO marker fields — one near explosion/boss/ship fields, one near `MBCsik`, `DDThrow`, `MBScale`, `MBTeszt` (Hungarian for "MBTest"), `MBScore` |
-| `"Placeholder Description"` | Fallback UI text in the ability/upgrade stat screen (near `"DAMAGE %d"`, `"MOVEMENT %d"`, `"NUTRITION %d"`) |
-| `REMOVED` | A state-enum value (alongside `FLOOD`, `CHARGED`, `IDLE`, `FEAR`) tied to `TKSub`, `HalDaru`, `Sensor`, `m_crab` — likely more detail for the Deepsea Facility mining-site content (submarine + crab entities), not "removed content" despite the name |
+| `ANShipDebug` | A debug ship class, among `ANPosition`, `ANVolumetricLight`, `ANSideMission21`, `ANShipGen` |
+| `m_debugspheres` | A debug drawing field on a boss class (near `m_bosssprite1/2`, `m_reflector`, `m_lock_texture`, `m_scoretype`) |
+| `m_todo` (×2) | Literal TODO fields in two classes: one near explosion, boss and ship fields; one near `MBCsik`, `DDThrow`, `MBScale`, `MBTeszt` (Hungarian "test"), `MBScore` |
+| `"Placeholder Description"` | Fallback text on the ability screen (near `"DAMAGE %d"`, `"MOVEMENT %d"`, `"NUTRITION %d"`) |
+| `REMOVED` | A state value next to `FLOOD`, `CHARGED`, `IDLE`, `FEAR`, tied to `TKSub`, `HalDaru`, `Sensor`, `m_crab`. Probably the mining site's submarine and crab entities; not "removed content". |
 
-## Corrections Made During This Investigation
+---
 
-**Near-miss, caught before being reported as fact:** initially flagged a "cut Colossal Squid boss" from PS2 exe strings (`NASquidBoss`, `NASquidCam`, `BossSquidBody_Idle/LeftToRightSlash/RightToLeftSlash/VerticalSlash/Dizzy/Grab/Charge`, `Tentacle_Repel/Grab/Dizzy`, `MSG_BOSSSQUID_COLUMN_DESTROYED`). **This is real, shipped PC content, not cut** — PC's `Jaws.exe` has the loading-tip string `"BEAT THE COLOSSAL SQUID BOSS!"`, and `Squid` appears 137× in PC's `DEEPSEA2.GDW` (tied to M08/M09). One small, real, unexplained gap remains: PS2's `DEEPSEA2.GDE` has 149 squid-string hits vs PC's 137 — a modest quantitative difference in the encounter data, not a missing boss.
+## 6. Checking against PC
 
-**Lesson for future passes:** always verify a PS2-exe string find against PC's `Jaws.exe` and GDWs before reporting it as cut content — the PS2 exe's richer, less-stripped reflection data makes it easy to mistake "PS2 kept more implementation detail for real content" for "PS2 has content PC doesn't."
+**Always check a PS2 find against the PC exe and levels before calling it cut.** The PS2 exe keeps more readable detail, which is easy to mistake for extra content.
 
-**Also re-confirmed via a full class-registry diff:** PC's `CLAS` chunk lists 311 registered classes vs PS2's 302. PC's 9 extra are all PC-specific settings-menu classes (`MSLanguageMenu`, `MSRefreshRateMenu`, `MSSaveEnableMenuItem`, etc. — refresh rate / language / memory-card-format prompts). **PS2 has zero classes not also in PC.** This argues against PS2 having hidden extra *systems*, even though (per this document) it does retain some cut-mission implementation detail PC's binary lost.
+**The squid boss is shipped, not cut.**
+- PS2 strings such as `NASquidBoss`, `NASquidCam`, `BossSquidBody_Idle/LeftToRightSlash/RightToLeftSlash/VerticalSlash/Dizzy/Grab/Charge`, `Tentacle_Repel/Grab/Dizzy` and `MSG_BOSSSQUID_COLUMN_DESTROYED` were first flagged as a cut boss.
+- But the PC exe has the goal "BEAT THE COLOSSAL SQUID BOSS!", and `Squid` appears 137 times in PC `DEEPSEA2.GDW`.
+- `CTRLROOM_DESTROYED`, `CTRLRoomcount`, `CTRLRooms`, `DEEPstate`, `DEEP2state` belong to the same shipped DEEPSEA/DEEPSEA2 content.
+- A small unexplained difference: PS2 `DEEPSEA2.GDE` has 149 `Squid` hits against PC's 137.
 
-## PC-side follow-up (2026-08-12) — "Hot Pursuit" has a real, identified GDW and location
+**Class lists compared:**
+- PC's `CLAS` has 311 classes, PS2's 302.
+- PC's 9 extra are PC settings menus (`MSLanguageMenu`, `MSRefreshRateMenu`, `MSSaveEnableMenuItem`, …).
+- **PS2 has no class the PC lacks.** No hidden extra systems.
 
-Later PC-side investigation (see `mission_system.md`'s "Cut story mission — Hot Pursuit" section for the full writeup) resolved several things this document left open:
+---
 
-- **The "gate-puzzle system" fields above (`m_GateIDList`, `m_GateOpenPosIDList`, etc.) are almost certainly canal lock/sluice gates, not an abstract puzzle mechanic.** `MINEMSHA.GDW` — previously an unidentified GDW in `mission_system.md`'s level table — turned out to be the dedicated GDW for **Grand Occasus Canals** (SC15 "Up a Creek"), confirmed by its BRTR containing 50 numbered `canal01`–`canal50` segments plus 35 `canal_f` variants. Real canals make the gate fields make immediate sense.
-- **Real placed BRTR scene objects for Hot Pursuit exist and are concentrated almost entirely in `MINEMSHA.GDW`** (not spread across all 20 GDWs like the engine's usual shared-asset pool): `JetskiChase` and `ccjetski` appear only there; `jetski_mountpoint`/`jetskipath` appear there plus `OPEN_S.GDW`/`TOWN.GDW`. Resolving the full BRTR parent-child hierarchy (`scripts/resolve_brtr_hierarchy.py`) puts `jetski 1`, `JetskiChase`, and `jetskipath` within ~3 world units of each other at **(-1254, 0, -787)** — tight enough clustering to be deliberate level authoring, not leftover template data — sitting in the same small canal cove as the shipped SC15 mission trigger and its treasure-chest collectible.
-- **Confirmed still live in the shipped PC build:** a user testing the PC release found a jet ski reproducibly spawns at this exact spot every time the level loads, ridden by an NPC stuck in A-pose (bind/rest pose — i.e. never told which animation clip to play). That's the shipped-but-unfinished spawner this document's field analysis predicted, now observed running.
-- **A second, independent site was found (2026-08-12) in `OPEN_NE.GDW`:** a bare anchor node literally named `HOTPURSUIT` (no mesh, zero-size AABB — a level-designer reference marker, same grammar as other confirmed mission markers in this project), sitting near the `Brody's House` map-UI location. Investigated whether that map location was meant to be Candy Wilson's house — inconclusive, but the location does have no house actually built there in-game (confirmed by the user visiting it), consistent with a mapped destination that never got its building placed before the mission was cut. Full writeup in `mission_system.md`.
-- **Still open:** the mission text's "near the lighthouse" framing doesn't reconcile with either site — the only placed `Lighthouse02` object found anywhere is ~4,270 units from the `HOTPURSUIT`/`Brody's House` cluster, not adjacent to it. Either the mission's setting changed during development, or the pursuit was meant to span multiple zones (`MINEMSHA.GDW`'s canals plus an `OPEN_NE.GDW` open-water endpoint).
+## 7. Later PC findings
+
+PC work after this (2026-08-12 on) answered several questions this doc left open. Full story: `docs/cut_content.md` §2.
+
+- **MINEMSHA is Grand Occasus Canals** (SC15 Up a Creek): 50 `canal01`–`canal50` segments and 35 `canal_f` pieces. Real canals explain the gate fields.
+- **Placed Hot Pursuit objects exist, mostly in MINEMSHA.**
+  - `JetskiChase` and `ccjetski` appear only there.
+  - `jetski_mountpoint` / `jetskipath` appear there and in OPEN_S and TOWN.
+  - `jetski 1`, `JetskiChase` and `jetskipath` sit within ~3 units of each other at (−1254, 0, −787), in the same canal cove as SC15's trigger and treasure chest.
+- **Still live on PC:** a jet ski spawns there every time the level loads, ridden by an NPC stuck in A-pose (user-tested).
+- **A second site in OPEN_NE:** a bare marker node named `HOTPURSUIT` near the `Brody's House` map location. No house is built there (user-checked in-game).
+- **The lighthouse** in the goal text: two candidates, a placeholder `Lighthouse02` (~4,270 units away) and a fully modelled one near the Coast Guard HQ. See `docs/cut_content.md` §2.
+- **Playable restoration:** `scripts/build_pursuit_test.py` (`PURSUIT` custom level).
+
+---
+
+## 8. Old mistakes
+
+| Old claim | Now |
+|---|---|
+| The squid boss is cut content | Shipped (§6) |
+| The PS2 exe keeps Pursuit fields that the PC exe lost | The PC exe has them too and its quest logic is fully decoded (`docs/exe_analysis.md` §10) |
+| Candy Wilson was written after the April 2006 PS2 build | Withdrawn 2026-10-11: the PS2 exe lacks all goal texts (§4) |
+| Dolphin Passage is a cut map name | A shipped zone transition |
+| `Quest`/`Quest2` may be two phases, like `StageDeepSeaQuest`/`StageDeep2Quest` | `Quest` is a first draft, `Quest2` the full mission |
+| The only lighthouse is `Lighthouse02` | There's also a modelled lighthouse at the Coast Guard HQ |

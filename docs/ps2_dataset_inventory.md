@@ -1,61 +1,80 @@
-# PS2 Dataset Inventory
+# PS2 files: what we have
 
-Documents the full PS2 release data provided at `GAME_GDWs/ps2/`, which supersedes the earlier single-file `_FISH.GDE`-only state (see `class_registry.md` / `CLAUDE.md`'s "PS2 Version Data" section for the original single-file findings, which still stand).
+**In short:** the full PS2 release is in `GAME_GDWs/ps2/`: 22 level files (`.GDE`) and the game program `SLUS_210.62`. The levels match the PC's, plus two extra files, `AQUA2` and `START2`, which hold parts of the aquarium and tutorial levels. Everything is much smaller than on PC (lower-resolution assets, not missing content).
+
+Formats: `docs/ps2_asset_extraction.md`. What the exe tells us: `docs/ps2_cut_content_findings.md`.
+
+Rewritten for readability on 2026-11-27. Old version: `docs/archive/ps2_dataset_inventory_old_2026-11-27.md`.
 
 ---
 
-## Directory Layout
+## Folder layout
 
-```
-GAME_GDWs/ps2/DATA/*.GDE      -- all 20 level archives (PC-equivalent names, .GDE extension)
-                                  plus two with NO PC equivalent: AQUA2.GDE, START2.GDE
-GAME_GDWs/ps2/SLUS_210.62      -- PS2 main executable (ELF32, MIPS, stripped, 5,969,728 bytes)
-GAME_GDWs/ps2/SYSTEM.CNF       -- boot config
-GAME_GDWs/ps2/IOP/*.IRX,.IMG   -- PS2 IOP driver modules (audio/pad/memcard) -- not game content
-GAME_GDWs/ps2/STRDATA/*.MIC    -- streaming audio/video containers, one per level -- not decoded
-GAME_GDWs/ps2/FILES.LST        -- plain file manifest
-```
+| Path | What |
+|---|---|
+| `GAME_GDWs/ps2/DATA/*.GDE` | 22 level files: the PC's 20 names plus `AQUA2` and `START2` |
+| `GAME_GDWs/ps2/SLUS_210.62` | The game program |
+| `GAME_GDWs/ps2/SYSTEM.CNF` | Boot settings |
+| `GAME_GDWs/ps2/IOP/*.IRX`, `*.IMG` | PS2 driver modules (audio, pad, memory card). Not game content. |
+| `GAME_GDWs/ps2/STRDATA/*.MIC` | Streamed audio/video, one per level. Not decoded; searched for text (`docs/ps2_cut_content_findings.md`). |
+| `GAME_GDWs/ps2/FILES.LST` | Plain file list |
 
-`SYSTEM.CNF` contents:
+`SYSTEM.CNF`:
+
 ```
 BOOT2 = cdrom0:\SLUS_210.62;1
 VER = 1.02
 VMODE = NTSC
 ```
 
-## SLUS_210.62 — Executable Details
+---
+
+## The program: `SLUS_210.62`
 
 ```
-ELF32, MIPS, 2's complement little-endian, statically linked, stripped
+ELF32, MIPS, little-endian, statically linked, stripped
+Size: 5,969,728 bytes
 Entry point: 0x100008
-Flags: 0x20924001 -- noreorder, 5900, eabi64, mips3
-Built: April 2006 (file timestamp)
+Flags: 0x20924001 (noreorder, 5900, eabi64, mips3)
+File date: April 2006
 ```
 
-The `5900`/`eabi64`/`mips3` flags confirm this targets the PS2 Emotion Engine (R5900), not a generic MIPS R3000 despite `readelf`'s generic machine-type label. "Stripped" means no function/variable symbol table survives — only embedded string literals and the engine's own runtime class/field reflection strings (used for save/serialization, not debug info) are readable. See `ps2_disassembly_notes.md`.
+- The `5900`/`eabi64` flags mean the PS2's main processor (Emotion Engine, R5900).
+- **Stripped:** no symbol table. Only string literals and the engine's own reflection strings (class and field names) are readable.
+- File-dated about six months before the PC's `Jaws.exe` (October 2006).
+- Disassembly setup: `docs/ps2_disassembly_notes.md`.
 
-Built roughly six months before PC's `Jaws.exe` (October 2006) — this age gap explains several content differences documented in `ps2_cut_content_findings.md`.
+---
 
-## Per-File Sizes (`DATA/*.GDE`)
+## Level file sizes
 
-| File | Size | | File | Size |
-|---|---|---|---|---|
-| AQUA2.GDE | 23.2 MB | | KATATAMA.GDE | 26.3 MB |
-| AQUARIUM.GDE | 24.3 MB | | MINEMSHA.GDE | 17.7 MB |
-| ARMADA.GDE | 24.4 MB | | OPEN_NE.GDE | 45.7 MB |
-| BEACH.GDE | 24.6 MB | | OPEN_NW.GDE | 45.2 MB |
-| BEACHPST.GDE | 20.0 MB | | OPEN_S.GDE | 51.8 MB |
-| CHASE.GDE | 17.4 MB | | START.GDE | 26.6 MB |
-| DEEPSEA.GDE | 23.4 MB | | START2.GDE | 27.0 MB |
-| DEEPSEA2.GDE | 25.6 MB | | TITLE.GDE | 52.8 MB |
-| DOCKS.GDE | 19.8 MB | | TITLE0.GDE | 1.8 MB |
-| FISH.GDE | 16.7 MB | | TOWN.GDE | 24.4 MB |
-| GAUNTLET.GDE | 13.4 MB | | WRACK.GDE | 24.4 MB |
+| File | Size | File | Size |
+|---|---|---|---|
+| AQUA2 | 23.2 MB | KATATAMA | 26.3 MB |
+| AQUARIUM | 24.3 MB | MINEMSHA | 17.7 MB |
+| ARMADA | 24.4 MB | OPEN_NE | 45.7 MB |
+| BEACH | 24.6 MB | OPEN_NW | 45.2 MB |
+| BEACHPST | 20.0 MB | OPEN_S | 51.8 MB |
+| CHASE | 17.4 MB | START | 26.6 MB |
+| DEEPSEA | 23.4 MB | START2 | 27.0 MB |
+| DEEPSEA2 | 25.6 MB | TITLE | 52.8 MB |
+| DOCKS | 19.8 MB | TITLE0 | 1.8 MB |
+| FISH | 16.7 MB | TOWN | 24.4 MB |
+| GAUNTLET | 13.4 MB | WRACK | 24.4 MB |
 
-All are much smaller than their PC counterparts (e.g. `FISH.GDE` 16.7 MB vs `FISH.GDW` 131 MB), consistent with PS2-resolution/PS2-budget assets rather than missing content — same conclusion already reached for the single-file `_FISH.GDE` case.
+All far smaller than on PC (FISH: 16.7 MB against 131 MB).
 
-## Open Question: `AQUA2.GDE` and `START2.GDE`
+---
 
-Both are structurally complete, valid GDED archives — same chunk layout as `AQUARIUM.GDE`/`START.GDE` (`FSIZ`/`VERS`/`EXBY`/`GNRL`/`WDIM`/`RSPR`/`CLAS`/`RSRC`/`BNCH`/`BRTR`/`SCRT`/`SKIP`/`FDIR`/`ENDF`), not truncated or corrupt fragments. Their `CLAS` chunk size (248,939 bytes) matches every other PS2 GDE exactly, and their `WDIM` world-bounds floats are the same shared constant seen across the whole PS2 build.
+## `AQUA2` and `START2`
 
-No PC GDW has an equivalent second file for Aquarium or Start/Tutorial. The closest PC analogue is the `BEACH.GDW` / `BEACHPST.GDW` pairing (pre/post-mission-state variants of one level) — `AQUA2`/`START2` may be the same kind of "alternate state" pairing for two more levels that got collapsed back into a single file by the time of the PC build. **Not yet confirmed** — would need a name/BRTR diff against `AQUARIUM.GDE`/`START.GDE` to verify.
+**Both are complete, valid level files**, not fragments:
+- the same chunk list as the others (`FSIZ VERS EXBY GNRL WDIM RSPR CLAS RSRC BNCH BRTR SCRT SKIP FDIR ENDF`);
+- the same `CLAS` size as every PS2 file (248,939 bytes);
+- the same `WDIM` world bounds as the rest of the PS2 build.
+
+**The PC has no second file** for these two levels. On PS2 each level is split in two:
+- **`START2`** holds the tutorial's ending: the Aurora cutscene, the four rocks and the HUD sprites (`docs/cut_content.md` §3).
+- **`AQUA2`** seems to hold the orca boss's part of the aquarium; it has the boss's own copy of a name the PC level also has (`docs/cut_content.md`). Not fully compared.
+
+Probably a split for the PS2's smaller memory, similar in shape to the PC's `BEACH` / `BEACHPST` pair. A full name and `BRTR` comparison against `AQUARIUM`/`START` wasn't done.
